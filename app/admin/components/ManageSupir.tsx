@@ -3,27 +3,12 @@
 import { useState, useEffect, FormEvent, useMemo, type ReactNode } from "react";
 import axios from "axios";
 import {
-  Plus,
-  Edit3,
-  Trash2,
-  Search,
-  Mail,
-  Phone,
-  X,
-  Users,
-  Loader2,
-  CheckCircle2,
-  XCircle,
-  Activity,
-  UserPlus,
-  UserCog,
-  Lock,
-  Eye,
-  BadgeCheck,
+  Plus, Edit3, Trash2, Search, Mail, Phone, X, Users,
+  Loader2, CheckCircle2, XCircle, Activity, UserPlus,
+  UserCog, Lock, Eye, BadgeCheck, LayoutGrid, ChevronDown
 } from "lucide-react";
 import ConfirmDialog from './ConfirmDialog';
 import AlertDialog from './AlertDialog';
-import { motion, AnimatePresence } from "framer-motion";
 import toast, { Toaster } from "react-hot-toast";
 
 // Types
@@ -44,13 +29,6 @@ interface FormData {
   isActive: boolean;
 }
 
-interface Stats {
-  total: number;
-  active: number;
-  inactive: number;
-}
-
-// Constants
 const API_BASE_URL = "http://localhost:5000/api/admin";
 const INITIAL_FORM_DATA: FormData = {
   fullName: "",
@@ -61,13 +39,11 @@ const INITIAL_FORM_DATA: FormData = {
 };
 
 export default function ManageSupir() {
-  // State Management
   const [supirList, setSupirList] = useState<Supir[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
   
-  // Modal States
   const [showModal, setShowModal] = useState<boolean>(false);
   const [viewingSupir, setViewingSupir] = useState<Supir | null>(null);
   const [editingSupir, setEditingSupir] = useState<Supir | null>(null);
@@ -81,20 +57,16 @@ export default function ManageSupir() {
   const [selectedSupirForToggle, setSelectedSupirForToggle] = useState<Supir | null>(null);
   const [showToggleConfirm, setShowToggleConfirm] = useState(false);
 
-  // Data Fetching
   const fetchSupir = async (): Promise<void> => {
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
-      
       const response = await axios.get(`${API_BASE_URL}/supir-list`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
       setSupirList(response.data.data || []);
     } catch (error) {
       toast.error("Gagal memuat data supir");
-      console.error("Fetch error:", error);
     } finally {
       setLoading(false);
     }
@@ -104,48 +76,32 @@ export default function ManageSupir() {
     fetchSupir();
   }, []);
 
-  // Computed Values
-  const stats: Stats = useMemo(
-    () => ({
-      total: supirList.length,
-      active: supirList.filter((s) => s.isActive).length,
-      inactive: supirList.filter((s) => !s.isActive).length,
-    }),
-    [supirList]
+  const stats = useMemo(() => ({
+    total: supirList.length,
+    active: supirList.filter((s) => s.isActive).length,
+    inactive: supirList.filter((s) => !s.isActive).length,
+  }), [supirList]);
+
+  const filteredSupir = supirList.filter(s =>
+    s.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredSupir = useMemo(
-    () =>
-      supirList.filter(
-        (s) =>
-          s.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          s.email.toLowerCase().includes(searchTerm.toLowerCase())
-      ),
-    [supirList, searchTerm]
-  );
-
-  // Event Handlers
   const handleSubmit = async (e: FormEvent): Promise<void> => {
     e.preventDefault();
     setSubmitting(true);
-
     try {
       const token = localStorage.getItem("token");
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      
-      const url = editingSupir
-        ? `${API_BASE_URL}/supir/${editingSupir.id}` 
-        : `${API_BASE_URL}/add-operator`;
+      const url = editingSupir ? `${API_BASE_URL}/supir/${editingSupir.id}` : `${API_BASE_URL}/add-operator`;
 
       if (editingSupir) {
         await axios.put(url, formData, config);
-        toast.success("Data berhasil diedit", { icon: "✏️" });
         setSuccessTitle('Data berhasil diedit');
         setSuccessDescription('Perubahan supir berhasil disimpan.');
         setSuccessIcon(<Edit3 size={24} />);
       } else {
         await axios.post(url, formData, config);
-        toast.success("Data berhasil ditambahkan", { icon: "✅" });
         setSuccessTitle('Data berhasil ditambahkan');
         setSuccessDescription('Supir baru berhasil ditambahkan ke sistem.');
         setSuccessIcon(<CheckCircle2 size={24} />);
@@ -155,40 +111,26 @@ export default function ManageSupir() {
       setShowSuccessDialog(true);
       fetchSupir();
     } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || (editingSupir ? "Gagal memperbarui data" : "Gagal menambahkan supir")
-      );
-      console.error("Submit error:", error);
+      toast.error(error.response?.data?.message || "Gagal menyimpan data");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const openDeleteConfirm = (id: string): void => {
-    setPendingDeleteId(id);
-    setShowConfirmDialog(true);
-  };
-
   const handleDelete = async (): Promise<void> => {
     if (!pendingDeleteId) return;
-
     try {
       const token = localStorage.getItem("token");
       await axios.delete(`${API_BASE_URL}/supir/${pendingDeleteId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      toast.success("Supir berhasil dihapus");
-
       setSuccessTitle('Data berhasil dihapus');
       setSuccessDescription('Data supir telah dihapus secara permanen.');
       setSuccessIcon(<Trash2 size={24} />);
       setShowSuccessDialog(true);
-
       fetchSupir();
-
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Gagal menghapus supir");
-      console.error("Delete error:", error);
+      toast.error("Gagal menghapus supir");
     } finally {
       setShowConfirmDialog(false);
       setPendingDeleteId(null);
@@ -198,575 +140,310 @@ export default function ManageSupir() {
   const toggleStatus = async (supir: Supir): Promise<void> => {
     try {
       const token = localStorage.getItem("token");
-      // Menggunakan rute PUT yang sama untuk update status cepat
-      await axios.put(
-        `${API_BASE_URL}/supir/${supir.id}`,
+      await axios.put(`${API_BASE_URL}/supir/${supir.id}`, 
         { ...supir, isActive: !supir.isActive },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      toast.success(
-        `Supir berhasil ${!supir.isActive ? "diaktifkan" : "dinonaktifkan"}`
-      );
+      toast.success(`Supir berhasil ${!supir.isActive ? "diaktifkan" : "dinonaktifkan"}`);
       fetchSupir();
     } catch (error) {
       toast.error("Gagal mengubah status");
-      console.error("Status toggle error:", error);
     }
   };
 
-  const openModal = (supir?: Supir): void => {
-    if (supir) {
-      setEditingSupir(supir);
-      setFormData({
-        fullName: supir.fullName,
-        email: supir.email,
-        password: "", // Dikosongkan agar admin tidak melihat password lama
-        phoneNumber: supir.phoneNumber || "",
-        isActive: supir.isActive,
-      });
-    } else {
-      setEditingSupir(null);
-      setFormData(INITIAL_FORM_DATA);
-    }
+  const openCreateModal = () => {
+    setEditingSupir(null);
+    setFormData(INITIAL_FORM_DATA);
     setShowModal(true);
   };
 
-  const closeModal = (): void => {
-    setShowModal(false);
-    setEditingSupir(null);
-    setFormData(INITIAL_FORM_DATA);
+  const openEditModal = (supir: Supir) => {
+    setEditingSupir(supir);
+    setFormData({
+      fullName: supir.fullName,
+      email: supir.email,
+      password: "",
+      phoneNumber: supir.phoneNumber || "",
+      isActive: supir.isActive,
+    });
+    setShowModal(true);
   };
-
-  const closeSuccessDialog = (): void => {
-    setShowSuccessDialog(false);
-  };
-
-  // Render Helpers
-  const renderStatsCard = (
-    label: string,
-    value: number,
-    Icon: React.ElementType,
-    bgColor: string,
-    delay: number
-  ) => (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay }}
-      className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 flex items-center justify-between"
-    >
-      <div>
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-          {label}
-        </p>
-        <p className="text-2xl font-black text-slate-800">{value}</p>
-      </div>
-      <div className={`${bgColor} p-3 rounded-xl shadow-inner text-white`}>
-        <Icon size={18} />
-      </div>
-    </motion.div>
-  );
-
-  const renderTableRow = (supir: Supir) => (
-    <tr
-      key={supir.id}
-      className="hover:bg-emerald-50/20 transition-colors duration-200"
-    >
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#064E3B] text-white flex items-center justify-center font-bold text-sm shadow-inner">
-            {supir.fullName.charAt(0).toUpperCase()}
-          </div>
-          <div>
-            <p className="font-semibold text-slate-800 text-sm">
-              {supir.fullName}
-            </p>
-            <p className="text-[10px] text-slate-400 font-mono">
-              ID: {supir.id.slice(0, 6)}
-            </p>
-          </div>
-        </div>
-      </td>
-      <td className="px-4 py-3">
-        <div className="space-y-1">
-          <span className="flex items-center gap-1.5 text-slate-600 text-xs">
-            <Mail size={12} className="text-emerald-600 flex-shrink-0" />
-            <span className="truncate max-w-[150px]">{supir.email}</span>
-          </span>
-          <span className="flex items-center gap-1.5 text-slate-600 text-xs">
-            <Phone size={12} className="text-emerald-600 flex-shrink-0" />
-            <span>{supir.phoneNumber || "-"}</span>
-          </span>
-        </div>
-      </td>
-      <td className="px-4 py-3">
-        <button
-onClick={() => openToggleConfirm(supir)}
-          className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider border transition-all ${
-            supir.isActive
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-              : "bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-100"
-          }`}
-        >
-          {supir.isActive ? "Aktif" : "Nonaktif"}
-        </button>
-      </td>
-      <td className="px-4 py-3 text-right">
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={() => setViewingSupir(supir)}
-            className="p-2 text-white-300 bg-blue-500 rounded-lg transition-all"
-            title="Lihat detail supir"
-          >
-            <Eye size={14} />
-          </button>
-          <button
-            onClick={() => openModal(supir)}
-            className="p-2 text-white-300 bg-yellow-400 rounded-lg transition-all"
-            title="Edit supir"
-          >
-            <Edit3 size={14} />
-          </button>
-          <button
-            onClick={() => openDeleteConfirm(supir.id)}
-            className="p-2 text-white-300 bg-red-600 rounded-lg transition-all"
-            title="Hapus supir"
-          >
-            <Trash2 size={14} />
-          </button>
-        </div>
-      </td>
-    </tr>
-  );
-
-  const renderViewModal = () => (
-    <AnimatePresence>
-      {viewingSupir && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-emerald-100 overflow-hidden"
-          >
-            <div className="bg-[#064E3B] px-5 py-4 flex justify-between items-center text-white">
-              <h3 className="text-base font-bold flex items-center gap-2">
-                <BadgeCheck size={18} />
-                Detail Akun Supir
-              </h3>
-              <button
-                onClick={() => setViewingSupir(null)}
-                className="p-1 hover:bg-white/10 rounded-full transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="p-6 space-y-5">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-emerald-100 text-[#064E3B] flex items-center justify-center font-black text-2xl shadow-inner">
-                  {viewingSupir.fullName.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <h4 className="text-lg font-bold text-slate-800">{viewingSupir.fullName}</h4>
-                  <span className={`inline-block mt-1 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                    viewingSupir.isActive ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
-                  }`}>
-                    {viewingSupir.isActive ? "Status: Aktif" : "Status: Nonaktif"}
-                  </span>
-                </div>
-              </div>
-              <div className="bg-slate-50 p-4 rounded-xl space-y-3 border border-slate-100">
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">ID Sistem</p>
-                  <p className="text-sm font-mono text-slate-700 mt-0.5">{viewingSupir.id}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Email (Untuk Login Mobile)</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <Mail size={14} className="text-emerald-600" />
-                    <p className="text-sm font-medium text-slate-700">{viewingSupir.email}</p>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Nomor Telepon</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <Phone size={14} className="text-emerald-600" />
-                    <p className="text-sm font-medium text-slate-700">{viewingSupir.phoneNumber || "Tidak ada nomor"}</p>
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => setViewingSupir(null)}
-                className="w-full py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-200 transition-all"
-              >
-                Tutup
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
-  );
-
-  const renderModal = () => (
-    <AnimatePresence>
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-emerald-100 overflow-hidden"
-          >
-            <div className="bg-[#064E3B] px-5 py-4 flex justify-between items-center text-white">
-              <div>
-                <h3 className="text-base font-bold flex items-center gap-2">
-                  {editingSupir ? <UserCog size={18} /> : <UserPlus size={18} />}
-                  {editingSupir ? "Edit Supir" : "Tambah Supir & Buat Akun"}
-                </h3>
-                <p className="text-emerald-200/80 text-[10px] mt-0.5">
-                  {editingSupir
-                    ? "Perbarui informasi supir"
-                    : "Akun ini akan digunakan supir untuk login ke aplikasi"}
-                </p>
-              </div>
-              <button
-                onClick={closeModal}
-                className="p-1 hover:bg-white/10 rounded-full transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="p-5 space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 ml-1 uppercase tracking-wider">
-                  Nama Lengkap <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                    <Users size={14} />
-                  </div>
-                  <input
-                    required
-                    value={formData.fullName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, fullName: e.target.value })
-                    }
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 rounded-xl text-xs border border-slate-200 focus:border-[#064E3B] focus:bg-white focus:ring-2 focus:ring-emerald-500/10 outline-none transition-all font-medium text-slate-700"
-                    placeholder="Nama lengkap"
-                    maxLength={100}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 ml-1 uppercase tracking-wider">
-                    Email <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                      <Mail size={14} />
-                    </div>
-                    <input
-                      type="email"
-                      required
-                      value={formData.email}
-                      onChange={(e) =>
-                        setFormData({ ...formData, email: e.target.value })
-                      }
-                      className="w-full pl-9 pr-3 py-2.5 bg-slate-50 rounded-xl text-xs border border-slate-200 focus:border-[#064E3B] focus:bg-white focus:ring-2 focus:ring-emerald-500/10 outline-none transition-all font-medium text-slate-700"
-                      placeholder="email@domain.com"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 ml-1 uppercase tracking-wider">
-                    Telepon
-                  </label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                      <Phone size={14} />
-                    </div>
-                    <input
-                      type="tel"
-                      value={formData.phoneNumber}
-                      onChange={(e) =>
-                        setFormData({ ...formData, phoneNumber: e.target.value })
-                      }
-                      className="w-full pl-9 pr-3 py-2.5 bg-slate-50 rounded-xl text-xs border border-slate-200 focus:border-[#064E3B] focus:bg-white focus:ring-2 focus:ring-emerald-500/10 outline-none transition-all font-medium text-slate-700"
-                      placeholder="081234567890"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 ml-1 uppercase tracking-wider">
-                  {editingSupir ? "Password Baru (Opsional)" : "Password Aplikasi"} 
-                  {!editingSupir && <span className="text-rose-500"> *</span>}
-                </label>
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                    <Lock size={14} />
-                  </div>
-                  <input
-                    type="password"
-                    required={!editingSupir}
-                    value={formData.password}
-                    onChange={(e) =>
-                      setFormData({ ...formData, password: e.target.value })
-                    }
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 rounded-xl text-xs border border-slate-200 focus:border-[#064E3B] focus:bg-white focus:ring-2 focus:ring-emerald-500/10 outline-none transition-all font-medium text-slate-700"
-                    placeholder={editingSupir ? "Kosongkan jika tidak ingin mengubah sandi" : "Buat sandi login (Min. 6 karakter)"}
-                    minLength={editingSupir && formData.password === "" ? 0 : 6}
-                  />
-                </div>
-              </div>
-
-              {editingSupir && (
-                <div className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg">
-                  <input
-                    type="checkbox"
-                    id="isActive"
-                    checked={formData.isActive}
-                    onChange={(e) =>
-                      setFormData({ ...formData, isActive: e.target.checked })
-                    }
-                    className="w-4 h-4 rounded border-slate-300 text-[#064E3B] focus:ring-[#064E3B]"
-                  />
-                  <label htmlFor="isActive" className="text-xs font-medium text-slate-700">
-                    Akun aktif
-                  </label>
-                </div>
-              )}
-
-              <div className="pt-3 flex gap-2">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="flex-1 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-200 transition-all shadow-sm"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex-1 py-2.5 bg-[#064E3B] text-white rounded-xl font-bold text-xs shadow-md shadow-emerald-900/20 hover:bg-[#053f30] disabled:opacity-70 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-1.5"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="animate-spin" size={14} />
-                      <span>Proses...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 size={14} />
-                      <span>{editingSupir ? "Simpan Perubahan" : "Tambah & Buat Akun"}</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
-  );
-
-  const renderConfirmDialog = () => (
-    <ConfirmDialog
-      open={showConfirmDialog}
-      title="Yakin Hapus Data?"
-      description="Semua data supir yang terkait akan dihapus permanen."
-      confirmText="Ya"
-      cancelText="Batal"
-      onConfirm={handleDelete}
-      onCancel={() => {
-        setShowConfirmDialog(false);
-        setPendingDeleteId(null);
-      }}
-    />
-  );
-
-  const openToggleConfirm = (supir: Supir): void => {
-  setSelectedSupirForToggle(supir);
-  setShowToggleConfirm(true);
-};
-
-       const renderToggleConfirmDialog = () => (
-  <ConfirmDialog
-    open={showToggleConfirm}
-    title={
-      selectedSupirForToggle?.isActive
-        ? "Nonaktifkan Supir?"
-        : "Aktifkan Supir?"
-    }
-    description={
-      selectedSupirForToggle?.isActive
-        ? "Supir ini tidak akan bisa mengakses aplikasi."
-        : "Supir ini akan bisa kembali mengakses aplikasi."
-    }
-    confirmText="Ya"
-    cancelText="Batal"
-     onConfirm={() => {
-  if (selectedSupirForToggle) {
-    toggleStatus(selectedSupirForToggle);
-  }
-  setShowToggleConfirm(false);
-  setSelectedSupirForToggle(null);
-}}    onCancel={() => {
-      setShowToggleConfirm(false);
-      setSelectedSupirForToggle(null);
-    }}
-  />
-);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/20 to-teal-50/20">
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 3000,
-          style: {
-            background: "#fff",
-            color: "#363636",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)",
-            borderRadius: "8px",
-            fontSize: "12px",
-            padding: "8px 12px",
-          },
-        }}
-      />
-
+    <div className="max-w-7xl mx-auto space-y-8 p-4">
+      <Toaster position="top-right" />
+      
       <AlertDialog
         open={showSuccessDialog}
         title={successTitle}
         description={successDescription}
         buttonText="OK"
         icon={successIcon}
-        onClose={closeSuccessDialog}
+        onClose={() => setShowSuccessDialog(false)}
       />
 
-      {renderConfirmDialog()}
-      {renderToggleConfirmDialog()}
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-end gap-6">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Manajemen Supir</h1>
+          <p className="text-gray-500 flex items-center gap-2">
+            <LayoutGrid size={16} /> Kelola data dan akun akses supir armada Anda.
+          </p>
+        </div>
+      </div>
 
-      <div className="max-w-7xl mx-auto p-3 md:p-4 space-y-4">
-        <motion.div
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          className="relative overflow-hidden bg-white rounded-2xl shadow-md shadow-emerald-900/5 border border-emerald-100/50 p-5"
-        >
-          <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-900/5 rounded-full blur-2xl" />
-
-          <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="bg-[#064E3B] p-2.5 rounded-xl shadow-lg shadow-emerald-900/20 text-white">
-                <Users size={22} />
-              </div>
-              <div>
-                <h1 className="text-2xl font-black text-[#064E3B] tracking-tight">
-                  Manajemen Supir
-                </h1>
-                <p className="text-xs text-slate-500 font-medium">
-                  Kelola data dan akun akses supir armada Anda
-                </p>
-              </div>
+      {/* STATS CARD */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[
+          { label: 'Total Supir', val: stats.total, color: 'text-gray-600', bg: 'bg-gray-50', icon: Users },
+          { label: 'Supir Aktif', val: stats.active, color: 'text-green-600', bg: 'bg-green-50', icon: CheckCircle2 },
+          { label: 'Nonaktif', val: stats.inactive, color: 'text-red-600', bg: 'bg-red-50', icon: XCircle },
+        ].map((stat, i) => (
+          <div key={i} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
+            <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
+              <stat.icon size={24} />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">{stat.label}</p>
+              <p className="text-2xl font-bold text-gray-900">{stat.val}</p>
             </div>
           </div>
-        </motion.div>
+        ))}
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {renderStatsCard("Total", stats.total, Users, "bg-[#064E3B]", 0.1)}
-          {renderStatsCard("Aktif", stats.active, Activity, "bg-emerald-600", 0.2)}
-          {renderStatsCard("Nonaktif", stats.inactive, XCircle, "bg-rose-500", 0.3)}
-        </div>
-
-        <div className="flex justify-end mt-4">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => openModal()}
-            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-[#064E3B] text-white text-sm font-bold transition-all duration-200 shadow-lg shadow-slate-200 hover:bg-[#053f30] active:scale-95"
-          >
-            <Plus size={18} />
-            Tambah Supir
-          </motion.button>
-        </div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden"
+      <div className="flex justify-end mt-4">
+        <button
+          onClick={openCreateModal}
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-[#064E3B] text-white text-sm font-bold transition-all duration-200 shadow-lg shadow-slate-200 hover:bg-[#053f30] active:scale-95"
         >
-          <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div className="relative flex-1 max-w-sm">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                size={16}
-              />
-              <input
-                type="text"
-                placeholder="Cari nama atau email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all text-slate-900"
-              />
-            </div>
-            <div className="text-xs text-slate-500 font-medium">
-              {filteredSupir.length} / {supirList.length}
-            </div>
-          </div>
+          <Plus size={18} /> Tambah Supir Baru
+        </button>
+      </div>
 
+      {/* TABLE */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-gray-50">
+          <div className="relative group max-w-md">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="text"
+              placeholder="Cari nama atau email supir..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-green-500/20 outline-none text-black"
+            />
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex flex-col items-center justify-center h-64 space-y-4 text-gray-400">
+            <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+            <p>Sinkronisasi data...</p>
+          </div>
+        ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-slate-50/50 border-b border-slate-100">
-                <tr>
-                  <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Informasi
-                  </th>
-                  <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Kontak Login
-                  </th>
-                  <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Aksi
-                  </th>
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-50/50">
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest w-12 text-center">No</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Informasi Supir</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Kontak</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Status</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Aksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {loading ? (
-                  <tr>
-                    <td colSpan={4} className="py-12 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <Loader2 className="animate-spin text-[#064E3B]" size={20} />
-                        <p className="text-xs text-slate-500 font-medium">Memuat...</p>
+              <tbody className="divide-y divide-gray-100">
+                {filteredSupir.map((supir, idx) => (
+                  <tr key={supir.id} className="hover:bg-gray-50/80 transition-colors group">
+                    <td className="px-6 py-5 text-center text-sm text-gray-400">{idx + 1}</td>
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 group-hover:bg-green-100 group-hover:text-green-600 transition-colors font-bold">
+                          {supir.fullName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-900 leading-none">{supir.fullName}</p>
+                          <p className="text-[10px] text-gray-400 mt-1 font-mono uppercase tracking-tighter">ID: {supir.id.slice(0, 8)}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Mail size={14} className="text-gray-400" /> {supir.email}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                          <Phone size={12} /> {supir.phoneNumber || '-'}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <button 
+                        onClick={() => {
+                          setSelectedSupirForToggle(supir);
+                          setShowToggleConfirm(true);
+                        }}
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold ring-1 ring-inset transition-all ${
+                        supir.isActive 
+                          ? 'bg-green-100 text-green-800 ring-green-600/20' 
+                          : 'bg-red-100 text-red-800 ring-red-600/20'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full mr-2 ${supir.isActive ? 'bg-green-600' : 'bg-red-600'}`}></span>
+                        {supir.isActive ? 'Aktif' : 'Nonaktif'}
+                      </button>
+                    </td>
+                    <td className="px-6 py-5 text-right">
+                      <div className="flex justify-end gap-1">
+                        <button onClick={() => setViewingSupir(supir)} className="p-2 text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-all"><Eye size={18} /></button>
+                        <button onClick={() => openEditModal(supir)} className="p-2 text-white bg-yellow-400 rounded-lg hover:bg-yellow-500 transition-all"><Edit3 size={18} /></button>
+                        <button onClick={() => { setPendingDeleteId(supir.id); setShowConfirmDialog(true); }} className="p-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-all"><Trash2 size={18} /></button>
                       </div>
                     </td>
                   </tr>
-                ) : filteredSupir.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="py-12 text-center">
-                      <p className="text-xs text-slate-400 font-medium">
-                        {searchTerm ? "Tidak ada hasil" : "Belum ada data"}
-                      </p>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredSupir.map(renderTableRow)
-                )}
+                ))}
               </tbody>
             </table>
           </div>
-        </motion.div>
+        )}
       </div>
 
-      {renderModal()}
-      {renderViewModal()}
+      {/* MODAL VIEW DETAIL */}
+      {viewingSupir && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-white/20">
+            <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h3 className="text-xl font-bold text-gray-900">Detail Supir</h3>
+              <button onClick={() => setViewingSupir(null)} className="p-2 hover:bg-white rounded-full transition-colors text-gray-400"><X size={20} /></button>
+            </div>
+            <div className="p-8 space-y-6">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-20 h-20 bg-green-100 text-green-700 rounded-2xl flex items-center justify-center text-3xl font-black shadow-inner">
+                  {viewingSupir.fullName.charAt(0).toUpperCase()}
+                </div>
+                <div className="text-center">
+                  <h4 className="text-xl font-bold text-gray-900">{viewingSupir.fullName}</h4>
+                  <span className={`text-xs font-bold uppercase tracking-widest ${viewingSupir.isActive ? 'text-green-600' : 'text-red-600'}`}>
+                    {viewingSupir.isActive ? 'Akun Aktif' : 'Akun Nonaktif'}
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-4 bg-gray-50 p-6 rounded-2xl border border-gray-100">
+                 <div>
+                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Alamat Email</label>
+                   <p className="text-gray-700 font-medium flex items-center gap-2 mt-1"><Mail size={16} className="text-green-600"/> {viewingSupir.email}</p>
+                 </div>
+                 <div>
+                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nomor Telepon</label>
+                   <p className="text-gray-700 font-medium flex items-center gap-2 mt-1"><Phone size={16} className="text-green-600"/> {viewingSupir.phoneNumber || 'Tidak ada nomor'}</p>
+                 </div>
+              </div>
+              <button onClick={() => setViewingSupir(null)} className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold hover:bg-gray-800 transition-all">Tutup</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL FORM */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-white/20">
+            <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h3 className="text-xl font-bold text-gray-900">{editingSupir ? 'Edit Data Supir' : 'Registrasi Supir Baru'}</h3>
+              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-white rounded-full transition-colors text-gray-400"><X size={20} /></button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-8 space-y-5">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Nama Lengkap</label>
+                <input
+                  required
+                  value={formData.fullName}
+                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                  placeholder="Masukkan nama lengkap supir"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition font-medium text-black"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Email</label>
+                  <input
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="email@perusahaan.com"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition text-black"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Nomor Telepon</label>
+                  <input
+                    type="tel"
+                    value={formData.phoneNumber}
+                    onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                    placeholder="0812xxxx"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition text-black"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">
+                  {editingSupir ? "Password Baru (Opsional)" : "Password Akses"}
+                </label>
+                <input
+                  type="password"
+                  required={!editingSupir}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder={editingSupir ? "Kosongkan jika tidak ingin mengubah" : "Minimal 6 karakter"}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition text-black"
+                />
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-6 py-3 rounded-xl text-gray-600 font-bold hover:bg-gray-100 transition-all">Batal</button>
+                <button 
+                  type="submit" 
+                  disabled={submitting}
+                  className="flex-1 bg-green-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-200 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {submitting ? 'Memproses...' : (editingSupir ? 'Simpan Perubahan' : 'Daftarkan Supir')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DIALOGS */}
+      <ConfirmDialog
+        open={showConfirmDialog}
+        title="Hapus Data Supir?"
+        description="Aksi ini akan menghapus akun supir secara permanen dari sistem."
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        onConfirm={handleDelete}
+        onCancel={() => { setShowConfirmDialog(false); setPendingDeleteId(null); }}
+      />
+
+      <ConfirmDialog
+        open={showToggleConfirm}
+        title={selectedSupirForToggle?.isActive ? "Nonaktifkan Supir?" : "Aktifkan Supir?"}
+        description={selectedSupirForToggle?.isActive 
+          ? "Supir ini tidak akan bisa masuk ke aplikasi mobile sementara waktu." 
+          : "Berikan kembali akses aplikasi mobile kepada supir ini."}
+        confirmText="Ya, Lanjutkan"
+        cancelText="Batal"
+        onConfirm={() => {
+          if (selectedSupirForToggle) toggleStatus(selectedSupirForToggle);
+          setShowToggleConfirm(false);
+          setSelectedSupirForToggle(null);
+        }}
+        onCancel={() => { setShowToggleConfirm(false); setSelectedSupirForToggle(null); }}
+      />
     </div>
   );
 }

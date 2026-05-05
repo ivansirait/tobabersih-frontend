@@ -128,7 +128,8 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1B4332]/10 focus:border-[#1B4332] focus:bg-white outline-none text-sm transition-all"
+                  // Penambahan text-black di sini
+                  className="w-full pl-12 pr-4 py-3.5 text-black bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1B4332]/10 focus:border-[#1B4332] focus:bg-white outline-none text-sm transition-all"
                   placeholder="name@dlh.com"
                   required
                 />
@@ -138,12 +139,13 @@ export default function LoginPage() {
             <div className="space-y-2">
               <label className="text-[11px] font-bold text-gray-500 uppercase tracking-widest ml-1">Kata Sandi</label>
               <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#1B4332] transition-colors" size={18} />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-black-300 group-focus-within:text-[#1B4332] transition-colors" size={18} />
                 <input
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-12 pr-12 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1B4332]/10 focus:border-[#1B4332] focus:bg-white outline-none text-sm transition-all"
+                  // Penambahan text-black di sini
+                  className="w-full pl-12 pr-12 py-3.5 text-black bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1B4332]/10 focus:border-[#1B4332] focus:bg-white outline-none text-sm transition-all"
                   placeholder="••••••••"
                   required
                 />

@@ -4,8 +4,8 @@ import withPWA from "next-pwa";
 const API_PROXY_TARGET = (process.env.API_PROXY_TARGET || "http://localhost:5000").replace(/\/$/, "");
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["@prisma/client"],
-  
+  serverExternalPackages: ["@prisma.client"],
+
   allowedDevOrigins: [
     '10.195.21.83',
     'localhost',
@@ -13,9 +13,9 @@ const nextConfig: NextConfig = {
     '*.ngrok-free.dev',
     '*.ngrok.app',
   ],
-  
+
   experimental: {},
-  
+
   // Turbopack configuration for Next.js 16
   turbopack: {},
 
@@ -31,7 +31,7 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  
+
   reactStrictMode: true,
 };
 

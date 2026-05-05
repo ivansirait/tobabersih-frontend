@@ -7,13 +7,14 @@ import LaporanList from '@/app/Warga/components/LaporanList';
 
 const api = axios.create({
   headers: {
-    'ngrok-skip-browser-warning': 'true', 
-  }
+    'ngrok-skip-browser-warning': 'true',
+  },
+  timeout: 30000 // 30 second timeout
 });
 
 const BASE_URL_API =
   typeof window !== 'undefined' && window.location.hostname !== 'localhost'
-    ? 'https://confoundedly-granitic-janetta.ngrok-free.dev'
+    ? 'https://quarterly-wrought-fascism.ngrok-free.dev'
     : 'http://localhost:5000';
 
 export default function Home() {

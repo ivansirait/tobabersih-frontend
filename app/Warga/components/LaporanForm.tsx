@@ -54,7 +54,7 @@ export default function LaporanForm({
           {/* Lokasi Laporan */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              LOKASI LAPORAN
+              Deskripsi Lokasi
             </label>
             <div className="space-y-3">
               <div className="relative">

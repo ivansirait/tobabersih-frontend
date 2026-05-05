@@ -41,22 +41,19 @@ export default function HomePage() {
   const [isScrolled, setIsScrolled] = useState(false);
   const carouselRef = useRef<HTMLDivElement>(null);
 
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const albumsRes = await axios.get('http://localhost:5000/api/galleries/albums');
+      setAlbums(albumsRes.data);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [postsRes, albumsRes] = await Promise.all([
-        //   axios.get('http://localhost:5000/api/posts'),
-          axios.get('http://localhost:5000/api/galleries/albums'),
-        ]);
-        // setPosts(postsRes.data.slice(0, 3));
-        setAlbums(albumsRes.data);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, []);
 
@@ -331,7 +328,7 @@ const AlbumCard = ({ album }: { album: Album }) => {
           </div>
           <div className="flex items-center gap-3">
             <Link href="/login" className="hidden sm:block text-white-600 hover:text-green-600 font-bold px-4">Login</Link>
-            <Link href="/login" className="bg-green-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-green-700 transition-all active:scale-95">Lapor!</Link>
+            <Link href="/Warga" className="bg-green-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-green-700 transition-all active:scale-95">Lapor!</Link>
           </div>
         </div>
       </nav>
