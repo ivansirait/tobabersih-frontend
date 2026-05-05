@@ -4,10 +4,8 @@ import axios from 'axios';
 import { 
   Plus, Edit, Trash2, Search, MapPin, 
   Users, Building2, Map, X, 
-  ToggleLeft, ToggleRight, Filter, ChevronDown,
-  Loader2, CircleCheck, Circle, Globe, ChevronLeft, ChevronRight,
-  Sparkles, Layers, Target, Home, TreePine, Mountain,
-  Eye // 🔥 TAMBAHAN: Import icon Eye untuk tombol lihat detail
+  ChevronDown, Loader2, CircleCheck, 
+  Circle, Globe, Target, LayoutGrid, Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast, { Toaster } from 'react-hot-toast';
@@ -40,30 +38,7 @@ interface FormData {
   isActive: boolean;
 }
 
-// Constants
 const API_BASE_URL = 'http://localhost:5000/api/admin';
-const PRIMARY_COLOR = '#064E3B';
-const COLORS = {
-  primary: 'emerald',
-  primaryGradient: 'from-[#064E3B] to-[#0B6B4F]',
-  primaryLight: 'from-[#E8F5E9] to-[#C8E6C9]',
-  secondary: 'slate',
-  success: 'emerald',
-  danger: 'rose',
-  warning: 'amber',
-  info: 'purple'
-} as const;
-
-// Helper Functions
-const formatNumber = (num: number): string => {
-  return num.toLocaleString('id-ID');
-};
-
-const getStatusStyle = (isActive: boolean) => {
-  return isActive 
-    ? 'bg-[#E8F5E9] text-[#064E3B] border-[#A5D6A7] hover:bg-[#C8E6C9] ring-[#064E3B]/20' 
-    : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 ring-rose-600/20';
-};
 
 export default function ManageWilayah() {
   const [wilayahList, setWilayahList] = useState<Wilayah[]>([]);
@@ -71,25 +46,13 @@ export default function ManageWilayah() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingWilayah, setEditingWilayah] = useState<Wilayah | null>(null);
-  
-  // 🔥 TAMBAHAN: State untuk modal View Detail
   const [viewingWilayah, setViewingWilayah] = useState<Wilayah | null>(null); 
-  
   const [submitting, setSubmitting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
-  
+
   const [formData, setFormData] = useState<FormData>({
-    name: '',
-    code: '',
-    population: '',
-    address: '',
-    capacityVolume: '',
-    latitude: '',
-    longitude: '',
-    radius: '', 
-    isActive: true
+    name: '', code: '', population: '', address: '',
+    capacityVolume: '', latitude: '', longitude: '', radius: '', isActive: true
   });
 
   const fetchWilayah = async () => {
@@ -115,8 +78,7 @@ export default function ManageWilayah() {
     return wilayahList
       .filter(wilayah => 
         wilayah.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        wilayah.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        wilayah.address?.toLowerCase().includes(searchTerm.toLowerCase())
+        wilayah.code?.toLowerCase().includes(searchTerm.toLowerCase())
       )
       .filter(wilayah => {
         if (statusFilter === 'ALL') return true;
@@ -124,16 +86,9 @@ export default function ManageWilayah() {
       });
   }, [wilayahList, searchTerm, statusFilter]);
 
-  const totalPages = Math.ceil(filteredWilayah.length / itemsPerPage);
-  const paginatedWilayah = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredWilayah.slice(start, start + itemsPerPage);
-  }, [filteredWilayah, currentPage, itemsPerPage]);
-
   const stats = useMemo(() => ({
     total: wilayahList.length,
     active: wilayahList.filter(w => w.isActive).length,
-    inactive: wilayahList.filter(w => !w.isActive).length,
     totalPopulation: wilayahList.reduce((sum, w) => sum + (w.population || 0), 0),
     totalCapacity: wilayahList.reduce((sum, w) => sum + (w.capacityVolume || 0), 0)
   }), [wilayahList]);
@@ -147,7 +102,7 @@ export default function ManageWilayah() {
     setEditingWilayah(null);
     setFormData({
       name: '', code: '', population: '', address: '',
-      capacityVolume: '', latitude: '', longitude: '', radius: '', isActive: true
+      capacityVolume: '', latitude: '', longitude: '', radius: '5000', isActive: true
     });
     setShowModal(true);
   };
@@ -171,11 +126,9 @@ export default function ManageWilayah() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    
     try {
       const token = localStorage.getItem('token');
       const config = { headers: { Authorization: `Bearer ${token}` } };
-
       const dataToSend = {
         ...formData,
         population: formData.population ? parseInt(formData.population) : null,
@@ -190,12 +143,10 @@ export default function ManageWilayah() {
         await axios.post(`${API_BASE_URL}/wilayah`, dataToSend, config);
         toast.success('Wilayah baru berhasil ditambahkan!');
       }
-
       setShowModal(false);
       fetchWilayah();
-      
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Gagal menyimpan data wilayah');
+      toast.error(error.response?.data?.message || 'Gagal menyimpan data');
     } finally {
       setSubmitting(false);
     }
@@ -213,7 +164,7 @@ export default function ManageWilayah() {
     }
   };
 
-  const toggleStatus = async (id: string, currentStatus: boolean, name: string) => {
+  const toggleStatus = async (id: string, name: string) => {
     try {
       const token = localStorage.getItem('token');
       await axios.patch(`${API_BASE_URL}/wilayah/${id}/toggle`, {}, { headers: { Authorization: `Bearer ${token}` }});
@@ -224,223 +175,230 @@ export default function ManageWilayah() {
     }
   };
 
-  const itemVariants = { hidden: { y: 10, opacity: 0 }, visible: { y: 0, opacity: 1 } };
-
-  // --- SUB COMPONENTS ---
-  const StatCard = ({ icon: Icon, label, value }: any) => (
-    <motion.div variants={itemVariants} className="bg-white/90 rounded-xl p-3 shadow-lg border border-[#064E3B]/20">
-      <div className="flex items-center gap-2">
-        <div className="bg-gradient-to-br from-[#064E3B] to-[#0B6B4F] p-2 rounded-lg"><Icon size={14} className="text-white" /></div>
-        <div><p className="text-[9px] text-slate-400 uppercase tracking-wider">{label}</p><p className="text-base font-bold text-slate-800">{value}</p></div>
-      </div>
-    </motion.div>
-  );
-
-  const FilterButton = ({ value, label }: any) => (
-    <button onClick={() => setStatusFilter(value)} className={`px-3 py-1.5 rounded-lg text-[10px] font-medium ${statusFilter === value ? 'bg-[#064E3B] text-white' : 'bg-white text-slate-600 border'}`}>
-      {label}
-    </button>
-  );
-
-  const TableRow = ({ wilayah, index }: any) => (
-    <motion.tr variants={itemVariants} className="group transition-colors border-b border-slate-100 hover:bg-slate-50">
-      <td className="px-3 py-2"><span className="text-[10px] font-mono text-slate-400">#{index + 1}</span></td>
-      <td className="px-3 py-2"><div className="font-medium text-xs text-slate-800">{wilayah.name}</div></td>
-      <td className="px-3 py-2"><span className="text-[10px] bg-[#E8F5E9] text-[#064E3B] px-1.5 py-0.5 rounded">{wilayah.code || '-'}</span></td>
-      <td className="px-3 py-2"><span className="text-[10px] text-slate-700">{wilayah.population ? formatNumber(wilayah.population) : '-'}</span></td>
-      <td className="px-3 py-2"><span className="text-[10px] text-slate-700">{wilayah.capacityVolume ? formatNumber(wilayah.capacityVolume) + ' m³' : '-'}</span></td>
-      <td className="px-3 py-2">
-        <div className="flex flex-col">
-           <span className="text-[8px] font-mono text-slate-600">{wilayah.latitude}, {wilayah.longitude}</span>
-           <span className="text-[8px] text-emerald-600 font-bold">Rad: {wilayah.radius || 5000} m</span>
-        </div>
-      </td>
-      <td className="px-3 py-2"><button onClick={() => toggleStatus(wilayah.id, wilayah.isActive, wilayah.name)} className={`px-2 py-1 rounded-md text-[8px] ${getStatusStyle(wilayah.isActive)}`}>{wilayah.isActive ? 'Aktif' : 'Nonaktif'}</button></td>
-      <td className="px-3 py-2">
-        {/* 🔥 PERBAIKAN: Menambahkan tombol VIEW (Mata) di sini */}
-        <div className="flex gap-1 justify-end">
-          <button onClick={() => setViewingWilayah(wilayah)} className="p-2 text-white-300 bg-blue-500 rounded-lg transition-all" title="Lihat Detail"><Eye size={12}/></button>
-          <button onClick={() => openEditModal(wilayah)} className="p-2 text-white-300 bg-yellow-500 rounded-lg transition-all" title="Edit"><Edit size={12}/></button>
-          <button onClick={() => handleDelete(wilayah.id, wilayah.name)} className="p-2 text-white-300 bg-red-500 rounded-lg transition-all" title="Hapus"><Trash2 size={12}/></button>
-        </div>
-      </td>
-    </motion.tr>
-  );
-
-  // 🔥 TAMBAHAN BARU: Modal untuk View Detail
-  const renderViewModal = () => {
-    if (!viewingWilayah) return null;
-
-    return (
-      <AnimatePresence>
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-emerald-100 overflow-hidden"
-          >
-            <div className="bg-[#064E3B] px-5 py-4 flex justify-between items-center text-white">
-              <h3 className="text-base font-bold flex items-center gap-2">
-                <MapPin size={18} />
-                Detail Kecamatan
-              </h3>
-              <button
-                onClick={() => setViewingWilayah(null)}
-                className="p-1 hover:bg-white/10 rounded-full transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-5">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-emerald-100 text-[#064E3B] flex items-center justify-center shadow-inner">
-                  <MapPin size={28} />
-                </div>
-                <div>
-                  <h4 className="text-xl font-black text-slate-800">{viewingWilayah.name}</h4>
-                  <span className={`inline-block mt-1 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                    viewingWilayah.isActive ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
-                  }`}>
-                    {viewingWilayah.isActive ? "Status: Aktif" : "Status: Nonaktif"}
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-slate-50 p-4 rounded-xl space-y-3 border border-slate-100 grid grid-cols-2 gap-y-4 gap-x-2">
-                <div className="col-span-2">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Kode Referensi</p>
-                  <p className="text-sm font-mono text-slate-700 mt-0.5">{viewingWilayah.code || '-'}</p>
-                </div>
-                
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1"><Users size={12}/> Populasi</p>
-                  <p className="text-sm font-medium text-slate-700 mt-0.5">
-                    {viewingWilayah.population ? formatNumber(viewingWilayah.population) : '-'} Jiwa
-                  </p>
-                </div>
-                
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1"><Map size={12}/> Kapasitas Sampah</p>
-                  <p className="text-sm font-medium text-slate-700 mt-0.5">
-                    {viewingWilayah.capacityVolume ? formatNumber(viewingWilayah.capacityVolume) : '-'} m³
-                  </p>
-                </div>
-
-                <div className="col-span-2 pt-2 border-t border-slate-200">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1"><Globe size={12}/> Titik Pusat (Koordinat GPS)</p>
-                  <p className="text-sm font-mono text-slate-700 mt-0.5">Lat: {viewingWilayah.latitude}</p>
-                  <p className="text-sm font-mono text-slate-700">Long: {viewingWilayah.longitude}</p>
-                </div>
-
-                <div className="col-span-2">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1"><Target size={12}/> Radius Cakupan Laporan (Geofence)</p>
-                  <p className="text-sm font-bold text-emerald-700 mt-0.5">{viewingWilayah.radius || 5000} Meter</p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setViewingWilayah(null)}
-                className="w-full py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-200 transition-all"
-              >
-                Tutup Panel
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      </AnimatePresence>
-    );
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F0F7F4] via-white to-[#E8F5E9] p-4 font-sans">
+    <div className="max-w-7xl mx-auto space-y-8 p-4">
       <Toaster position="top-right" />
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-xl font-bold text-[#064E3B]">Manajemen Wilayah</h1>
-          <p className="text-xs text-slate-500">Kelola 9 Kecamatan Cakupan TobaBersih</p>
+
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-end gap-6">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Manajemen Wilayah</h1>
+          <p className="text-gray-500 flex items-center gap-2">
+            <LayoutGrid size={16} /> Kelola cakupan kecamatan dan geofence operasional.
+          </p>
         </div>
-        <button onClick={openCreateModal} className="bg-[#064E3B] text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-md shadow-emerald-900/20 hover:bg-[#053f30] transition-all">
-          <Plus size={14} /> Tambah Wilayah
+      </div>
+
+      {/* STATS CARD */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Wilayah', val: stats.total, color: 'text-gray-600', bg: 'bg-gray-50', icon: Building2 },
+          { label: 'Wilayah Aktif', val: stats.active, color: 'text-green-600', bg: 'bg-green-50', icon: CircleCheck },
+          { label: 'Total Penduduk', val: stats.totalPopulation.toLocaleString('id-ID'), color: 'text-blue-600', bg: 'bg-blue-50', icon: Users },
+          { label: 'Kapasitas (m³)', val: stats.totalCapacity.toLocaleString('id-ID'), color: 'text-emerald-600', bg: 'bg-emerald-50', icon: Map },
+        ].map((stat, i) => (
+          <div key={i} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
+            <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
+              <stat.icon size={24} />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">{stat.label}</p>
+              <p className="text-xl font-bold text-gray-900">{stat.val}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex justify-end mt-4">
+        <button
+          onClick={openCreateModal}
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-[#064E3B] text-white text-sm font-bold transition-all duration-200 shadow-lg shadow-slate-200 hover:bg-[#053f30] active:scale-95"
+        >
+          <Plus size={18} /> Tambah Wilayah Baru
         </button>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
-        <StatCard icon={Building2} label="Total Wilayah" value={stats.total} />
-        <StatCard icon={CircleCheck} label="Aktif" value={stats.active} />
-        <StatCard icon={Circle} label="Nonaktif" value={stats.inactive} />
-        <StatCard icon={Users} label="Total Penduduk" value={formatNumber(stats.totalPopulation)} />
-        <StatCard icon={Map} label="Kapasitas (m³)" value={formatNumber(stats.totalCapacity)} />
-      </div>
-
-      <div className="bg-white rounded-xl shadow-lg border border-slate-100 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
-            <input type="text" placeholder="Cari kecamatan..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+      {/* TABLE */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-gray-50 flex flex-col md:flex-row gap-4 justify-between items-center">
+          <div className="relative group w-full max-w-md">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="text"
+              placeholder="Cari nama atau kode kecamatan..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-green-500/20 outline-none text-black"
+            />
           </div>
-          <FilterButton value="ALL" label="Semua" />
-          <FilterButton value="ACTIVE" label="Aktif" />
-          <FilterButton value="INACTIVE" label="Nonaktif" />
+          <div className="flex gap-2">
+            {['ALL', 'ACTIVE', 'INACTIVE'].map((f) => (
+                <button 
+                  key={f}
+                  onClick={() => setStatusFilter(f)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${statusFilter === f ? 'bg-gray-900 text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                >
+                  {f === 'ALL' ? 'Semua' : f === 'ACTIVE' ? 'Aktif' : 'Nonaktif'}
+                </button>
+            ))}
+          </div>
         </div>
-        
-        <table className="w-full text-left">
-          <thead className="bg-[#E8F5E9]/50">
-            <tr>
-              <th className="p-3 text-[10px] text-[#064E3B]">No</th>
-              <th className="p-3 text-[10px] text-[#064E3B]">Kecamatan</th>
-              <th className="p-3 text-[10px] text-[#064E3B]">Kode</th>
-                <th className="p-3 text-[10px] text-[#064E3B]">Penduduk</th>
-                <th className="p-3 text-[10px] text-[#064E3B]">Kapasitas</th>
-              <th className="p-3 text-[10px] text-[#064E3B]">Lokasi & Radius</th>
-              <th className="p-3 text-[10px] text-[#064E3B]">Status</th>
-              <th className="p-3 text-[10px] text-[#064E3B] text-right">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedWilayah.map((wilayah, idx) => <TableRow key={wilayah.id} wilayah={wilayah} index={idx} />)}
-          </tbody>
-        </table>
+
+        {loading ? (
+          <div className="flex flex-col items-center justify-center h-64 space-y-4 text-gray-400">
+            <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+            <p>Sinkronisasi data...</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-50/50">
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-center w-12">No</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Kecamatan / Kode</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Kapasitas & Populasi</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Geofence</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Status</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredWilayah.map((wilayah, idx) => (
+                  <tr key={wilayah.id} className="hover:bg-gray-50/80 transition-colors group">
+                    <td className="px-6 py-5 text-center text-sm text-gray-400">{idx + 1}</td>
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 group-hover:bg-green-100 group-hover:text-green-600 transition-colors">
+                          <MapPin size={20} />
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-900 leading-none">{wilayah.name}</p>
+                          <span className="inline-block mt-1 bg-gray-100 px-1.5 py-0.5 rounded text-[10px] font-mono text-gray-500">
+                            {wilayah.code || 'N/A'}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5 text-sm">
+                        <div className="font-medium text-gray-700">{wilayah.capacityVolume?.toLocaleString('id-ID')} m³</div>
+                        <div className="text-[11px] text-gray-400">{wilayah.population?.toLocaleString('id-ID')} Jiwa</div>
+                    </td>
+                    <td className="px-6 py-5">
+                        <div className="text-[11px] font-mono text-gray-500">{wilayah.latitude}, {wilayah.longitude}</div>
+                        <div className="text-[10px] font-bold text-emerald-600 mt-1">Radius: {wilayah.radius || 5000}m</div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <button 
+                        onClick={() => toggleStatus(wilayah.id, wilayah.name)}
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold ring-1 ring-inset ${wilayah.isActive ? 'bg-green-100 text-green-800 ring-green-600/20' : 'bg-red-100 text-red-800 ring-red-600/20'}`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full mr-2 ${wilayah.isActive ? 'bg-green-600' : 'bg-red-600'}`}></span>
+                        {wilayah.isActive ? 'Aktif' : 'Nonaktif'}
+                      </button>
+                    </td>
+                    <td className="px-6 py-5 text-right">
+                      <div className="flex justify-end gap-1">
+                        <button onClick={() => setViewingWilayah(wilayah)} className="p-2 text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-all"><Eye size={18} /></button>
+                        <button onClick={() => openEditModal(wilayah)} className="p-2 text-white bg-yellow-400 rounded-lg hover:bg-yellow-500 transition-all"><Edit size={18} /></button>
+                        <button onClick={() => handleDelete(wilayah.id, wilayah.name)} className="p-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-all"><Trash2 size={18} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* MODAL VIEW DETAIL (MATA) */}
-      {renderViewModal()}
+      {/* VIEW MODAL */}
+      <AnimatePresence>
+        {viewingWilayah && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
+              <div className="bg-[#064E3B] px-8 py-6 flex justify-between items-center text-white">
+                <h3 className="text-xl font-bold">Detail Wilayah</h3>
+                <button onClick={() => setViewingWilayah(null)} className="p-2 hover:bg-white/10 rounded-full"><X size={20} /></button>
+              </div>
+              <div className="p-8 space-y-6 text-center">
+                <div className="mx-auto w-20 h-20 bg-green-100 text-green-700 rounded-2xl flex items-center justify-center shadow-inner">
+                   <MapPin size={40} />
+                </div>
+                <div>
+                   <h2 className="text-2xl font-black text-gray-900">{viewingWilayah.name}</h2>
+                   <p className="text-sm text-gray-400 font-mono mt-1">{viewingWilayah.code || '-'}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-left">
+                    <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">Populasi</p>
+                        <p className="text-lg font-bold text-gray-800">{viewingWilayah.population?.toLocaleString('id-ID')}</p>
+                    </div>
+                    <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">Kapasitas</p>
+                        <p className="text-lg font-bold text-gray-800">{viewingWilayah.capacityVolume?.toLocaleString('id-ID')} m³</p>
+                    </div>
+                    <div className="col-span-2 bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-2">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">Koordinat & Radius</p>
+                        <div className="flex justify-between items-center">
+                            <span className="text-xs font-mono text-gray-600">{viewingWilayah.latitude}, {viewingWilayah.longitude}</span>
+                            <span className="text-xs font-bold text-emerald-600">Rad: {viewingWilayah.radius}m</span>
+                        </div>
+                    </div>
+                </div>
+                <button onClick={() => setViewingWilayah(null)} className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold">Tutup Panel</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
-      {/* MODAL FORM TAMBAH / EDIT */}
+      {/* FORM MODAL */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl">
-            <div className="bg-[#064E3B] px-5 py-4 flex justify-between rounded-t-2xl">
-              <h3 className="text-white text-sm font-bold">{editingWilayah ? 'Edit Wilayah' : 'Tambah Wilayah'}</h3>
-              <button onClick={() => setShowModal(false)} className="text-white hover:text-emerald-200 transition-colors"><X size={16} /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-white/20">
+            <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h3 className="text-xl font-bold text-gray-900">{editingWilayah ? 'Edit Wilayah' : 'Tambah Wilayah Baru'}</h3>
+              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-white rounded-full transition-colors text-gray-400"><X size={20} /></button>
             </div>
-            <form onSubmit={handleSubmit} className="p-5 space-y-4">
+
+            <form onSubmit={handleSubmit} className="p-8 space-y-5">
               <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Nama Kecamatan</label>
-                  <input name="name" value={formData.name} onChange={handleInputChange} required className="w-full p-2.5 mt-1 bg-slate-50 border rounded-xl text-xs focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all" />
+                <div className="col-span-2 space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Nama Kecamatan</label>
+                  <input name="name" value={formData.name} onChange={handleInputChange} required className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition font-bold text-black" />
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Latitude</label>
-                  <input name="latitude" value={formData.latitude} onChange={handleInputChange} placeholder="2.3333" className="w-full p-2.5 mt-1 bg-slate-50 border rounded-xl text-xs focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all" />
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Kode Wilayah</label>
+                  <input name="code" value={formData.code} onChange={handleInputChange} placeholder="KEC-01" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition text-black" />
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Longitude</label>
-                  <input name="longitude" value={formData.longitude} onChange={handleInputChange} placeholder="99.0667" className="w-full p-2.5 mt-1 bg-slate-50 border rounded-xl text-xs focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all" />
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Radius Geofence (Meter)</label>
+                  <input type="number" name="radius" value={formData.radius} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition text-black" />
                 </div>
-                <div className="col-span-2 bg-emerald-50 p-3 rounded-xl border border-emerald-100">
-                  <label className="text-[10px] font-bold text-[#064E3B] uppercase flex items-center gap-2">
-                    <Target size={12}/> Radius Cakupan Laporan (Meter)
-                  </label>
-                  <p className="text-[9px] text-emerald-600 mb-2">Tentukan seberapa jauh laporan warga masih diterima dari titik pusat kecamatan ini.</p>
-                  <input type="number" name="radius" value={formData.radius} onChange={handleInputChange} placeholder="Contoh: 5000 (untuk 5 Kilometer)" required className="w-full p-2.5 bg-white border border-emerald-200 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all" />
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Latitude</label>
+                  <input name="latitude" value={formData.latitude} onChange={handleInputChange} required className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition font-mono text-black" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Longitude</label>
+                  <input name="longitude" value={formData.longitude} onChange={handleInputChange} required className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition font-mono text-black" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Populasi (Jiwa)</label>
+                  <input type="number" name="population" value={formData.population} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition text-black" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Kapasitas Maks (m³)</label>
+                  <input type="number" name="capacityVolume" value={formData.capacityVolume} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition text-black" />
                 </div>
               </div>
-              <button type="submit" disabled={submitting} className="w-full bg-[#064E3B] text-white py-3 rounded-xl text-xs font-bold mt-4 hover:bg-[#053f30] disabled:opacity-70 transition-all flex justify-center items-center gap-2">
-                {submitting && <Loader2 className="animate-spin" size={14} />}
-                {submitting ? 'Menyimpan...' : 'Simpan Data Wilayah'}
-              </button>
+
+              <div className="pt-4 flex gap-3">
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-6 py-3 rounded-xl text-gray-600 font-bold hover:bg-gray-100 transition-all">Batal</button>
+                <button type="submit" disabled={submitting} className="flex-1 bg-green-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-200 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
+                  {submitting ? <Loader2 className="animate-spin" size={18} /> : 'Simpan Data Wilayah'}
+                </button>
+              </div>
             </form>
           </div>
         </div>

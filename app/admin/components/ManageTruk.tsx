@@ -171,7 +171,7 @@ export default function ManageTruk() {
 
         setSuccessTitle('Data berhasil dihapus');
         setSuccessDescription('Unit armada telah dihapus dari sistem.');
-        setSuccessIcon(<Trash2 size={24} />); // pakai icon delete
+        setSuccessIcon(<Trash2 size={24} />);
         setShowSuccessDialog(true);
 
       fetchTruk();
@@ -182,21 +182,6 @@ export default function ManageTruk() {
       setPendingDeleteId(null);
     }
   };
-
-  const renderConfirmDialog = () => (
-    <ConfirmDialog
-      open={showConfirmDialog}
-      title="Yakin Hapus Armada?"
-      description="Aksi ini akan menghapus data armada secara permanen."
-      confirmText="Ya, Hapus"
-      cancelText="Batal"
-      onConfirm={handleDelete}
-      onCancel={() => {
-        setShowConfirmDialog(false);
-        setPendingDeleteId(null);
-      }}
-    />
-  );
 
   const getStatusBadge = (status: string) => {
     switch(status) {
@@ -275,7 +260,7 @@ export default function ManageTruk() {
               placeholder="Cari nopol, kode, merek, tipe, atau supir..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-green-500/20 outline-none text-gray-700"
+              className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-green-500/20 outline-none text-black"
             />
           </div>
         </div>
@@ -342,8 +327,8 @@ export default function ManageTruk() {
                       </td>
                       <td className="px-6 py-5 text-right">
                         <div className="flex justify-end gap-1">
-                          <button onClick={() => openEditModal(truk)} className="p-2 text-white-300 bg-yellow-400 rounded-lg transition-all"><Edit size={18} /></button>
-                          <button onClick={() => openDeleteConfirm(truk.id)} className="p-2 text-white-300 bg-red-600 rounded-lg transition-all"><Trash2 size={18} /></button>
+                          <button onClick={() => openEditModal(truk)} className="p-2 text-white bg-yellow-400 rounded-lg hover:bg-yellow-500 transition-all"><Edit size={18} /></button>
+                          <button onClick={() => openDeleteConfirm(truk.id)} className="p-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-all"><Trash2 size={18} /></button>
                         </div>
                       </td>
                     </tr>
@@ -355,9 +340,20 @@ export default function ManageTruk() {
         )}
       </div>
 
-      {renderConfirmDialog()}
+      <ConfirmDialog
+        open={showConfirmDialog}
+        title="Yakin Hapus Armada?"
+        description="Aksi ini akan menghapus data armada secara permanen."
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        onConfirm={handleDelete}
+        onCancel={() => {
+          setShowConfirmDialog(false);
+          setPendingDeleteId(null);
+        }}
+      />
 
-      {/* MODAL FORM - lebih rapi dengan grid 2 kolom */}
+      {/* MODAL FORM */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-white/20">
@@ -367,7 +363,6 @@ export default function ManageTruk() {
             </div>
 
             <form onSubmit={handleSubmit} className="p-8 space-y-5">
-              {/* Baris 1: Nomor Polisi + Kode Truk */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Nomor Polisi</label>
@@ -377,7 +372,7 @@ export default function ManageTruk() {
                     onChange={handleInputChange}
                     placeholder="BK 1234 ABC"
                     required
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition font-bold uppercase"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition font-bold uppercase text-black"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -388,12 +383,11 @@ export default function ManageTruk() {
                     onChange={handleInputChange}
                     placeholder="Contoh: 07, 12"
                     required
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition text-black"
                   />
                 </div>
               </div>
 
-              {/* Baris 2: Merek + Tipe Truk */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Merek</label>
@@ -403,7 +397,7 @@ export default function ManageTruk() {
                     onChange={handleInputChange}
                     placeholder="Mitsubishi, Hino, Isuzu"
                     required
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition text-black"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -414,12 +408,11 @@ export default function ManageTruk() {
                     onChange={handleInputChange}
                     placeholder="Dump Truck, Arm Roll, ELF"
                     required
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition text-black"
                   />
                 </div>
               </div>
 
-              {/* Baris 3: Operator + Status */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Assign Operator</label>
@@ -428,7 +421,7 @@ export default function ManageTruk() {
                       name="operatorId"
                       value={formData.operatorId}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 appearance-none focus:border-green-500 outline-none transition font-medium text-gray-700"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 appearance-none focus:border-green-500 outline-none transition font-medium text-black"
                     >
                       <option value="">Pilih Supir (Opsional)</option>
                       {supirList.map(supir => <option key={supir.id} value={supir.id}>{supir.fullName}</option>)}
@@ -438,23 +431,25 @@ export default function ManageTruk() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Kondisi Unit</label>
-                  <select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 appearance-none focus:border-green-500 outline-none transition"
-                  >
-                    <option value="AVAILABLE">Tersedia</option>
-                    <option value="BUSY">Bertugas</option>
-                    <option value="MAINTENANCE">Servis</option>
-                  </select>
+                  <div className="relative">
+                    <select
+                      name="status"
+                      value={formData.status}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 appearance-none focus:border-green-500 outline-none transition text-black font-medium"
+                    >
+                      <option value="AVAILABLE">Tersedia</option>
+                      <option value="BUSY">Bertugas</option>
+                      <option value="MAINTENANCE">Servis</option>
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
+                  </div>
                 </div>
               </div>
 
-              {/* Tombol */}
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-6 py-3 rounded-xl text-gray-600 font-bold hover:bg-gray-100 transition-all">Batal</button>
-                <button type="submit" className="flex- bg-green-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-200 transition-all active:scale-95">
+                <button type="submit" className="flex-1 bg-green-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-200 transition-all active:scale-95">
                   {editingTruk ? 'Simpan Perubahan' : 'Daftarkan Truk'}
                 </button>
               </div>
