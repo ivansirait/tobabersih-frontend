@@ -18,7 +18,7 @@ const BASE_URL_API =
     : 'http://localhost:5000';
 
 export default function Home() {
-  const [form, setForm] = useState({ pelapor: '', lokasi: '', deskripsi: '', latitude: 0, longitude: 0 });
+  const [form, setForm] = useState({ pelapor: '',   email: '', lokasi: '', deskripsi: '', latitude: 0, longitude: 0 });
   const [laporanList, setLaporanList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [gpsStatus, setGpsStatus] = useState("Mencari lokasi...");
@@ -80,54 +80,94 @@ export default function Home() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (form.latitude === 0) {
-      return alert("Harap tunggu lokasi GPS!");
-    }
-    if (!form.deskripsi) {
-      return alert("Harap isi deskripsi laporan!");
-    }
-    
-    setLoading(true);
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
 
+  // ✅ VALIDASI NAMA PELAPOR
+  if (!form.pelapor || form.pelapor.trim() === '') {
+    return alert("⚠️ Nama lengkap tidak boleh kosong!");
+  }
+
+  // ✅ VALIDASI EMAIL
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!form.email || !emailRegex.test(form.email)) {
+    return alert("⚠️ Silakan masukkan email yang valid!");
+  }
+
+  if (form.latitude === 0) {
+    return alert("⚠️ Harap tunggu lokasi GPS dideteksi!");
+  }
+
+  if (!form.deskripsi || form.deskripsi.trim() === '') {
+    return alert("⚠️ Deskripsi laporan tidak boleh kosong!");
+  }
+
+  setLoading(true);
+
+  try {
     const formData = new FormData();
+
+    // 👇 DATA PELAPOR
+    formData.append('pelapor', form.pelapor.trim());
+    formData.append('email', form.email.trim());
+
+    // 👇 DATA LOKASI
+    formData.append('lokasi', form.lokasi.trim());
     formData.append('latitude', form.latitude.toString());
     formData.append('longitude', form.longitude.toString());
-    formData.append('description', form.deskripsi);
-    formData.append('jenisSampah', 'CAMPURAN');
-    
-    if (form.lokasi) {
-      formData.append('lokasi', form.lokasi);
-    }
-    
+
+    // 👇 DATA LAPORAN
+    formData.append('description', form.deskripsi.trim());
+
+    // 👇 FOTO
     if (selectedImage) {
       formData.append('photo', selectedImage);
     }
 
-    try {
-      const response = await api.post(`${BASE_URL_API}/api/laporan/create`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      console.log('✅ Response:', response.data);
-      
-      setForm({ pelapor: '', lokasi: '', deskripsi: '', latitude: 0, longitude: 0 });
-      setSelectedImage(null);
-      setPreviewUrl(null);
-      
-      await fetchLaporan();
-      alert("✅ Laporan berhasil dikirim!");
-    } catch (err: any) {
-      console.error("❌ Error:", err);
-      let errorMessage = "Gagal mengirim laporan";
-      if (err.response?.data?.message) errorMessage = err.response.data.message;
-      else if (err.response?.data?.error) errorMessage = err.response.data.error;
-      alert(`❌ ${errorMessage}`);
-    } finally { 
-      setLoading(false);
+    const response = await api.post(
+      `${BASE_URL_API}/api/laporan/create`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+    );
+
+    console.log('✅ Laporan berhasil dibuat:', response.data);
+
+    // RESET FORM
+    setForm({
+      pelapor: '',
+      email: '',
+      lokasi: '',
+      deskripsi: '',
+      latitude: 0,
+      longitude: 0
+    });
+
+    setSelectedImage(null);
+    setPreviewUrl(null);
+
+    await fetchLaporan();
+    alert("✅ Laporan berhasil dikirim! Admin akan mengirim notifikasi ke email Anda.");
+
+  } catch (err: any) {
+    console.error("❌ Error:", err);
+
+    let errorMessage = "Gagal mengirim laporan";
+    if (err.response?.data?.message) {
+      errorMessage = err.response.data.message;
+    } else if (err.message) {
+      errorMessage = err.message;
     }
-  };
+
+    alert(`❌ ${errorMessage}`);
+
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <main className="p-5 md:p-10 bg-[#f8fafc] min-h-screen">

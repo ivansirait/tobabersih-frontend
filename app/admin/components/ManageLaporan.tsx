@@ -48,6 +48,15 @@ export default function ManageLaporan() {
   
   const [assignmentByReportId, setAssignmentByReportId] = useState<Record<string, any>>({});
 
+  // ✅ NEW: Status Update Modal State
+  const [showStatusUpdateModal, setShowStatusUpdateModal] = useState(false);
+  const [selectedLaporanForStatusUpdate, setSelectedLaporanForStatusUpdate] = useState<Laporan | null>(null);
+  const [statusFormData, setStatusFormData] = useState({
+    status: '',
+    adminNotes: '',
+  });
+  const [statusLoading, setStatusLoading] = useState(false);
+
   const [formData, setFormData] = useState({
     reportId: '',
     driverId: '',
@@ -152,6 +161,49 @@ export default function ManageLaporan() {
       fetchAssignments();
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Gagal verifikasi');
+    }
+  };
+
+  // ✅ NEW: Handle Status Update dengan Email Notification
+  const handleStatusUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedLaporanForStatusUpdate) return;
+    if (!statusFormData.status) {
+      toast.error('Silakan pilih status');
+      return;
+    }
+
+    setStatusLoading(true);
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      const response = await axios.put(
+        `http://localhost:5000/api/admin/laporan/${selectedLaporanForStatusUpdate.id}/status`,
+        {
+          status: statusFormData.status,
+          adminNotes: statusFormData.adminNotes,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      if (response.data.success || response.data) {
+        toast.success(`✅ Status updated - Email notifikasi terkirim ke: ${selectedLaporanForStatusUpdate.email || 'pelapor'}`);
+        
+        fetchLaporan();
+        fetchAssignments();
+        
+        setShowStatusUpdateModal(false);
+        setStatusFormData({ status: '', adminNotes: '' });
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Gagal update status');
+      console.error('Status update error:', error);
+    } finally {
+      setStatusLoading(false);
     }
   };
 
@@ -408,6 +460,19 @@ export default function ManageLaporan() {
                 </>
               )}
 
+              {/* ✅ NEW: Update Status Button */}
+              {laporan.status !== 'SELESAI' && laporan.status !== 'PENDING' && (
+                <button
+                  onClick={() => {
+                    setSelectedLaporanForStatusUpdate(laporan);
+                    setShowStatusUpdateModal(true);
+                  }}
+                  className="px-4 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-blue-600"
+                >
+                  <RefreshCw size={14} /> Update Status
+                </button>
+              )}
+
               {laporan.status === 'DITERIMA' && !isAssigned && (
                 <button
                   onClick={() => openConversionModal(laporan)}
@@ -511,6 +576,98 @@ export default function ManageLaporan() {
                   {loadingSubmit ? <Loader size={16} className="animate-spin inline" /> : 'Konfirmasi Tugas'}
                 </button>
                 <button type="button" onClick={() => setShowConversionModal(false)} className="flex-1 border py-2 rounded-xl">Batal</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ NEW: Status Update Modal */}
+      {showStatusUpdateModal && selectedLaporanForStatusUpdate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl max-w-md w-full">
+            <div className="p-5 border-b flex justify-between items-center">
+              <h3 className="font-bold text-lg">📬 Update Status Laporan</h3>
+              <button 
+                onClick={() => {
+                  setShowStatusUpdateModal(false);
+                  setStatusFormData({ status: '', adminNotes: '' });
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleStatusUpdate} className="p-5 space-y-4">
+              {/* Display Report Info */}
+              <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                <p className="text-xs text-blue-600 font-semibold">📋 Laporan</p>
+                <p className="text-sm font-medium">{selectedLaporanForStatusUpdate.district}</p>
+                <p className="text-xs text-gray-600 mt-2">
+                  📧 {selectedLaporanForStatusUpdate.email || 'Email tidak tersedia'}
+                </p>
+              </div>
+
+              {/* Status Dropdown */}
+              <div>
+                <label className="text-xs font-bold text-gray-700 uppercase">Status Baru</label>
+                <select
+                  value={statusFormData.status}
+                  onChange={(e) => setStatusFormData({ ...statusFormData, status: e.target.value })}
+                  required
+                  className="w-full mt-1 p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="">-- Pilih Status --</option>
+                  <option value="DITINDAKLANJUTI">🔍 Ditindaklanjuti</option>
+                  <option value="DIPROSES">⚙️ Diproses</option>
+                  <option value="SELESAI">✅ Selesai</option>
+                </select>
+              </div>
+
+              {/* Admin Notes */}
+              <div>
+                <label className="text-xs font-bold text-gray-700 uppercase">Catatan Admin (Opsional)</label>
+                <textarea
+                  value={statusFormData.adminNotes}
+                  onChange={(e) => setStatusFormData({ ...statusFormData, adminNotes: e.target.value })}
+                  placeholder="Catatan untuk pelapor..."
+                  className="w-full mt-1 p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none h-20 resize-none"
+                />
+              </div>
+
+              {/* Alert */}
+              <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200 text-xs text-yellow-700">
+                ⚠️ Email notifikasi akan dikirim otomatis ke {selectedLaporanForStatusUpdate.email || 'email pelapor'}
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-2 justify-end pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowStatusUpdateModal(false);
+                    setStatusFormData({ status: '', adminNotes: '' });
+                  }}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg text-sm font-semibold hover:bg-gray-200"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={statusLoading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {statusLoading ? (
+                    <>
+                      <Loader size={16} className="animate-spin" /> Mengirim...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={16} /> Update & Email
+                    </>
+                  )}
+                </button>
               </div>
             </form>
           </div>

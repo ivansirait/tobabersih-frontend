@@ -2,8 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import Link from 'next/link';
-import { Trash2 } from "lucide-react";
-import {Camera, Newspaper, Mail, Instagram, Facebook, ArrowRight, ChevronRight, ChevronLeft, MapPin, Phone, Clock, ShieldCheck, Leaf, Users, X, Images, ChevronDown } from 'lucide-react';
+import { Trash2, Camera, Newspaper, Mail, Instagram, Facebook, ArrowRight, ChevronRight, ChevronLeft, MapPin, Phone, Clock, ShieldCheck, Leaf, Users, X, Images, ChevronDown } from 'lucide-react';
 
 interface GalleryPhoto {
   id: number;
@@ -56,6 +55,24 @@ export default function HomePage() {
   useEffect(() => {
     fetchData();
   }, []);
+  // useEffect(() => {
+  //   const fetchData = async () => {
+  //     try {
+  //       setLoading(true);
+  //       const [postsRes, albumsRes] = await Promise.all([
+  //       //   axios.get('http://localhost:5000/api/posts'),
+  //         axios.get('http://localhost:5000/api/galleries/albums'),
+  //       ]);
+  //       // setPosts(postsRes.data.slice(0, 3));
+  //       setAlbums(albumsRes.data);
+  //     } catch (error) {
+  //       console.error('Error fetching data:', error);
+  //     } finally {
+  //       setLoading(false);
+  //     }
+  //   };
+  //   fetchData();
+  // }, []);
 
   const sliderAlbums = albums.filter(a => a.isSlider && a.coverUrl);
 
@@ -145,7 +162,7 @@ const AlbumCard = ({ album }: { album: Album }) => {
               size={18}
               className="transition-transform duration-300 group-hover:translate-x-1"
             />
-          </div>
+          </div>  
         </div>
       </div>
     </div>

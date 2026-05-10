@@ -1,5 +1,5 @@
 "use client";
-import { MapPin, Camera, Image as ImageIcon, X, Send, User, Crosshair, FileText } from 'lucide-react';
+import { MapPin, Camera, Image as ImageIcon, X, Send, User, Crosshair, FileText, Mail } from 'lucide-react';
 import Image from 'next/image';
 
 export default function LaporanForm({ 
@@ -50,7 +50,26 @@ export default function LaporanForm({
               />
             </div>
           </div>
-
+{/* 🆕 TAMBAHAN: Email (Untuk Notifikasi Status Laporan) */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              EMAIL <span className="text-red-500">*</span> <span className="text-xs font-normal text-gray-500">(Untuk notifikasi status)</span>
+            </label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-3 text-gray-400" size={18} />
+              <input 
+                className="w-full border border-gray-300 p-3 pl-10 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none" 
+                placeholder="Masukkan email Anda" 
+                type="email"
+                value={form.email} 
+                onChange={e => setForm({...form, email: e.target.value})} 
+                required 
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              💌 Admin akan mengirimkan notifikasi status laporan ke email ini
+            </p>
+          </div>
           {/* Lokasi Laporan */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
