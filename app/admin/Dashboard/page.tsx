@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import Dashboard from "../components/Dashboard";
 import { motion, AnimatePresence } from "framer-motion";
@@ -9,21 +9,37 @@ export default function DashboardPage() {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const fetchAttemptedRef = useRef(false);
 
   const fetchData = async () => {
+    if (fetchAttemptedRef.current) return; // Prevent double fetch
+    fetchAttemptedRef.current = true;
+
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      
+      // Fetch dengan timeout dan error handling
       const [laporanRes, postsRes] = await Promise.all([
-        axios.get("http://localhost:5000/api/laporan", {
+        axios.get(`${apiUrl}/api/laporan`, {
           headers: { Authorization: `Bearer ${token}` },
+          timeout: 5000
+        }).catch(err => {
+          console.warn("Laporan fetch gagal:", err.message);
+          return { data: { data: [] } }; // Fallback ke array kosong
         }),
-        axios.get("http://localhost:5000/api/posts", {
+        axios.get(`${apiUrl}/api/posts`, {
           headers: { Authorization: `Bearer ${token}` },
+          timeout: 5000
+        }).catch(err => {
+          console.warn("Posts fetch gagal:", err.message);
+          return { data: { data: [] } }; // Fallback ke array kosong
         }),
       ]);
-      setLaporanList(laporanRes.data.data || []);
-      setPosts(postsRes.data.data || []);
+      
+      setLaporanList(laporanRes.data?.data || []);
+      setPosts(postsRes.data?.data || []);
       setError(false);
     } catch (err) {
       console.error("Error fetching dashboard data:", err);
@@ -55,17 +71,34 @@ export default function DashboardPage() {
   // Tampilan Error jika server mati atau token expired
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-gray-50 p-3 md:p-4 text-center">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-3 md:p-4 text-center">
         <div className="bg-white p-4 md:p-8 rounded-xl md:rounded-2xl shadow-sm max-w-sm mx-auto w-full">
-          <div className="text-red-500 text-4xl md:text-5xl mb-3 md:mb-4">⚠️</div>
-          <h2 className="text-lg md:text-xl font-bold text-gray-800">Gagal Memuat Data</h2>
-          <p className="text-sm md:text-base text-gray-500 mt-1 md:mt-2">Pastikan koneksi internet stabil atau coba login kembali.</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-4 md:mt-6 px-4 md:px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm md:text-base"
-          >
-            Coba Lagi
-          </button>
+          <div className="text-yellow-500 text-4xl md:text-5xl mb-3 md:mb-4">⚠️</div>
+          <h2 className="text-lg md:text-xl font-bold text-gray-800">Koneksi API Gagal</h2>
+          <p className="text-sm md:text-base text-gray-500 mt-1 md:mt-2">
+            Pastikan server backend (localhost:5000) sedang berjalan atau hubungi administrator.
+          </p>
+          <div className="mt-4 md:mt-6 space-y-2">
+            <button
+              onClick={() => {
+                fetchAttemptedRef.current = false;
+                window.location.reload();
+              }}
+              className="w-full px-4 md:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm md:text-base"
+            >
+              🔄 Coba Lagi
+            </button>
+            <button
+              onClick={() => {
+                fetchAttemptedRef.current = false;
+                setError(false);
+                setLoading(false);
+              }}
+              className="w-full px-4 md:px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm md:text-base"
+            >
+              ➜ Lanjutkan Tanpa Data
+            </button>
+          </div>
         </div>
       </div>
     );

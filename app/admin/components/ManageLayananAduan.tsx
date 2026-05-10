@@ -34,7 +34,7 @@ api.interceptors.request.use((config) => {
 interface Penugasan {
   id: string;
   taskNumber: string;
-  type: 'ADUAN' | 'RUTIN';
+  type: 'ADUAN';
   status: string;
   location: string;
   district: string;
@@ -56,8 +56,8 @@ interface Penugasan {
   notes?: string;
 }
 
-// 🔥 MENERIMA PROP DARI page.tsx
-export default function ManagePenugasan({ taskType }: { taskType: 'RUTIN' | 'ADUAN' }) {
+// Komponen untuk mengelola Penugasan Aduan Warga
+export default function ManagePenugasan() {
   // --- States ---
   const [penugasanList, setPenugasanList] = useState<Penugasan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,7 +84,7 @@ export default function ManagePenugasan({ taskType }: { taskType: 'RUTIN' | 'ADU
   const fetchPenugasan = async () => {
     try {
       setLoading(true);
-      const url = `/penugasan?type=${taskType}${filter.status ? `&status=${filter.status}` : ''}`;
+      const url = `/penugasan?type=ADUAN${filter.status ? `&status=${filter.status}` : ''}`;
       const res = await api.get(url);
       setPenugasanList(res.data.data || []);
     } catch (error: any) {
@@ -130,20 +130,21 @@ export default function ManagePenugasan({ taskType }: { taskType: 'RUTIN' | 'ADU
     }
   };
 
-  // 🔥 Panggil ulang jika taskType (Tab di Sidebar) berubah
+  // Fetch data saat komponen mount
   useEffect(() => {
     fetchPenugasan();
     fetchDropdownData();
     resetForm();
-  }, [filter.status, taskType]);
+  }, [filter.status]);
 
   // --- Helpers ---
   const filteredPenugasan = useMemo(() => {
-    return penugasanList.filter(item => 
-      item.taskNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.driver?.fullName?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    return penugasanList.filter(item => {
+      const taskNumberMatch = (item.taskNumber || '').toLowerCase().includes(searchTerm.toLowerCase());
+      const locationMatch = (item.location || '').toLowerCase().includes(searchTerm.toLowerCase());
+      const driverMatch = (item.driver?.fullName || '').toLowerCase().includes(searchTerm.toLowerCase());
+      return taskNumberMatch || locationMatch || driverMatch;
+    });
   }, [penugasanList, searchTerm]);
 
   const handleInputChange = (e: any) => {
@@ -161,20 +162,36 @@ export default function ManagePenugasan({ taskType }: { taskType: 'RUTIN' | 'ADU
 
   const openEditModal = (task: Penugasan) => {
     setEditingId(task.id);
-    const dateObj = new Date(task.scheduledAt);
-    const localDateTime = new Date(dateObj.getTime() - (dateObj.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
-
-    setFormData({
-      reportId: task.report?.id || '',
-      driverId: task.driver?.id || '',
-      truckId: task.truck?.id || '',
-      scheduledAt: localDateTime,
-      location: task.location || '',
-      district: task.district || '',
-      description: task.description || '',
-      notes: task.notes || '',
-      latitude: '', longitude: '' 
-    });
+    if (!task.scheduledAt) {
+      // Jika scheduledAt null, gunakan waktu sekarang
+      const now = new Date();
+      const localDateTime = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+      setFormData({
+        reportId: task.report?.id || '',
+        driverId: task.driver?.id || '',
+        truckId: task.truck?.id || '',
+        scheduledAt: localDateTime,
+        location: task.location || '',
+        district: task.district || '',
+        description: task.description || '',
+        notes: task.notes || '',
+        latitude: '', longitude: '' 
+      });
+    } else {
+      const dateObj = new Date(task.scheduledAt);
+      const localDateTime = new Date(dateObj.getTime() - (dateObj.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+      setFormData({
+        reportId: task.report?.id || '',
+        driverId: task.driver?.id || '',
+        truckId: task.truck?.id || '',
+        scheduledAt: localDateTime,
+        location: task.location || '',
+        district: task.district || '',
+        description: task.description || '',
+        notes: task.notes || '',
+        latitude: '', longitude: '' 
+      });
+    }
     setShowModal(true);
   };
 
@@ -185,11 +202,8 @@ export default function ManagePenugasan({ taskType }: { taskType: 'RUTIN' | 'ADU
         await api.put(`/penugasan/${editingId}`, formData);
         toast.success('Penugasan berhasil dialihkan / diperbarui!');
       } else {
-        const endpoint = taskType === 'ADUAN' 
-          ? '/penugasan/aduan'
-          : '/penugasan/rutin';
 
-        await api.post(endpoint, formData);
+        await api.post('/penugasan/aduan', formData);
         toast.success('Penugasan berhasil dibuat!');
       }
       
@@ -217,6 +231,8 @@ export default function ManagePenugasan({ taskType }: { taskType: 'RUTIN' | 'ADU
   };
 
   const StatusBadge = ({ status }: { status: string }) => {
+    // Handle null/undefined status
+    const safeStatus = status || 'DITUGASKAN';
     const styles: any = {
       SELESAI: "bg-emerald-100 text-emerald-700 border-emerald-200 ring-emerald-500/20",
       DITUGASKAN: "bg-blue-100 text-blue-700 border-blue-200 ring-blue-500/20",
@@ -225,8 +241,8 @@ export default function ManagePenugasan({ taskType }: { taskType: 'RUTIN' | 'ADU
       DEFAULT: "bg-slate-100 text-slate-600 border-slate-200"
     };
     return (
-      <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide border ring-1 ${styles[status] || styles.DEFAULT}`}>
-        {status.replace('_', ' ')}
+      <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide border ring-1 ${styles[safeStatus] || styles.DEFAULT}`}>
+        {(safeStatus || 'DITUGASKAN').replace('_', ' ')}
       </span>
     );
   };
@@ -238,13 +254,12 @@ export default function ManagePenugasan({ taskType }: { taskType: 'RUTIN' | 'ADU
       <header className="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className={`p-2.5 rounded-xl shadow-lg ${taskType === 'ADUAN' ? 'bg-orange-500 shadow-orange-200' : 'bg-indigo-600 shadow-indigo-200'}`}>
-              {taskType === 'ADUAN' ? <FileText className="text-white" size={24} /> : <Calendar className="text-white" size={24} />}
+            <div className="p-2.5 rounded-xl shadow-lg bg-orange-500 shadow-orange-200">
+              <FileText className="text-white" size={24} />
             </div>
             <div>
-              {/* 🔥 Judul Dinamis berdasarkan halaman */}
               <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
-                {taskType === 'ADUAN' ? 'Penugasan Aduan Warga' : 'Penugasan Tugas Harian'}
+                Penugasan Aduan Warga
               </h1>
               <div className="flex items-center gap-2 text-slate-500 text-sm mt-0.5">
                 <span className="flex items-center gap-1"><Truck size={14}/> {trukList.length} Armada</span>
@@ -254,13 +269,12 @@ export default function ManagePenugasan({ taskType }: { taskType: 'RUTIN' | 'ADU
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {/* 🔥 Tombol juga disesuaikan secara dinamis */}
           <button
            onClick={() => { resetForm(); setShowModal(true); }}
            style={{ backgroundColor: '#064E3B' }}
             className="group flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all duration-300 shadow-xl shadow-slate-200 hover:opacity-90">
           <Plus size={18} className="group-hover:scale-110 transition-transform" />
-          {taskType === 'ADUAN' ? 'Tugas Aduan Baru' : 'Jadwal Rutin Baru'}
+          Tugas Aduan Baru
           </button>          
           </div>
         </div>
@@ -356,10 +370,10 @@ export default function ManagePenugasan({ taskType }: { taskType: 'RUTIN' | 'ADU
                   <tr key={item.id} className="hover:bg-slate-50/50 transition-all group">
                     <td className="px-8 py-5">
                       <div className="flex flex-col">
-                        <span className="text-sm font-black text-slate-800 group-hover:text-indigo-600 transition-colors">#{item.taskNumber}</span>
+                        <span className="text-sm font-black text-slate-800 group-hover:text-indigo-600 transition-colors">#{item.taskNumber || 'Tanpa ID'}</span>
                         <div className="mt-1">
-                           <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter ${item.type === 'ADUAN' ? 'text-orange-600 bg-orange-100' : 'text-indigo-600 bg-indigo-100'}`}>
-                            {item.type}
+                          <span className="text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter text-orange-600 bg-orange-100">
+                            ADUAN
                           </span>
                         </div>
                       </div>
@@ -370,8 +384,8 @@ export default function ManagePenugasan({ taskType }: { taskType: 'RUTIN' | 'ADU
                           <MapPin size={16} />
                         </div>
                         <div className="max-w-[180px]">
-                          <p className="text-sm font-bold text-slate-700 truncate" title={item.location}>{item.location}</p>
-                          <p className="text-xs text-slate-400 font-medium">{item.district}</p>
+                          <p className="text-sm font-bold text-slate-700 truncate" title={item.location || ''}>{item.location || 'Lokasi Tidak Ada'}</p>
+                          <p className="text-xs text-slate-400 font-medium">{item.district || '-'}</p>
                         </div>
                       </div>
                     </td>
@@ -397,16 +411,16 @@ export default function ManagePenugasan({ taskType }: { taskType: 'RUTIN' | 'ADU
                       <div className="bg-slate-50 px-3 py-2 rounded-xl w-fit border border-slate-100">
                         <div className="text-xs font-black text-slate-700 flex items-center gap-1.5">
                           <Calendar size={12} className="text-slate-400" />
-                          {new Date(item.scheduledAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
+                          {item.scheduledAt ? new Date(item.scheduledAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : 'Tanpa Jadwal'}
                         </div>
                         <div className="text-[10px] text-slate-400 font-bold flex items-center gap-1.5 mt-0.5">
                           <Clock size={12} className="text-slate-400" />
-                          {new Date(item.scheduledAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                          {item.scheduledAt ? new Date(item.scheduledAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-5 text-center">
-                      <StatusBadge status={item.status} />
+                      <StatusBadge status={item.status || 'DITUGASKAN'} />
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -448,18 +462,18 @@ export default function ManagePenugasan({ taskType }: { taskType: 'RUTIN' | 'ADU
           <div className="bg-white rounded-[32px] w-full max-w-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="px-8 py-6 border-b border-slate-50 flex justify-between items-center bg-white">
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-xl ${taskType === 'ADUAN' ? 'bg-orange-100 text-orange-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                  {taskType === 'ADUAN' ? <FileText size={20}/> : <Calendar size={20}/>}
+                <div className="p-2 rounded-xl bg-orange-100 text-orange-600">
+                  <FileText size={20}/>
                 </div>
                 <div>
                   <h3 className="font-black text-slate-900 text-lg leading-none">
                     {editingId 
                       ? 'Alihkan / Edit Penugasan' 
-                      : (taskType === 'ADUAN' ? 'Buat Tugas Aduan' : 'Jadwal Tugas Rutin')
+                      : 'Buat Tugas Aduan'
                     }
                   </h3>
                   <p className="text-xs text-slate-400 font-bold mt-1 uppercase tracking-wider">
-                    {editingId ? 'Update Driver atau Jadwal' : 'Input Data Penugasan'}
+                    {editingId ? 'Update Driver atau Jadwal' : 'Input Data Penugasan Aduan'}
                   </p>
                 </div>
               </div>
@@ -472,9 +486,9 @@ export default function ManagePenugasan({ taskType }: { taskType: 'RUTIN' | 'ADU
             </div>
             
             <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
-              {taskType === 'ADUAN' && !editingId && (
+              {!editingId && (
                 <div className="space-y-2">
-                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Pilih Laporan Pending</label>
+                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Pilih Laporan Aduan</label>
                   <select 
                     name="reportId" 
                     value={formData.reportId}
@@ -497,7 +511,9 @@ export default function ManagePenugasan({ taskType }: { taskType: 'RUTIN' | 'ADU
                   >
                     <option value="">-- Cari Laporan --</option>
                     {laporanList.map((l:any) => (
-                      <option key={l.id} value={l.id}>{l.jenisSampah} - {l.description?.substring(0,40)}...</option>
+                      <option key={l.id} value={l.id}>
+                        {(l.jenisSampah || 'Laporan') + ' - ' + ((l.description || 'Tanpa deskripsi').substring(0, 40) + '...')}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -509,7 +525,7 @@ export default function ManagePenugasan({ taskType }: { taskType: 'RUTIN' | 'ADU
                   <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                   <input 
                     type="text" name="location" value={formData.location} onChange={handleInputChange}
-                    placeholder={taskType === 'RUTIN' ? "Contoh: Rute Balige - Laguboti" : "Masukkan alamat lengkap..."}
+                    placeholder="Masukkan alamat lengkap lokasi aduan..."
                     required
                     className="w-full pl-12 pr-5 py-3.5 bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-2xl text-sm font-bold outline-none transition-all shadow-inner"
                   />
@@ -521,14 +537,14 @@ export default function ManagePenugasan({ taskType }: { taskType: 'RUTIN' | 'ADU
                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Driver Penanggung Jawab</label>
                   <select name="driverId" value={formData.driverId} onChange={handleInputChange} required className="w-full px-5 py-3.5 bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-2xl text-sm font-bold outline-none transition-all">
                     <option value="">Pilih Driver</option>
-                    {supirList.map((s:any) => <option key={s.id} value={s.id}>{s.fullName}</option>)}
+                    {supirList.map((s:any) => <option key={s.id} value={s.id}>{s.fullName || 'Driver Tanpa Nama'}</option>)}
                   </select>
                 </div>
                 <div className="space-y-2">
                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Armada (Truk)</label>
                   <select name="truckId" value={formData.truckId} onChange={handleInputChange} required className="w-full px-5 py-3.5 bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-2xl text-sm font-bold outline-none transition-all">
                     <option value="">Pilih Truk</option>
-                    {trukList.map((t:any) => <option key={t.id} value={t.id}>{t.plateNumber}</option>)}
+                    {trukList.map((t:any) => <option key={t.id} value={t.id}>{t.plateNumber || 'Truk Tanpa Plat'}</option>)}
                   </select>
                 </div>
               </div>

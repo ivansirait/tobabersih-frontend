@@ -40,6 +40,27 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
     }
   }, [isMobileOpen]);
 
+  // Auto-open group jika ada active menu di dalamnya
+  useEffect(() => {
+    const getGroupIdForMenu = (menuId: string): string | null => {
+      const groupMap: Record<string, string[]> = {
+        'data-operasional': ['data-supir', 'data-truk', 'data-wilayah', 'manajemen-rute', 'akun-masyarakat'],
+        'manajemen-tugas': ['tugas-harian'],
+        'manajemen-konten': ['berita', 'galeri', 'edukasi'],
+      };
+      
+      for (const [groupId, items] of Object.entries(groupMap)) {
+        if (items.includes(menuId)) return groupId;
+      }
+      return null;
+    };
+
+    const groupId = getGroupIdForMenu(activeMenu);
+    if (groupId) {
+      setOpenGroups(prev => ({ ...prev, [groupId]: true }));
+    }
+  }, [activeMenu]);
+
   const menuConfig = useMemo(() => [
     { type: "item", id: 'dashboard',    label: 'Dashboard',         icon: LayoutDashboard, color: 'from-emerald-400 to-green-600',  href: '/admin' },
     {
@@ -57,16 +78,8 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
     },
     { type: "item", id: 'peta-sampah',  label: 'Peta Operasional',   icon: Map,             color: 'from-emerald-500 to-teal-500',   href: '/admin/PetaSampah' },
     {
-      type: "group",
-      id: 'manajemen-tugas',
-      group: "Manajemen Tugas",
-      icon: Calendar,
-      items: [
-        { id: 'tugas-harian', label: 'Tugas Harian', icon: ClipboardList, color: 'from-green-300 to-emerald-500', href: '/admin/Penugasan/tugas-harian' },
-        { id: 'tugas-aduan',  label: 'Tugas Aduan',  icon: AlertCircle,   color: 'from-lime-300 to-green-500',   href: '/admin/Penugasan/tugas-aduan' },
-      ]
-    },
-    { type: "section-header", label: "Analitik & Konten" },
+    type: "item", id: 'tugas-aduan', label: 'Tugas Aduan', icon: AlertCircle, color: 'from-lime-300 to-green-500', href: '/admin/LayananAduan'
+  },
     {
       type: "group",
       id: 'manajemen-konten',
@@ -91,19 +104,12 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
   const NavItem = useCallback(({ item, isSubItem = false }: { item: any, isSubItem?: boolean }) => {
     const isActive = activeMenu === item.id;
 
-    const handleClick = (e: React.MouseEvent) => {
-      e.preventDefault();
-      if (setActiveMenu) setActiveMenu(item.id);
-      setIsMobileOpen(false);
-
-      // Handle navigation if href exists and it's not the current active menu
-      if (item.href && item.href !== '/admin' && activeMenu !== item.id) {
-        window.location.href = item.href;
-      }
+    const handleClick = () => {
+      setIsMobileOpen(false); // Close mobile menu
     };
 
     if (item.href) {
-      // For items with href, use a proper link
+      // For items with href, use a proper link - let Next.js handle navigation
       return (
         <Link
           href={item.href}
@@ -146,7 +152,7 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
         <span className={`${isSubItem ? 'text-sm' : 'text-sm'} font-medium tracking-wide`}>{item.label}</span>
       </button>
     );
-  }, [activeMenu, setActiveMenu, setIsMobileOpen]);
+  }, [activeMenu, setIsMobileOpen]);
 
   const GroupItem = useCallback(({ group }: { group: any }) => {
     const isOpen = openGroups[group.id];
