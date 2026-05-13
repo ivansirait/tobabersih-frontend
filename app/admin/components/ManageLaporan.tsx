@@ -191,7 +191,7 @@ export default function ManageLaporan() {
       );
 
       if (response.data.success || response.data) {
-        toast.success(`✅ Status updated - Email notifikasi terkirim ke: ${selectedLaporanForStatusUpdate.email || 'pelapor'}`);
+        toast.success(`✅ Status updated - Email notifikasi terkirim ke: ${selectedLaporanForStatusUpdate.phoneNumber || 'pelapor'}`);
         
         fetchLaporan();
         fetchAssignments();
@@ -605,7 +605,7 @@ export default function ManageLaporan() {
                 <p className="text-xs text-blue-600 font-semibold">📋 Laporan</p>
                 <p className="text-sm font-medium">{selectedLaporanForStatusUpdate.district}</p>
                 <p className="text-xs text-gray-600 mt-2">
-                  📧 {selectedLaporanForStatusUpdate.email || 'Email tidak tersedia'}
+                  📧 {selectedLaporanForStatusUpdate.phoneNumber || 'Kontak tidak tersedia'}
                 </p>
               </div>
 
@@ -638,7 +638,7 @@ export default function ManageLaporan() {
 
               {/* Alert */}
               <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200 text-xs text-yellow-700">
-                ⚠️ Email notifikasi akan dikirim otomatis ke {selectedLaporanForStatusUpdate.email || 'email pelapor'}
+                ⚠️ Email notifikasi akan dikirim otomatis ke {selectedLaporanForStatusUpdate.phoneNumber || 'kontak pelapor'}
               </div>
 
               {/* Buttons */}

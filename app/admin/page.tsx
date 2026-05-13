@@ -273,13 +273,6 @@ export default function AdminPage() {
       {isLoggedIn && (
         <>
           <Dashboard laporanList={data.laporan} posts={data.posts} loading={loading.data} />
-          {typeof window !== 'undefined' && (
-            <script dangerouslySetInnerHTML={{
-              __html: `
-                console.log('📊 Dashboard Render - Laporan Count:', ${data.laporan.length}, 'Posts Count:', ${data.posts.length});
-              `
-            }} />
-          )}
         </>
       )}
     </div>
