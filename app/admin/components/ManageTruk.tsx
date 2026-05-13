@@ -212,12 +212,20 @@ export default function ManageTruk() {
         onClose={() => setShowSuccessDialog(false)}
       />
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-end gap-6">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Manajemen Armada</h1>
-          <p className="text-gray-500 flex items-center gap-2">
-            <LayoutGrid size={16} /> Pantau unit truk pengangkut sampah secara real-time.
-          </p>
+
+        <div className="mb-8">
+        <div className="bg-gradient-to-r from-[#DDE9E1] to-[#E8F1EB] rounded-[24px] p-8 shadow-sm border border-white/50">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+            <div>
+              <span className="bg-white/60 text-[#4A6D55] px-4 py-1.5 rounded-full text-xs font-medium tracking-wider uppercase inline-block mb-3">
+                Data & Operasional
+              </span>
+              <h1 className="text-3xl font-extrabold text-[#1A2E35] tracking-tight">Manajemen Armada</h1>
+              <p className="text-[#5B7078] mt-2 font-medium">
+                Kelola unit armada pengangkut sampah
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -401,21 +409,36 @@ export default function ManageTruk() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Tipe Truk</label>
-                  <input
-                    name="truckType"
-                    value={formData.truckType}
-                    onChange={handleInputChange}
-                    placeholder="Dump Truck, Arm Roll, ELF"
-                    required
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition text-black"
-                  />
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Jenis Armada</label>
+                 <select
+  name="truckType"
+  value={formData.truckType}
+  onChange={handleInputChange}
+  required
+  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition text-black appearance-none bg-white"
+>
+  <option value="" disabled>Pilih Jenis Armada</option>
+  <optgroup label="Angkutan Besar">
+    <option value="Dump Truck">Dump Truck</option>
+    <option value="Arm Roll">Arm Roll (Hook Lift)</option>
+    <option value="Compactor">Compactor Truck (Pemadat)</option>
+  </optgroup>
+  <optgroup label="Angkutan Kecil & Lingkungan">
+    <option value="Truk ELF">Truk ELF (4 Roda)</option>
+    <option value="Pick-Up">Pick-Up Bak</option>
+    <option value="Motor Roda 3">Motor Roda 3 (Tossa)</option>
+  </optgroup>
+  <optgroup label="Layanan Khusus">
+    <option value="Truk Tinja">Truk Tangki Tinja</option>
+    <option value="Road Sweeper">Road Sweeper (Penyapu Jalan)</option>
+  </optgroup>
+</select>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Assign Operator</label>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Supir</label>
                   <div className="relative">
                     <select
                       name="operatorId"
