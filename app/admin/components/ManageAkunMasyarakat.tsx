@@ -12,7 +12,7 @@ import ConfirmDialog from './ConfirmDialog';
 import AlertDialog from './AlertDialog';
 import toast, { Toaster } from "react-hot-toast";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+
 interface AkunMasyarakat {
   id: string;
   fullName: string;
@@ -52,12 +52,12 @@ interface ExportData {
   createdAt: string;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const API_BASE_URL   = "http://localhost:5000/api";
-const DEFAULT_PASS   = "Warga123!";
+
+const API_BASE_URL = "http://localhost:5000/api";
+const DEFAULT_PASS = "Warga123!";
 const INITIAL_FORM: FormData = { fullName: "", email: "", phoneNumber: "", region: "" };
 
-// ─── Export Modal ─────────────────────────────────────────────────────────────
+
 function ExportModal({ onClose }: { onClose: () => void }) {
   const [exporting, setExporting] = useState(false);
   const [format, setFormat] = useState<"excel" | "csv">("excel");
@@ -187,34 +187,34 @@ function ExportModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ─── Import Modal ─────────────────────────────────────────────────────────────
+
 function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [rows, setRows]                   = useState<ImportRow[]>([]);
-  const [fileName, setFileName]           = useState("");
-  const [importing, setImporting]         = useState(false);
-  const [done, setDone]                   = useState(false);
-  const [dragOver, setDragOver]           = useState(false);
-  const [summary, setSummary]             = useState<{ success: number; error: number; total: number } | null>(null);
+  const [rows, setRows] = useState<ImportRow[]>([]);
+  const [fileName, setFileName] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [done, setDone] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [summary, setSummary] = useState<{ success: number; error: number; total: number } | null>(null);
   const [useCustomPass, setUseCustomPass] = useState(false);
-  const [globalPass, setGlobalPass]       = useState("");
-  const [showPass, setShowPass]           = useState(false);
+  const [globalPass, setGlobalPass] = useState("");
+  const [showPass, setShowPass] = useState(false);
 
   const parseExcel = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const data = new Uint8Array(e.target?.result as ArrayBuffer);
-      const wb   = XLSX.read(data, { type: "array" });
-      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const wb = XLSX.read(data, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
       const json: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
 
       const mapped: ImportRow[] = json.map((r) => ({
-        fullName: String(r["Nama Lengkap"] ?? r["name"]     ?? r["fullName"]    ?? "").trim(),
-        phone:    String(r["Nomor HP"]    ?? r["phone"]     ?? r["phoneNumber"] ?? "").trim(),
-        email:    String(r["Email"]       ?? r["email"]     ?? "").trim(),
-        region:   String(r["Wilayah"]     ?? r["region"]    ?? r["Alamat"]      ?? "").trim(),
-        password: String(r["Kata Sandi"]  ?? r["password"]  ?? "").trim() || undefined,
-        status:   "pending",
+        fullName: String(r["Nama Lengkap"] ?? r["name"] ?? r["fullName"] ?? "").trim(),
+        phone: String(r["Nomor HP"] ?? r["phone"] ?? r["phoneNumber"] ?? "").trim(),
+        email: String(r["Email"] ?? r["email"] ?? "").trim(),
+        region: String(r["Wilayah"] ?? r["region"] ?? r["Alamat"] ?? "").trim(),
+        password: String(r["Kata Sandi"] ?? r["password"] ?? "").trim() || undefined,
+        status: "pending",
       }));
 
       setRows(mapped);
@@ -232,9 +232,9 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
   const downloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([
       ["Nama Lengkap", "Nomor HP", "Email", "Wilayah", "Kata Sandi (Opsional)"],
-      ["Budi Santoso",  "081234567890", "budi@email.com",  "Balige",   ""],
-      ["Sari Dewi",     "082345678901", "sari@email.com",  "Laguboti", "SariPass123"],
-      ["Anton Lumban",  "083456789012", "anton@email.com", "Porsea",   ""],
+      ["Budi Santoso", "081234567890", "budi@email.com", "Balige", ""],
+      ["Sari Dewi", "082345678901", "sari@email.com", "Laguboti", "SariPass123"],
+      ["Anton Lumban", "083456789012", "anton@email.com", "Porsea", ""],
     ]);
     ws["!cols"] = [{ wch: 25 }, { wch: 16 }, { wch: 28 }, { wch: 14 }, { wch: 24 }];
     const wb = XLSX.utils.book_new();
@@ -255,7 +255,7 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
         ? { ...r, status: "error", errorMsg: "Nama & Email wajib diisi" }
         : r
     );
-    const valid   = validated.filter((r) => r.status !== "error");
+    const valid = validated.filter((r) => r.status !== "error");
     const invalid = validated.filter((r) => r.status === "error");
     setRows([...validated]);
 
@@ -271,11 +271,11 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
         `${API_BASE_URL}/users/bulk`,
         {
           users: valid.map((r) => ({
-            fullName:    r.fullName,
-            email:       r.email,
+            fullName: r.fullName,
+            email: r.email,
             phoneNumber: r.phone,
-            region:      r.region || "",
-            password:    resolvePassword(r),
+            region: r.region || "",
+            password: resolvePassword(r),
           })),
         },
         { headers: { Authorization: `Bearer ${token}` } }
@@ -290,8 +290,8 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
         if (!result) return { ...row, status: "error", errorMsg: "Tidak ada respons server" };
         return {
           ...row,
-          status:   result.status === "success" ? "success" : "error",
-          errorMsg: result.status === "error"   ? result.message : undefined,
+          status: result.status === "success" ? "success" : "error",
+          errorMsg: result.status === "error" ? result.message : undefined,
         };
       });
 
@@ -307,13 +307,13 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
   };
 
   const successCount = rows.filter((r) => r.status === "success").length;
-  const errorCount   = rows.filter((r) => r.status === "error").length;
+  const errorCount = rows.filter((r) => r.status === "error").length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
       <div className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-white/20">
 
-        {/* Header */}
+
         <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-start bg-gray-50/50 flex-shrink-0">
           <div>
             <span className="text-[10px] font-medium uppercase tracking-widest text-gray-400">Import Data</span>
@@ -332,7 +332,7 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
 
         <div className="overflow-y-auto flex-1 p-8 space-y-5">
 
-          {/* Download Template */}
+
           <div className="flex items-center justify-between rounded-[20px] bg-gray-50 border border-gray-100 px-5 py-4">
             <div>
               <p className="text-sm font-medium text-gray-800">Belum punya template?</p>
@@ -349,7 +349,7 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
             </button>
           </div>
 
-          {/* Password Setting */}
+
           {rows.length > 0 && !done && (
             <div className="rounded-[20px] border border-amber-200 bg-amber-50 px-5 py-4 space-y-3">
               <p className="text-sm font-medium text-amber-800 flex items-center gap-2">
@@ -386,7 +386,7 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
             </div>
           )}
 
-          {/* Summary */}
+
           {done && summary && (
             <div className="rounded-[20px] border border-gray-100 bg-white px-5 py-4 flex flex-wrap items-center gap-4 shadow-sm">
               <span className="text-sm text-gray-500">Total: <strong>{summary.total}</strong></span>
@@ -401,7 +401,7 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
             </div>
           )}
 
-          {/* Drop Zone */}
+
           {rows.length === 0 && (
             <div
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -423,7 +423,7 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
             </div>
           )}
 
-          {/* Preview Table */}
+
           {rows.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -458,8 +458,8 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
                   <tbody className="divide-y divide-gray-50 bg-white">
                     {rows.map((row, i) => (
                       <tr key={i} className={
-                        row.status === "error"   ? "bg-red-50"   :
-                        row.status === "success" ? "bg-green-50" : ""
+                        row.status === "error" ? "bg-red-50" :
+                          row.status === "success" ? "bg-green-50" : ""
                       }>
                         <td className="px-4 py-3 text-gray-400 text-xs">{i + 1}</td>
                         <td className="px-4 py-3 font-medium text-gray-900">
@@ -541,39 +541,39 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+
 export default function ManageAkunMasyarakat() {
-  const [akunList,          setAkunList]          = useState<AkunMasyarakat[]>([]);
-  const [loading,           setLoading]           = useState(true);
-  const [submitting,        setSubmitting]        = useState(false);
-  const [searchTerm,        setSearchTerm]        = useState("");
-  const [showModal,         setShowModal]         = useState(false);
-  const [showImport,        setShowImport]        = useState(false);
-  const [showExport,        setShowExport]        = useState(false);
-  const [viewingAkun,       setViewingAkun]       = useState<AkunMasyarakat | null>(null);
-  const [editingAkun,       setEditingAkun]       = useState<AkunMasyarakat | null>(null);
-  const [pendingDeleteId,   setPendingDeleteId]   = useState<string | null>(null);
-  const [deleting,          setDeleting]          = useState(false);
+  const [akunList, setAkunList] = useState<AkunMasyarakat[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [viewingAkun, setViewingAkun] = useState<AkunMasyarakat | null>(null);
+  const [editingAkun, setEditingAkun] = useState<AkunMasyarakat | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-  const [successTitle,      setSuccessTitle]      = useState('');
-  const [successDescription,setSuccessDescription]= useState('');
-  const [successIcon,       setSuccessIcon]       = useState<any>(<CheckCircle2 size={24} />);
-  const [formData,          setFormData]          = useState<FormData>(INITIAL_FORM);
+  const [successTitle, setSuccessTitle] = useState('');
+  const [successDescription, setSuccessDescription] = useState('');
+  const [successIcon, setSuccessIcon] = useState<any>(<CheckCircle2 size={24} />);
+  const [formData, setFormData] = useState<FormData>(INITIAL_FORM);
 
   const fetchAkun = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
-      const res   = await axios.get(`${API_BASE_URL}/users`, {
+      const res = await axios.get(`${API_BASE_URL}/users`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.data.success) setAkunList(res.data.data || []);
       else toast.error(res.data.message || "Gagal memuat data");
     } catch (err: any) {
       if (err.response?.data?.message) toast.error(err.response.data.message);
-      else if (!err.response)          toast.error("Tidak dapat terhubung ke server");
-      else                             toast.error("Gagal memuat data akun masyarakat");
+      else if (!err.response) toast.error("Tidak dapat terhubung ke server");
+      else toast.error("Gagal memuat data akun masyarakat");
     } finally {
       setLoading(false);
     }
@@ -582,8 +582,8 @@ export default function ManageAkunMasyarakat() {
   useEffect(() => { fetchAkun(); }, []);
 
   const stats = useMemo(() => ({
-    total:    akunList.length,
-    active:   akunList.filter((a) => a.isActive).length,
+    total: akunList.length,
+    active: akunList.filter((a) => a.isActive).length,
     inactive: akunList.filter((a) => !a.isActive).length,
   }), [akunList]);
 
@@ -597,13 +597,13 @@ export default function ManageAkunMasyarakat() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const token  = localStorage.getItem("token");
+      const token = localStorage.getItem("token");
       const config = { headers: { Authorization: `Bearer ${token}` } };
       const payload: any = {
-        fullName:    formData.fullName,
-        email:       formData.email,
+        fullName: formData.fullName,
+        email: formData.email,
         phoneNumber: formData.phoneNumber || null,
-        region:      formData.region || null,
+        region: formData.region || null,
       };
 
       let res;
@@ -617,7 +617,7 @@ export default function ManageAkunMasyarakat() {
         }
       } else {
         payload.password = formData.password?.trim() || DEFAULT_PASS;
-        payload.role     = "WARGA";
+        payload.role = "WARGA";
         res = await axios.post(`${API_BASE_URL}/users`, payload, config);
         if (res.data.success) {
           setSuccessTitle('Akun berhasil didaftarkan');
@@ -643,7 +643,7 @@ export default function ManageAkunMasyarakat() {
     setDeleting(true);
     try {
       const token = localStorage.getItem("token");
-      const res   = await axios.delete(`${API_BASE_URL}/users/${pendingDeleteId}`, {
+      const res = await axios.delete(`${API_BASE_URL}/users/${pendingDeleteId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.data.success) {
@@ -670,7 +670,7 @@ export default function ManageAkunMasyarakat() {
     setShowModal(true);
   };
 
-  // Auto-generate email based on full name
+
   const generateEmail = (fullName: string) => {
     if (!fullName) return "";
     const name = fullName.toLowerCase().replace(/\s+/g, "");
@@ -682,7 +682,7 @@ export default function ManageAkunMasyarakat() {
     setFormData(prev => ({
       ...prev,
       fullName,
-      email: generateEmail(fullName) // Auto-fill email
+      email: generateEmail(fullName)
     }));
   };
 
@@ -705,7 +705,7 @@ export default function ManageAkunMasyarakat() {
         onClose={() => setShowSuccessDialog(false)}
       />
 
-      {/* HEADER */}
+
       <div className="mb-8">
         <div className="bg-gradient-to-r from-[#DDE9E1] to-[#E8F1EB] rounded-[24px] p-8 shadow-sm border border-white/50">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
@@ -722,12 +722,12 @@ export default function ManageAkunMasyarakat() {
         </div>
       </div>
 
-      {/* STATS */}
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: 'Total Akun',  val: stats.total,    color: 'text-gray-600',  bg: 'bg-gray-50',  icon: Users        },
-          { label: 'Akun Aktif', val: stats.active,   color: 'text-green-600', bg: 'bg-green-50', icon: CheckCircle2 },
-          { label: 'Nonaktif',   val: stats.inactive, color: 'text-red-600',   bg: 'bg-red-50',   icon: XCircle      },
+          { label: 'Total Akun', val: stats.total, color: 'text-gray-600', bg: 'bg-gray-50', icon: Users },
+          { label: 'Akun Aktif', val: stats.active, color: 'text-green-600', bg: 'bg-green-50', icon: CheckCircle2 },
+          { label: 'Nonaktif', val: stats.inactive, color: 'text-red-600', bg: 'bg-red-50', icon: XCircle },
         ].map((stat, i) => (
           <div key={i} className="bg-white p-5 rounded-[24px] border border-gray-100 shadow-sm flex items-center gap-4">
             <div className={`p-3 rounded-[24px] ${stat.bg} ${stat.color}`}>
@@ -741,7 +741,7 @@ export default function ManageAkunMasyarakat() {
         ))}
       </div>
 
-      {/* ACTION BUTTONS — Import Excel di kiri, Export di tengah, Tambah di kanan */}
+
       <div className="flex justify-end gap-3 mt-4">
         <button
           onClick={() => setShowImport(true)}
@@ -765,7 +765,7 @@ export default function ManageAkunMasyarakat() {
         </button>
       </div>
 
-      {/* Import Modal */}
+
       {showImport && (
         <ImportModal
           onClose={() => setShowImport(false)}
@@ -853,11 +853,10 @@ export default function ManageAkunMasyarakat() {
                       </span>
                     </td>
                     <td className="px-6 py-5">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium ring-1 ring-inset ${
-                        akun.isActive
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium ring-1 ring-inset ${akun.isActive
                           ? 'bg-green-100 text-green-800 ring-green-600/20'
                           : 'bg-red-100 text-red-800 ring-red-600/20'
-                      }`}>
+                        }`}>
                         <span className={`w-1.5 h-1.5 rounded-full mr-2 ${akun.isActive ? 'bg-green-600' : 'bg-red-600'}`} />
                         {akun.isActive ? 'Aktif' : 'Nonaktif'}
                       </span>
@@ -877,7 +876,7 @@ export default function ManageAkunMasyarakat() {
         )}
       </div>
 
-      {/* MODAL VIEW DETAIL */}
+
       {viewingAkun && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-white/20">
@@ -925,7 +924,7 @@ export default function ManageAkunMasyarakat() {
         </div>
       )}
 
-      {/* MODAL FORM (Add / Edit) */}
+
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-white/20">
@@ -990,7 +989,7 @@ export default function ManageAkunMasyarakat() {
                 </div>
               </div>
 
-              {/* Kata Sandi */}
+
               <div className="space-y-1.5">
                 <label className="text-[11px] font-medium uppercase tracking-wider text-gray-400 ml-1">
                   {editingAkun ? "Kata Sandi Baru" : "Kata Sandi"}
@@ -1022,7 +1021,7 @@ export default function ManageAkunMasyarakat() {
         </div>
       )}
 
-      {/* DELETE CONFIRM */}
+
       <ConfirmDialog
         open={showConfirmDialog}
         title="Hapus Akun Masyarakat?"

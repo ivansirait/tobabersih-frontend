@@ -183,12 +183,19 @@ export default function ManageSupir() {
       />
 
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-end gap-6">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Manajemen Supir</h1>
-          <p className="text-gray-500 flex items-center gap-2">
-            <LayoutGrid size={16} /> Kelola data dan akun akses supir armada Anda.
-          </p>
+      <div className="mb-8">
+        <div className="bg-gradient-to-r from-[#DDE9E1] to-[#E8F1EB] rounded-[24px] p-8 shadow-sm border border-white/50">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+            <div>
+              <span className="bg-white/60 text-[#4A6D55] px-4 py-1.5 rounded-full text-xs font-medium tracking-wider uppercase inline-block mb-3">
+                Data & Operasional
+              </span>
+              <h1 className="text-3xl font-extrabold text-[#1A2E35] tracking-tight">Manajemen Akun Supir</h1>
+              <p className="text-[#5B7078] mt-2 font-medium">
+                Kelola akun akses untuk supir armada Anda
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
