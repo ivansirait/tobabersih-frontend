@@ -545,7 +545,7 @@ export default function ManageLaporan() {
               </div>
               <div>
                 <label className="text-xs font-bold uppercase text-slate-400">Lokasi Kerja</label>
-                <input type="text" value={selectedLaporan.location || selectedLaporan.description} disabled className="w-full mt-1 p-2 bg-slate-100 rounded-lg text-sm" />
+                <input type="text" name="location" value={selectedLaporan.location || selectedLaporan.description} readOnly className="w-full mt-1 p-2 bg-slate-100 rounded-lg text-sm" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

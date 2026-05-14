@@ -78,7 +78,7 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
     },
     { type: "item", id: 'peta-sampah',  label: 'Peta Operasional',   icon: Map,             color: 'from-emerald-500 to-teal-500',   href: '/admin/PetaSampah' },
     {
-    type: "item", id: 'tugas-aduan', label: 'Tugas Aduan', icon: AlertCircle, color: 'from-lime-300 to-green-500', href: '/admin/LayananAduan'
+    type: "item", id: 'tugas-aduan', label: 'Layanan Aduan', icon: AlertCircle, color: 'from-lime-300 to-green-500', href: '/admin/LayananAduan'
   },
     {
       type: "group",
