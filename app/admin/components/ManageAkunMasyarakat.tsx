@@ -827,7 +827,6 @@ export default function ManageAkunMasyarakat() {
                         </div>
                         <div>
                           <p className="font-medium text-gray-900 leading-none">{akun.fullName}</p>
-                          <p className="text-[10px] text-gray-400 mt-1 font-mono uppercase tracking-tighter">ID: {akun.id.toString().slice(0, 8)}</p>
                         </div>
                       </div>
                     </td>

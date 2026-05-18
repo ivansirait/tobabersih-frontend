@@ -105,6 +105,7 @@ export default function ManagePenugasan() {
     truckId: "",
     driverId: "",
     scheduledAt: "",
+    location: "", // 🔥 TAMBAHKAN INI
   });
 
   // =========================
@@ -207,6 +208,7 @@ export default function ManagePenugasan() {
       truckId: "",
       driverId: "",
       scheduledAt: "",
+      location: "", // 🔥 TAMBAHKAN INI
     });
   };
 
@@ -220,6 +222,7 @@ export default function ManagePenugasan() {
       truckId: "",
       driverId: "",
       scheduledAt: "",
+      location: item.location || item.description || "", // 🔥 TAMBAHKAN INI
     });
 
     setShowModal(true);
@@ -240,28 +243,41 @@ export default function ManagePenugasan() {
   // SUBMIT
   // =========================
 
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
+ // Di ManagePenugasan component
 
-    try {
-      await api.post("/penugasan/aduan", formData);
+const handleSubmit = async (e: any) => {
+  e.preventDefault();
 
-      toast.success("Penugasan berhasil dibuat");
+  // Validasi frontend
+  if (!formData.location) {
+    toast.error("Lokasi harus diisi");
+    return;
+  }
 
-      setShowModal(false);
+  try {
+    // Kirim location bersama data lainnya
+    const payload = {
+      reportId: formData.reportId,
+      truckId: formData.truckId,
+      driverId: formData.driverId,
+      scheduledAt: formData.scheduledAt,
+      location: formData.location, // 🔥 TAMBAHKAN INI
+      district: selectedItem?.district || null,
+      description: selectedItem?.description || null,
+      notes: "",
+    };
 
-      resetForm();
+    await api.post("/penugasan/aduan", payload);
 
-      fetchData();
-    } catch (error: any) {
-      console.error(error);
-
-      toast.error(
-        error?.response?.data?.message || "Gagal membuat penugasan"
-      );
-    }
-  };
-
+    toast.success("Penugasan berhasil dibuat");
+    setShowModal(false);
+    resetForm();
+    fetchData();
+  } catch (error: any) {
+    console.error(error);
+    toast.error(error?.response?.data?.message || "Gagal membuat penugasan");
+  }
+};
   // =========================
   // DELETE
   // =========================
@@ -272,7 +288,7 @@ export default function ManagePenugasan() {
     try {
       await api.delete(`/penugasan/${id}`);
 
-      toast.success("Penugasan dihapus");
+      toast.success("Penugasan dihapus"); 
 
       fetchData();
     } catch (error) {
@@ -530,40 +546,44 @@ export default function ManagePenugasan() {
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-gray-50">
-            {loading ? (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="px-6 py-10 text-center text-gray-400 italic"
-                >
-                  Memuat data penugasan...
-                </td>
-              </tr>
-            ) : paginatedItems.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="px-6 py-10 text-center text-gray-400 italic"
-                >
-                  Tidak ada data ditemukan
-                </td>
-              </tr>
-            ) : (
-              paginatedItems.map((item) => (
-                <tr
-                  key={item.id}
-                  className="hover:bg-gray-50/50 transition-colors group"
-                >
-                  <td className="px-6 py-5">
-                    <div className="flex flex-col gap-1">
-                      <p className="font-bold text-sm text-gray-900">
-                        {item.taskNumber
-                          ? `#${item.taskNumber}`
-                          : "Laporan Baru"}
-                      </p>
-                    </div>
-                  </td>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="text-center py-20"
+                    >
+                      Loading...
+                    </td>
+                  </tr>
+                ) : paginatedItems.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="text-center py-20"
+                    >
+                      Tidak ada data
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedItems.map((item) => (
+                    <tr
+                      key={item.id}
+                      className="border-t hover:bg-slate-50 transition-colors"
+                    >
+                      {/* TASK */}
+
+                      <td className="px-6 py-5">
+                        <div className="flex flex-col">
+                          <span className="font-bold">
+                            {item.taskNumber
+                              ? `#${item.taskNumber}`
+                              : "Laporan Baru"}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* PELAPOR */}
 
                   <td className="px-6 py-5">
                     <div className="flex items-center gap-2">

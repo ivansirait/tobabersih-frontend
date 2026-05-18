@@ -78,7 +78,7 @@ export default function ManagePosts({ posts = [], onPostsUpdate }: ManagePostsPr
     await fetchPosts();
     if (onPostsUpdate) {
       try {
-        await onPostsUpdate();
+        onPostsUpdate();
       } catch (err) {
         console.warn('onPostsUpdate error:', err);
       }
@@ -141,7 +141,7 @@ export default function ManagePosts({ posts = [], onPostsUpdate }: ManagePostsPr
       }
 
       showNotification('Berita berhasil dihapus!', 'success');
-      onPostsUpdate();
+      if (onPostsUpdate) onPostsUpdate();
       setDeleteModal({ show: false, id: null });
     } catch (err: any) {
       const message = err.response?.data?.message || err.message || 'Gagal menghapus berita';
