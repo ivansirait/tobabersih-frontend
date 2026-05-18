@@ -89,10 +89,10 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
       group: "Manajemen Konten",
       icon: Newspaper,
       items: [
-        { id: 'berita', label: 'Kelola Berita', icon: Newspaper, color: 'from-green-500 to-emerald-600', href: '/admin/berita' },
-        { id: 'galeri', label: 'Galeri', icon: ImageIcon, color: 'from-teal-500 to-emerald-600', href: '/admin/galeri' },
-        { id: 'edukasi', label: 'Edukasi', icon: GraduationCap, color: 'from-cyan-500 to-blue-600', href: '/admin/edukasi' },
-      ]
+      { id: 'berita', label: 'Kelola Berita', icon: Newspaper, color: 'from-green-500 to-emerald-600', href: '/admin/berita' },
+      { id: 'galleries', label: 'Galeri', icon: ImageIcon, color: 'from-teal-500 to-emerald-600', href: '/admin/galleries' },
+      { id: 'edukasi', label: 'Edukasi', icon: GraduationCap, color: 'from-cyan-500 to-blue-600', href: '/admin/edukasi' },
+    ]
     }
   ], []);
 

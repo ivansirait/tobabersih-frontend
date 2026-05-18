@@ -26,7 +26,9 @@ export default function AdminLayout({
     if (path.includes('/admin/PetaSampah')) return 'peta-sampah';
     if (path.includes('/admin/LayananAduan')) return 'tugas-aduan';
     if (path.includes('/admin/berita')) return 'berita';
-    if (path.includes('/admin/Galeri')) return 'galeri';
+    // Sidebar: href Galeri adalah /admin/galleries (huruf kecil)
+    if (path.includes('/admin/galleries') || path.includes('/admin/Galeri')) return 'galleries';
+
     if (path.includes('/admin/edukasi')) return 'edukasi';
     if (path.includes('/admin/pengaturan')) return 'pengaturan';
     return 'dashboard';
