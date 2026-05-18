@@ -13,8 +13,11 @@ import PetaSampah from './components/PetaSampah';
 import ManageWilayah from './components/ManageWilayah';
 import ManagePenugasan from './components/ManageLayananAduan';
 import ManageLaporan from './components/ManageLaporan';
+import ManageGalleries from './components/ManageGalleries';
+import ManageEdukasi from './components/ManageEdukasi';
 
 // --- API Instance ---
+
 const api = axios.create({
   baseURL: 'http://localhost:5000/api',
   timeout: 15000, // ✅ FIX: tambah timeout global 15 detik
@@ -136,14 +139,19 @@ export default function AdminPage() {
 
       // Fetch posts/berita
       try {
-        const postsRes = await axios.get('http://localhost:5000/api/admin/berita', { headers, timeout: 5000 });
-        const postsData = Array.isArray(postsRes.data) ? postsRes.data : (postsRes.data?.data || []);
+        const postsRes = await axios.get('http://localhost:5000/api/posts', { headers, timeout: 5000 });
+        const postsData = Array.isArray(postsRes.data)
+          ? postsRes.data
+          : Array.isArray(postsRes.data?.data)
+            ? postsRes.data.data
+            : [];
         setPosts(postsData);
         setData(prev => ({ ...prev, posts: postsData }));
         console.log('✅ Posts berhasil dimuat:', postsData.length, 'item');
       } catch (err: any) {
         console.warn('⚠️ Fetch posts gagal:', err.message);
         setPosts([]);
+        setData(prev => ({ ...prev, posts: [] }));
       }
     } finally {
       setLoading(prev => ({ ...prev, data: false }));
@@ -250,6 +258,10 @@ export default function AdminPage() {
         return <ManageWilayah />;
       case 'berita':
         return <ManagePosts posts={data.posts} onPostsUpdate={fetchAllData} />;
+      case 'galeri':
+        return <ManageGalleries galleries={data.galleries || []} onGalleriesUpdate={fetchAllData} />;
+      case 'edukasi':
+        return <ManageEdukasi />;
       default:
         return <Dashboard laporanList={data.laporan} posts={data.posts} />;
     }
@@ -269,11 +281,14 @@ export default function AdminPage() {
 
   return (
     <div className="bg-[#F8FAFB] min-w-0 w-full">
-      {/* Dashboard Content dengan data logging */}
-      {isLoggedIn && (
-        <>
-          <Dashboard laporanList={data.laporan} posts={data.posts} loading={loading.data} />
-        </>
+      {/* Render active admin content */}
+      {isLoggedIn ? renderActiveContent() : (
+        <LoginForm
+          credentials={credentials}
+          setCredentials={setCredentials}
+          onLogin={handleLogin}
+          loading={loading.login}
+        />
       )}
     </div>
   );

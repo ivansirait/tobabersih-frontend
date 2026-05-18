@@ -3,26 +3,23 @@
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import {
-  Plus,
   Trash2,
   Search,
-  Calendar,
   User,
-  Truck,
-  MapPin,
-  X,
-  Eye,
-  Clock,
-  CheckCircle2,
-  FileText,
   RefreshCw,
   Repeat,
   ClipboardList,
   ChevronLeft,
   ChevronRight,
+  X,
+  Eye,
+  Clock,
+  CheckCircle2,
+  FileText,
 } from "lucide-react";
 
 import toast, { Toaster } from "react-hot-toast";
+import { motion, AnimatePresence } from "framer-motion";
 import PenugasanDetail from "./PenugasanDetail";
 
 const API_BASE_URL =
@@ -46,16 +43,6 @@ api.interceptors.request.use((config) => {
 
   return config;
 });
-
-interface Laporan {
-  id: string;
-  status: "LAPORAN_BARU" | "PENDING";
-  location: string;
-  district?: string;
-  description?: string;
-  jenisSampah?: string;
-  pelapor?: string;
-}
 
 interface Penugasan {
   id: string;
@@ -83,10 +70,6 @@ interface Penugasan {
   truck?: {
     id: string;
     plateNumber: string;
-    driver?: {
-      id: string;
-      fullName: string;
-    };
   };
 }
 
@@ -113,8 +96,6 @@ export default function ManagePenugasan() {
 
   const [trukList, setTrukList] = useState<any[]>([]);
 
-  const [supirList, setSupirList] = useState<any[]>([]);
-
   const [filter, setFilter] = useState({
     status: "",
   });
@@ -134,18 +115,13 @@ export default function ManagePenugasan() {
     try {
       setLoading(true);
 
-      const [penugasanRes, laporanRes, trukRes, supirRes] = await Promise.all([
+      const [penugasanRes, laporanRes, trukRes] = await Promise.all([
         api.get("/penugasan?type=ADUAN"),
         api.get("/laporan"),
         api.get("/admin/truks"),
-        api.get("/admin/supir-list"),
       ]);
 
       const penugasanData = penugasanRes.data.data || [];
-
-      // =========================
-      // LAPORAN BARU (Belum Ditugaskan)
-      // =========================
 
       const laporanBaru = (laporanRes.data.data || [])
         .filter(
@@ -169,14 +145,9 @@ export default function ManagePenugasan() {
           },
         }));
 
-      // =========================
-      // GABUNGKAN (Laporan Baru + Penugasan)
-      // =========================
-
       setItemList([...laporanBaru, ...penugasanData]);
 
       setTrukList(trukRes.data.data || []);
-      setSupirList(supirRes.data.data || []);
 
       setCurrentPage(1);
     } catch (error) {
@@ -193,7 +164,7 @@ export default function ManagePenugasan() {
   }, []);
 
   // =========================
-  // FILTER & PAGINATION
+  // FILTER
   // =========================
 
   const filteredItems = useMemo(() => {
@@ -202,26 +173,27 @@ export default function ManagePenugasan() {
 
       const matchSearch =
         (item.location || "").toLowerCase().includes(search) ||
-        (item.driver?.fullName || "")
-          .toLowerCase()
-          .includes(search) ||
-        (item.pelapor || "")
-          .toLowerCase()
-          .includes(search) ||
-        (item.taskNumber || "")
-          .toLowerCase()
-          .includes(search);
+        (item.driver?.fullName || "").toLowerCase().includes(search) ||
+        (item.pelapor || "").toLowerCase().includes(search) ||
+        (item.taskNumber || "").toLowerCase().includes(search);
 
-      const matchStatus = filter.status ? item.status === filter.status : true;
+      const matchStatus = filter.status
+        ? item.status === filter.status
+        : true;
 
       return matchSearch && matchStatus;
     });
   }, [itemList, searchTerm, filter]);
 
+  // =========================
+  // PAGINATION
+  // =========================
+
   const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
 
   const paginatedItems = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+
     return filteredItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [filteredItems, currentPage]);
 
@@ -239,7 +211,7 @@ export default function ManagePenugasan() {
   };
 
   // =========================
-  // OPEN TUGASKAN MODAL
+  // OPEN MODAL
   // =========================
 
   const openTugaskanModal = (item: Item) => {
@@ -254,7 +226,7 @@ export default function ManagePenugasan() {
   };
 
   // =========================
-  // HANDLE INPUT
+  // INPUT CHANGE
   // =========================
 
   const handleInputChange = (e: any) => {
@@ -265,7 +237,7 @@ export default function ManagePenugasan() {
   };
 
   // =========================
-  // SUBMIT TUGASKAN
+  // SUBMIT
   // =========================
 
   const handleSubmit = async (e: any) => {
@@ -291,25 +263,7 @@ export default function ManagePenugasan() {
   };
 
   // =========================
-  // TOLAK LAPORAN
-  // =========================
-
-  const handleTolak = async (id: string) => {
-    if (!confirm("Tolak laporan ini?")) return;
-
-    try {
-      await api.put(`/laporan/${id}/tolak`);
-
-      toast.success("Laporan berhasil ditolak");
-
-      fetchData();
-    } catch (error) {
-      toast.error("Gagal menolak laporan");
-    }
-  };
-
-  // =========================
-  // DELETE PENUGASAN
+  // DELETE
   // =========================
 
   const handleDelete = async (id: string) => {
@@ -327,7 +281,25 @@ export default function ManagePenugasan() {
   };
 
   // =========================
-  // GET STATS
+  // TOLAK
+  // =========================
+
+  const handleTolak = async (id: string) => {
+    if (!confirm("Tolak laporan ini?")) return;
+
+    try {
+      await api.put(`/laporan/${id}/tolak`);
+
+      toast.success("Laporan berhasil ditolak");
+
+      fetchData();
+    } catch (error) {
+      toast.error("Gagal menolak laporan");
+    }
+  };
+
+  // =========================
+  // STATS
   // =========================
 
   const stats = {
@@ -350,20 +322,25 @@ export default function ManagePenugasan() {
 
   const StatusBadge = ({ status }: any) => {
     const styles: any = {
-      LAPORAN_BARU: "bg-red-100 text-red-700 border-red-200",
+      LAPORAN_BARU:
+        "bg-red-100 text-red-700 border-red-200",
 
-      DITUGASKAN: "bg-blue-100 text-blue-700 border-blue-200",
+      DITUGASKAN:
+        "bg-blue-100 text-blue-700 border-blue-200",
 
-      BEKERJA: "bg-amber-100 text-amber-700 border-amber-200",
+      BEKERJA:
+        "bg-amber-100 text-amber-700 border-amber-200",
 
-      SELESAI: "bg-emerald-100 text-emerald-700 border-emerald-200",
+      SELESAI:
+        "bg-emerald-100 text-emerald-700 border-emerald-200",
 
-      DITOLAK: "bg-slate-200 text-slate-700 border-slate-300",
+      DITOLAK:
+        "bg-slate-200 text-slate-700 border-slate-300",
     };
 
     return (
       <span
-        className={`px-3 py-1 rounded-full text-[10px] font-black border ${
+        className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-wide border shadow-sm ${
           styles[status] || styles.DITUGASKAN
         }`}
       >
@@ -373,649 +350,555 @@ export default function ManagePenugasan() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] pb-20">
+    <div className="max-w-7xl mx-auto space-y-6 md:space-y-8 p-4 md:p-6 text-black">
       <Toaster position="top-right" />
 
       {/* HEADER */}
 
-      <header className="bg-white border-b sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-black">
-              Penugasan Aduan Warga
-            </h1>
+      <div className="mb-8">
+        <div className="bg-gradient-to-r from-[#DDE9E1] to-[#E8F1EB] rounded-[24px] p-8 shadow-sm border border-white/50">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+            <div>
+              <span className="bg-white/60 text-[#4A6D55] px-4 py-1.5 rounded-full text-xs font-medium tracking-wider uppercase inline-block mb-3">
+                Operasional & Monitoring
+              </span>
 
-            <p className="text-sm text-slate-500 mt-1">
-              Monitoring laporan dan penugasan armada
-            </p>
+              <h1 className="text-3xl font-extrabold text-[#1A2E35] tracking-tight uppercase">
+                Penugasan Aduan
+              </h1>
+
+              <p className="text-[#5B7078] mt-2 font-medium">
+                Monitoring laporan warga dan distribusi armada operasional.
+              </p>
+            </div>
           </div>
+        </div>
+      </div>
 
-          <button
-            onClick={fetchData}
-            className="p-3 rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors"
+      {/* STATS */}
+
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
+        {[
+          {
+            label: "Total Tugas",
+            value: stats.total,
+            icon: ClipboardList,
+            color: "text-gray-600",
+            bg: "bg-gray-50",
+          },
+
+          {
+            label: "Laporan Baru",
+            value: stats.laporan_baru,
+            icon: FileText,
+            color: "text-red-600",
+            bg: "bg-red-50",
+          },
+
+          {
+            label: "Dalam Proses",
+            value: stats.dalam_proses,
+            icon: Clock,
+            color: "text-blue-600",
+            bg: "bg-blue-50",
+          },
+
+          {
+            label: "Selesai",
+            value: stats.selesai,
+            icon: CheckCircle2,
+            color: "text-green-600",
+            bg: "bg-green-50",
+          },
+
+          {
+            label: "Driver Aktif",
+            value: stats.driver_aktif,
+            icon: User,
+            color: "text-purple-600",
+            bg: "bg-purple-50",
+          },
+        ].map((s, i) => (
+          <div
+            key={i}
+            className="bg-white p-4 md:p-5 rounded-2xl border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-3 shadow-sm hover:shadow-md transition-shadow"
           >
-            <RefreshCw size={18} />
-          </button>
-        </div>
-      </header>
-
-      {/* CONTENT */}
-
-      <main className="max-w-7xl mx-auto px-6 mt-8">
-        {/* STATS CARDS */}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-slate-400 uppercase">
-                  Total Tugas
-                </p>
-                <p className="text-3xl font-black text-slate-900 mt-1">
-                  {stats.total}
-                </p>
-              </div>
-              <div className="p-3 bg-slate-100 rounded-xl text-slate-600">
-                <ClipboardList size={24} />
-              </div>
+            <div className={`p-3 rounded-xl ${s.bg} ${s.color}`}>
+              <s.icon size={24} />
             </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-slate-400 uppercase">
-                  Laporan Baru
-                </p>
-                <p className="text-3xl font-black text-red-600 mt-1">
-                  {stats.laporan_baru}
-                </p>
-              </div>
-              <div className="p-3 bg-red-100 rounded-xl text-red-600">
-                <FileText size={24} />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-slate-400 uppercase">
-                  Dalam Proses
-                </p>
-                <p className="text-3xl font-black text-blue-600 mt-1">
-                  {stats.dalam_proses}
-                </p>
-              </div>
-              <div className="p-3 bg-blue-100 rounded-xl text-blue-600">
-                <Clock size={24} />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-slate-400 uppercase">
-                  Selesai
-                </p>
-                <p className="text-3xl font-black text-emerald-600 mt-1">
-                  {stats.selesai}
-                </p>
-              </div>
-              <div className="p-3 bg-emerald-100 rounded-xl text-emerald-600">
-                <CheckCircle2 size={24} />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-slate-400 uppercase">
-                  Driver Aktif
-                </p>
-                <p className="text-3xl font-black text-indigo-600 mt-1">
-                  {stats.driver_aktif}
-                </p>
-              </div>
-              <div className="p-3 bg-indigo-100 rounded-xl text-indigo-600">
-                <User size={24} />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* SEARCH & FILTER */}
-
-        <div className="bg-white p-5 rounded-3xl border mb-6 flex gap-4 flex-col sm:flex-row">
-          <div className="relative flex-1">
-            <Search
-              size={18}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-
-            <input
-              type="text"
-              placeholder="Cari lokasi, driver, pelapor, atau nomor tugas..."
-              value={searchTerm}
-              onChange={(e) =>
-                setSearchTerm(e.target.value)
-              }
-              className="w-full pl-11 pr-4 py-3 rounded-2xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <select
-            onChange={(e) =>
-              setFilter({
-                status: e.target.value,
-              })
-            }
-            className="px-4 py-3 rounded-2xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Semua Status</option>
-
-            <option value="LAPORAN_BARU">
-              Laporan Baru
-            </option>
-
-            <option value="DITUGASKAN">
-              Ditugaskan
-            </option>
-
-            <option value="BEKERJA">
-              Bekerja
-            </option>
-
-            <option value="SELESAI">
-              Selesai
-            </option>
-          </select>
-        </div>
-
-        {/* TABLE */}
-
-        <div className="bg-white rounded-3xl border overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-slate-50">
-                  <th className="px-6 py-4 text-left text-xs font-bold">
-                    Tugas
-                  </th>
-
-                  <th className="px-6 py-4 text-left text-xs font-bold">
-                    Pelapor
-                  </th>
-
-                  <th className="px-6 py-4 text-left text-xs font-bold">
-                    Lokasi
-                  </th>
-
-                  <th className="px-6 py-4 text-left text-xs font-bold">
-                    Driver & Armada
-                  </th>
-
-                  <th className="px-6 py-4 text-left text-xs font-bold">
-                    Jadwal
-                  </th>
-
-                  <th className="px-6 py-4 text-center text-xs font-bold">
-                    Status
-                  </th>
-
-                  <th className="px-6 py-4 text-right text-xs font-bold">
-                    Aksi
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="text-center py-20"
-                    >
-                      Loading...
-                    </td>
-                  </tr>
-                ) : paginatedItems.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="text-center py-20"
-                    >
-                      Tidak ada data
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedItems.map((item) => (
-                    <tr
-                      key={item.id}
-                      className="border-t hover:bg-slate-50 transition-colors"
-                    >
-                      {/* TASK */}
-
-                      <td className="px-6 py-5">
-                        <div className="flex flex-col">
-                          <span className="font-bold">
-                            {item.taskNumber
-                              ? `#${item.taskNumber}`
-                              : "Laporan Baru"}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* PELAPOR */}
-
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
-                            <User size={14} className="text-slate-600" />
-                          </div>
-                          <span className="text-sm font-semibold text-slate-700">
-                            {item.pelapor || item.report?.pelapor || "-"}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* LOKASI */}
-
-                      <td className="px-6 py-5">
-                        <div>
-                          <p className="font-semibold text-sm">
-                            {item.location}
-                          </p>
-
-                          <p className="text-xs text-slate-500">
-                            {item.district}
-                          </p>
-                        </div>
-                      </td>
-
-                      {/* DRIVER */}
-
-                      <td className="px-6 py-5">
-                        {item.status ===
-                        "LAPORAN_BARU" ? (
-                          <span className="text-slate-400 text-sm">
-                            Belum Ditugaskan
-                          </span>
-                        ) : (
-                          <div>
-                            <p className="font-bold text-sm">
-                              {item.driver?.fullName}
-                            </p>
-
-                            <p className="text-xs text-indigo-600 font-bold">
-                              {item.truck?.plateNumber}
-                            </p>
-                          </div>
-                        )}
-                      </td>
-
-                      {/* JADWAL */}
-
-                      <td className="px-6 py-5">
-                        {item.scheduledAt ? (
-                          <div>
-                            <p className="font-bold text-sm">
-                              {new Date(
-                                item.scheduledAt
-                              ).toLocaleDateString(
-                                "id-ID"
-                              )}
-                            </p>
-
-                            <p className="text-xs text-slate-500">
-                              {new Date(
-                                item.scheduledAt
-                              ).toLocaleTimeString(
-                                "id-ID"
-                              )}
-                            </p>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 text-sm">
-                            -
-                          </span>
-                        )}
-                      </td>
-
-                      {/* STATUS */}
-
-                      <td className="px-6 py-5 text-center">
-                        <StatusBadge
-                          status={item.status}
-                        />
-                      </td>
-
-                      {/* ACTION */}
-
-                      <td className="px-6 py-5">
-                        <div className="flex justify-end gap-2">
-                          {/* ===================== */}
-                          {/* LAPORAN BARU */}
-                          {/* ===================== */}
-
-                          {item.status ===
-                          "LAPORAN_BARU" ? (
-                            <>
-                              <button
-                                onClick={() =>
-                                  openTugaskanModal(
-                                    item
-                                  )
-                                }
-                                className="px-4 py-2 rounded-xl bg-emerald-500 text-white text-sm font-bold hover:bg-emerald-600 transition-colors"
-                              >
-                                Tugaskan
-                              </button>
-
-                              <button
-                                onClick={() =>
-                                  handleTolak(
-                                    item.id
-                                  )
-                                }
-                                className="px-4 py-2 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors"
-                              >
-                                Tolak
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              {/* DETAIL */}
-
-                              <button
-                                onClick={() => {
-                                  setSelectedItem(
-                                    item
-                                  );
-
-                                  setShowDetailModal(
-                                    true
-                                  );
-                                }}
-                                className="p-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
-                              >
-                                <Eye size={18} />
-                              </button>
-
-                              {/* ALIHKAN */}
-
-                              {item.status !==
-                                "SELESAI" && (
-                                <button
-                                  onClick={() =>
-                                    openTugaskanModal(
-                                      item
-                                    )
-                                  }
-                                  className="p-2 rounded-lg bg-yellow-500 text-white hover:bg-yellow-600 transition-colors"
-                                  title="Alihkan ke Driver Lain"
-                                >
-                                  <Repeat size={18} />
-                                </button>
-                              )}
-
-                              {/* DELETE */}
-
-                              <button
-                                onClick={() =>
-                                  handleDelete(
-                                    item.id
-                                  )
-                                }
-                                className="p-2 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
-                              >
-                                <Trash2 size={18} />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* PAGINATION */}
-
-          {!loading && filteredItems.length > 0 && (
-            <div className="bg-slate-50 px-6 py-4 border-t flex items-center justify-between">
-              <p className="text-sm text-slate-600 font-semibold">
-                Halaman {currentPage} dari {totalPages} ({filteredItems.length} data)
+            <div className="min-w-0">
+              <p className="text-[10px] md:text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {s.label}
               </p>
 
-              <div className="flex gap-2">
-                <button
-                  onClick={() =>
-                    setCurrentPage(
-                      Math.max(1, currentPage - 1)
-                    )
-                  }
-                  disabled={currentPage === 1}
-                  className="p-2 rounded-lg border hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronLeft size={18} />
-                </button>
-
-                <div className="flex gap-1">
-                  {Array.from({ length: totalPages }).map(
-                    (_, i) => (
-                      <button
-                        key={i + 1}
-                        onClick={() =>
-                          setCurrentPage(i + 1)
-                        }
-                        className={`px-3 py-1 rounded-lg text-sm font-bold transition-colors ${
-                          currentPage === i + 1
-                            ? "bg-blue-500 text-white"
-                            : "border hover:bg-white"
-                        }`}
-                      >
-                        {i + 1}
-                      </button>
-                    )
-                  )}
-                </div>
-
-                <button
-                  onClick={() =>
-                    setCurrentPage(
-                      Math.min(totalPages, currentPage + 1)
-                    )
-                  }
-                  disabled={currentPage === totalPages}
-                  className="p-2 rounded-lg border hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronRight size={18} />
-                </button>
-              </div>
+              <p className="text-sm md:text-xl font-black truncate">
+                {s.value}
+              </p>
             </div>
-          )}
+          </div>
+        ))}
+      </div>
+
+      {/* SEARCH */}
+
+      <div className="bg-white rounded-2xl border-none shadow-sm p-3 md:p-4 flex flex-col lg:flex-row gap-4 justify-between items-stretch lg:items-center">
+        <div className="relative flex-1">
+          <Search
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+            size={18}
+          />
+
+          <input
+            type="text"
+            placeholder="Cari lokasi, driver, pelapor, atau nomor tugas..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-green-500/20 outline-none text-sm"
+          />
         </div>
-      </main>
 
-      {/* ===================================== */}
-      {/* MODAL TUGASKAN */}
-      {/* ===================================== */}
+        <select
+          onChange={(e) =>
+            setFilter({
+              status: e.target.value,
+            })
+          }
+          className="px-4 py-3 rounded-xl bg-gray-50 border-none outline-none text-sm"
+        >
+          <option value="">Semua Status</option>
 
-      {showModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-[32px] w-full max-w-2xl overflow-hidden shadow-2xl">
-            {/* HEADER */}
+          <option value="LAPORAN_BARU">
+            Laporan Baru
+          </option>
 
-            <div className="px-8 py-6 border-b flex justify-between items-center bg-gradient-to-r from-slate-50 to-slate-100">
-              <div>
-                <h2 className="text-xl font-black">
-                  Buat Penugasan Aduan
-                </h2>
+          <option value="DITUGASKAN">
+            Ditugaskan
+          </option>
 
-                <p className="text-sm text-slate-400 mt-1">
-                  Tentukan armada dan jadwal untuk laporan warga
-                </p>
-              </div>
+          <option value="BEKERJA">
+            Bekerja
+          </option>
 
-              <button
-                onClick={() => {
-                  setShowModal(false);
+          <option value="SELESAI">
+            Selesai
+          </option>
+        </select>
 
-                  resetForm();
-                }}
-                className="hover:bg-slate-200 p-2 rounded-full transition-colors"
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            {/* FORM */}
-
-            <form
-              onSubmit={handleSubmit}
-              className="p-8 space-y-6"
+          <button
+              onClick={fetchData}
+              className="px-5 py-3 rounded-2xl bg-white text-[#4A6D55] font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2"
             >
-              {/* ARMADA */}
+              <RefreshCw size={18} />
+      
+            </button>
+      </div>
 
-              <div>
-                <label className="text-xs font-black text-slate-400 uppercase mb-2 block">
-                  Pilih Armada / Truk
-                </label>
+      {/* TABLE */}
 
-                <select
-                  required
-                  name="truckId"
-                  value={formData.truckId}
-                  onChange={(e) => {
-                    const selectedTruck =
-                      trukList.find(
-                        (t: any) =>
-                          t.id ===
-                          e.target.value
-                      );
+      <div className="bg-white rounded-2xl overflow-hidden shadow-sm overflow-x-auto border-none">
+        <table className="w-full text-left border-spacing-0 min-w-[1100px]">
+          <thead>
+            <tr className="bg-gray-50 text-gray-400 text-[10px] font-bold uppercase tracking-widest">
+              <th className="px-6 py-4">
+                Tugas
+              </th>
 
-                    setFormData({
-                      ...formData,
+              <th className="px-6 py-4">
+                Pelapor
+              </th>
 
-                      truckId:
-                        e.target.value,
+              <th className="px-6 py-4">
+                Lokasi
+              </th>
 
-                      driverId:
-                        selectedTruck
-                          ?.driver?.id ||
-                        selectedTruck
-                          ?.operatorId ||
-                        "",
-                    });
-                  }}
-                  className="w-full px-5 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none"
+              <th className="px-6 py-4">
+                Driver & Armada
+              </th>
+
+              <th className="px-6 py-4">
+                Jadwal
+              </th>
+
+              <th className="px-6 py-4 text-center">
+                Status
+              </th>
+
+              <th className="px-6 py-4 text-right">
+                Aksi
+              </th>
+            </tr>
+          </thead>
+
+          <tbody className="divide-y divide-gray-50">
+            {loading ? (
+              <tr>
+                <td
+                  colSpan={7}
+                  className="px-6 py-10 text-center text-gray-400 italic"
                 >
-                  <option value="">
-                    -- Pilih Armada --
-                  </option>
+                  Memuat data penugasan...
+                </td>
+              </tr>
+            ) : paginatedItems.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={7}
+                  className="px-6 py-10 text-center text-gray-400 italic"
+                >
+                  Tidak ada data ditemukan
+                </td>
+              </tr>
+            ) : (
+              paginatedItems.map((item) => (
+                <tr
+                  key={item.id}
+                  className="hover:bg-gray-50/50 transition-colors group"
+                >
+                  <td className="px-6 py-5">
+                    <div className="flex flex-col gap-1">
+                      <p className="font-bold text-sm text-gray-900">
+                        {item.taskNumber
+                          ? `#${item.taskNumber}`
+                          : "Laporan Baru"}
+                      </p>
+                    </div>
+                  </td>
 
-                  {trukList.map((t: any) => (
-                    <option
-                      key={t.id}
-                      value={t.id}
-                    >
-                      {t.plateNumber} -{" "}
-                      {t.operator?.fullName ||
-                        t.driver?.fullName ||
-                        "Belum Ada Driver"}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                  <td className="px-6 py-5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                        <User
+                          size={14}
+                          className="text-gray-500"
+                        />
+                      </div>
 
-              {/* DRIVER OTOMATIS */}
+                      <span className="text-sm font-semibold text-gray-700">
+                        {item.pelapor ||
+                          item.report?.pelapor ||
+                          "-"}
+                      </span>
+                    </div>
+                  </td>
 
-              {formData.driverId && (
-                <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-2xl p-5 border border-blue-200">
-                  <p className="text-xs text-blue-600 uppercase font-black mb-1">
-                    ✓ Driver Terpilih
-                  </p>
+                  <td className="px-6 py-5">
+                    <div>
+                      <p className="font-semibold text-sm text-gray-800">
+                        {item.location}
+                      </p>
 
-                  <p className="text-lg font-black text-blue-900">
-                    {
-                      trukList.find(
-                        (t: any) =>
-                          t.id ===
-                          formData.truckId
-                      )?.operator?.fullName ||
-                      trukList.find(
-                        (t: any) =>
-                          t.id ===
-                          formData.truckId
-                      )?.driver?.fullName
+                      <p className="text-xs text-gray-400">
+                        {item.district}
+                      </p>
+                    </div>
+                  </td>
+
+                  <td className="px-6 py-5">
+                    {item.status === "LAPORAN_BARU" ? (
+                      <span className="text-gray-400 text-sm">
+                        Belum Ditugaskan
+                      </span>
+                    ) : (
+                      <div>
+                        <p className="font-bold text-sm">
+                          {item.driver?.fullName}
+                        </p>
+
+                        <p className="text-xs text-blue-600 font-bold">
+                          {item.truck?.plateNumber}
+                        </p>
+                      </div>
+                    )}
+                  </td>
+
+                  <td className="px-6 py-5">
+                    {item.scheduledAt ? (
+                      <div>
+                        <p className="font-bold text-sm">
+                          {new Date(
+                            item.scheduledAt
+                          ).toLocaleDateString("id-ID")}
+                        </p>
+
+                        <p className="text-xs text-gray-400">
+                          {new Date(
+                            item.scheduledAt
+                          ).toLocaleTimeString("id-ID")}
+                        </p>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 text-sm">
+                        -
+                      </span>
+                    )}
+                  </td>
+
+                  <td className="px-6 py-5 text-center">
+                    <StatusBadge
+                      status={item.status}
+                    />
+                  </td>
+
+                  <td className="px-6 py-5">
+                    <div className="flex justify-end gap-2">
+                      {item.status === "LAPORAN_BARU" ? (
+                        <>
+                          <button
+                            onClick={() =>
+                              openTugaskanModal(item)
+                            }
+                            className="px-4 py-2 rounded-xl bg-[#4A6D55] text-white text-sm font-bold hover:bg-[#3a5643] transition-all shadow-sm"
+                          >
+                            Tugaskan
+                          </button>
+
+                          <button
+                            onClick={() =>
+                              handleTolak(item.id)
+                            }
+                            className="px-4 py-2 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-all shadow-sm"
+                          >
+                            Tolak
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => {
+                              setSelectedItem(item);
+
+                              setShowDetailModal(true);
+                            }}
+                            className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors inline-flex"
+                          >
+                            <Eye size={16} />
+                          </button>
+
+                          
+
+                          {item.status !== "SELESAI" && (
+                            <button
+                              onClick={() =>
+                                openTugaskanModal(item)
+                              }
+                              className="p-2 bg-yellow-400 text-white rounded-lg hover:bg-yellow-500 transition-colors inline-flex shadow-sm"
+                            >
+                              <Repeat size={16} />
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() =>
+                              handleDelete(item.id)
+                            }
+                            className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors inline-flex shadow-sm"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+
+        {/* PAGINATION */}
+
+        {!loading && filteredItems.length > 0 && (
+          <div className="bg-white border-t border-gray-100 px-6 py-4 flex items-center justify-between">
+            <p className="text-sm text-gray-500 font-medium">
+              Halaman {currentPage} dari {totalPages}
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() =>
+                  setCurrentPage(
+                    Math.max(1, currentPage - 1)
+                  )
+                }
+                disabled={currentPage === 1}
+                className="p-2 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:opacity-50 transition-colors"
+              >
+                <ChevronLeft size={18} />
+              </button>
+
+              {Array.from({ length: totalPages }).map(
+                (_, i) => (
+                  <button
+                    key={i + 1}
+                    onClick={() =>
+                      setCurrentPage(i + 1)
                     }
-                  </p>
-
-                  <p className="text-sm text-blue-700 font-semibold mt-2">
-                    Plat:{" "}
-                    {
-                      trukList.find(
-                        (t: any) =>
-                          t.id ===
-                          formData.truckId
-                      )?.plateNumber
-                    }
-                  </p>
-                </div>
+                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                      currentPage === i + 1
+                        ? "bg-black text-white"
+                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                )
               )}
 
-              {/* JADWAL */}
+              <button
+                onClick={() =>
+                  setCurrentPage(
+                    Math.min(
+                      totalPages,
+                      currentPage + 1
+                    )
+                  )
+                }
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:opacity-50 transition-colors"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
-              <div>
-                <label className="text-xs font-black text-slate-400 uppercase mb-2 block">
-                  Jadwal Pelaksanaan
-                </label>
+      {/* MODAL */}
 
-                <input
-                  type="datetime-local"
-                  required
-                  name="scheduledAt"
-                  value={
-                    formData.scheduledAt
-                  }
-                  onChange={
-                    handleInputChange
-                  }
-                  className="w-full px-5 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                />
-              </div>
+      <AnimatePresence>
+        {showModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{
+                opacity: 0,
+                scale: 0.95,
+              }}
+              animate={{
+                opacity: 1,
+                scale: 1,
+              }}
+              exit={{
+                opacity: 0,
+                scale: 0.95,
+              }}
+              className="bg-white rounded-none sm:rounded-3xl shadow-2xl w-full max-w-2xl min-h-screen sm:min-h-0 overflow-hidden my-auto"
+            >
+              <div className="px-6 py-5 border-b flex justify-between items-center bg-gray-50">
+                <div>
+                  <h2 className="font-bold text-lg">
+                    Buat Penugasan
+                  </h2>
 
-              {/* BUTTON */}
+                  <p className="text-sm text-gray-500 mt-1">
+                    Tentukan armada dan jadwal operasional
+                  </p>
+                </div>
 
-              <div className="flex gap-4 pt-6">
                 <button
-                  type="submit"
-                  className="flex-1 py-4 rounded-2xl bg-slate-900 text-white font-black hover:bg-slate-800 transition-colors shadow-lg"
-                >
-                  Konfirmasi Penugasan
-                </button>
-
-                <button
-                  type="button"
                   onClick={() => {
                     setShowModal(false);
 
                     resetForm();
                   }}
-                  className="flex-1 py-4 rounded-2xl border border-slate-200 hover:bg-slate-50 transition-colors font-bold"
+                  className="p-2 text-gray-400 hover:bg-gray-100 rounded-full transition-colors"
                 >
-                  Batal
+                  <X />
                 </button>
               </div>
-            </form>
+
+              <form
+                onSubmit={handleSubmit}
+                className="p-6 space-y-4"
+              >
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">
+                    Armada / Truk
+                  </label>
+
+                  <select
+                    required
+                    name="truckId"
+                    value={formData.truckId}
+                    onChange={(e) => {
+                      const selectedTruck =
+                        trukList.find(
+                          (t: any) =>
+                            t.id === e.target.value
+                        );
+
+                      setFormData({
+                        ...formData,
+                        truckId: e.target.value,
+                        driverId:
+                          selectedTruck?.driver?.id ||
+                          "",
+                      });
+                    }}
+                    className="w-full p-3 bg-gray-50 border-none rounded-xl outline-none text-sm focus:ring-1 focus:ring-green-500"
+                  >
+                    <option value="">
+                      -- Pilih Armada --
+                    </option>
+
+                    {trukList.map((t: any) => (
+                      <option
+                        key={t.id}
+                        value={t.id}
+                      >
+                        {t.plateNumber} -
+                        {" "}
+                        {t.driver?.fullName ||
+                          "Belum Ada Driver"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {formData.driverId && (
+                  <div className="bg-green-50 border border-green-100 rounded-2xl p-4">
+                    <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider">
+                      Driver Terpilih
+                    </p>
+
+                    <p className="text-lg font-black text-green-900 mt-1">
+                      {
+                        trukList.find(
+                          (t: any) =>
+                            t.id ===
+                            formData.truckId
+                        )?.driver?.fullName
+                      }
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">
+                    Jadwal Pelaksanaan
+                  </label>
+
+                  <input
+                    type="datetime-local"
+                    required
+                    name="scheduledAt"
+                    value={formData.scheduledAt}
+                    onChange={handleInputChange}
+                    className="w-full p-3 bg-gray-50 border-none rounded-xl outline-none text-sm focus:ring-1 focus:ring-green-500"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-4 bg-[#4A6D55] text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg hover:bg-[#3a5643] transition-all"
+                >
+                  Konfirmasi Penugasan
+                </button>
+              </form>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
       {/* DETAIL */}
 
