@@ -3,7 +3,7 @@ import {
   Menu, X, Truck, FileText, LogOut, ChevronLeft,
   LayoutDashboard, Database, ChevronDown, ChevronUp,
   Users, Map, Calendar, ClipboardList, AlertCircle,
-  Newspaper, Image as ImageIcon, Settings, Route, GraduationCap
+  Newspaper, Image as ImageIcon, Settings, Route, GraduationCap,UserCog
 } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
@@ -19,7 +19,8 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     'data-operasional': true,
-    'manajemen-tugas': false
+    'manajemen-tugas': false,
+     'manajemen-pengguna': true 
   });
 
 
@@ -69,13 +70,15 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
       group: "Data & Operasional",
       icon: Database,
       items: [
-        { id: 'data-supir', label: 'Data Supir', icon: Users, color: 'from-sky-400 to-indigo-600', href: '/admin/Supir' },
+        { id: 'manajemen-pengguna', label: 'Data Kepala Bidang', icon: UserCog, color: 'from-emerald-400 to-cyan-600', href: '/admin/KelolaKabid'},
+         { id: 'data-supir', label: 'Data Supir', icon: Users, color: 'from-sky-400 to-indigo-600', href: '/admin/Supir' },
         { id: 'data-truk', label: 'Data Armada', icon: Truck, color: 'from-amber-400 to-orange-600', href: '/admin/Truk' },
         { id: 'data-wilayah', label: 'Data Wilayah', icon: Map, color: 'from-teal-400 to-green-600', href: '/admin/Wilayah' },
         { id: 'manajemen-rute', label: 'Manajemen Rute', icon: Route, color: 'from-purple-400 to-pink-600', href: '/admin/ManajemenRute' },
         { id: 'akun-masyarakat', label: 'Akun Masyarakat', icon: Users, color: 'from-blue-400 to-indigo-600', href: '/admin/AkunMasyarakat' },
       ]
     },
+    
     { type: "item", id: 'peta-sampah', label: 'Peta Operasional', icon: Map, color: 'from-emerald-500 to-teal-500', href: '/admin/PetaSampah' },
     {
     type: "item", id: 'tugas-aduan', label: 'Tugas Aduan', icon: AlertCircle, color: 'from-lime-300 to-green-500', href: '/admin/LayananAduan'

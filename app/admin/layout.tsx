@@ -16,6 +16,8 @@ export default function AdminLayout({
   // Map path ke menu ID
   const getMenuIdFromPath = (path: string) => {
     if (path === '/admin' || path === '/admin/') return 'dashboard';
+    // Di dalam fungsi getMenuIdFromPath, tambahkan:
+    if (path.includes('/admin/KelolaKabid')) return 'manajemen-pengguna'; 
     if (path.includes('/admin/Supir')) return 'data-supir';
     if (path.includes('/admin/Truk')) return 'data-truk';
     if (path.includes('/admin/Wilayah')) return 'data-wilayah';

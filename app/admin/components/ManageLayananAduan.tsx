@@ -124,6 +124,7 @@ export default function ManagePenugasan() {
     truckId: "",
     driverId: "",
     scheduledAt: "",
+    location: "", // 🔥 TAMBAHKAN INI
   });
 
   // =========================
@@ -235,6 +236,7 @@ export default function ManagePenugasan() {
       truckId: "",
       driverId: "",
       scheduledAt: "",
+      location: "", // 🔥 TAMBAHKAN INI
     });
   };
 
@@ -248,6 +250,7 @@ export default function ManagePenugasan() {
       truckId: "",
       driverId: "",
       scheduledAt: "",
+      location: item.location || item.description || "", // 🔥 TAMBAHKAN INI
     });
 
     setShowModal(true);
@@ -268,28 +271,41 @@ export default function ManagePenugasan() {
   // SUBMIT TUGASKAN
   // =========================
 
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
+ // Di ManagePenugasan component
 
-    try {
-      await api.post("/penugasan/aduan", formData);
+const handleSubmit = async (e: any) => {
+  e.preventDefault();
 
-      toast.success("Penugasan berhasil dibuat");
+  // Validasi frontend
+  if (!formData.location) {
+    toast.error("Lokasi harus diisi");
+    return;
+  }
 
-      setShowModal(false);
+  try {
+    // Kirim location bersama data lainnya
+    const payload = {
+      reportId: formData.reportId,
+      truckId: formData.truckId,
+      driverId: formData.driverId,
+      scheduledAt: formData.scheduledAt,
+      location: formData.location, // 🔥 TAMBAHKAN INI
+      district: selectedItem?.district || null,
+      description: selectedItem?.description || null,
+      notes: "",
+    };
 
-      resetForm();
+    await api.post("/penugasan/aduan", payload);
 
-      fetchData();
-    } catch (error: any) {
-      console.error(error);
-
-      toast.error(
-        error?.response?.data?.message || "Gagal membuat penugasan"
-      );
-    }
-  };
-
+    toast.success("Penugasan berhasil dibuat");
+    setShowModal(false);
+    resetForm();
+    fetchData();
+  } catch (error: any) {
+    console.error(error);
+    toast.error(error?.response?.data?.message || "Gagal membuat penugasan");
+  }
+};
   // =========================
   // TOLAK LAPORAN
   // =========================
@@ -594,7 +610,7 @@ export default function ManagePenugasan() {
                   paginatedItems.map((item) => (
                     <tr
                       key={item.id}
-                      className="border-t hover:bg-slate-50 transition-colors"
+                      className="border -t hover:bg-slate-50 transition-colors"
                     >
                       {/* TASK */}
 

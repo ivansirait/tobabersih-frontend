@@ -270,7 +270,6 @@ export default function ManageSupir() {
                         </div>
                         <div>
                           <p className="font-bold text-gray-900 leading-none">{supir.fullName}</p>
-                          <p className="text-[10px] text-gray-400 mt-1 font-mono uppercase tracking-tighter">ID: {supir.id.slice(0, 8)}</p>
                         </div>
                       </div>
                     </td>

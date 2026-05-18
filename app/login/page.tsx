@@ -11,6 +11,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/a
 const normalizeRole = (role?: string) => {
   const safeRole = (role || '').toLowerCase();
   if (safeRole.includes('admin')) return 'admin';
+  if (safeRole.includes('kabid')) return 'kabid';
   if (safeRole.includes('operator') || safeRole.includes('supir')) return 'supir';
   if (safeRole.includes('warga') || safeRole.includes('masyarakat')) return 'warga';
   return '';
@@ -51,6 +52,8 @@ export default function LoginPage() {
 
         if (role === 'admin') {
           router.push('/admin');
+        } else if (role === 'kabid') {
+          router.push('/kabid');
         } else if (role === 'supir') {
           router.push('/Supir');
         } else if (role === 'warga') {
