@@ -165,27 +165,29 @@ export default function ManagePenugasan() {
 
       const penugasanData = penugasanRes.data.data || [];
 
-      const laporanBaru = (laporanRes.data.data || [])
-        .filter(
-          (item: any) =>
-            item.status === "LAPORAN_BARU" || item.status === "PENDING"
-        )
-        .map((item: any) => ({
-          id: item.id,
-          status: "LAPORAN_BARU",
-          isLaporanBaru: true,
-          taskNumber: null,
-          location: item.location || item.description,
-          district: item.jenisSampah,
-          description: item.description,
-          pelapor: item.pelapor,
-          report: {
-            id: item.id,
-            description: item.description,
-            jenisSampah: item.jenisSampah,
-            pelapor: item.pelapor,
-          },
-        }));
+const laporanBaru = (laporanRes.data.data || [])
+  .filter(
+    (item: any) =>
+      item.status === "LAPORAN_BARU" || item.status === "PENDING"
+  )
+  .map((item: any) => ({
+    id: item.id,
+    status: "LAPORAN_BARU",
+    isLaporanBaru: true,
+    taskNumber: null,
+    location: typeof item.location === "string" 
+      ? item.location 
+      : item.location?.name || item.description || "Lokasi tidak tersedia",  // ✅ YANG BENAR
+    district: item.jenisSampah,
+    description: item.description,
+    pelapor: item.pelapor,
+    report: {
+      id: item.id,
+      description: item.description,
+      jenisSampah: item.jenisSampah,
+      pelapor: item.pelapor,
+    },
+  }));
 
       setItemList([...laporanBaru, ...penugasanData]);
       setTrukList(trukRes.data.data || []);
@@ -249,17 +251,28 @@ export default function ManagePenugasan() {
   // =========================
   // OPEN MODAL
   // =========================
-  const openTugaskanModal = (item: Item) => {
-    setSelectedItem(item);
-    setFormData({
-      reportId: item.report?.id || item.id,
-      truckId: "",
-      driverId: "",
-      scheduledAt: "",
-      location: item.location || item.description || "",
-    });
-    setShowModal(true);
-  };
+const openTugaskanModal = (item: Item) => {
+  setSelectedItem(item);
+  
+  // ✅ Ambil lokasi dengan benar
+  let locationString = "";
+  if (typeof item.location === "string") {
+    locationString = item.location;
+  } else if (item.location && typeof item.location === "object") {
+    locationString = (item.location as any)?.name || (item.location as any)?.address || "";
+  } else {
+    locationString = item.description || "";
+  }
+  
+  setFormData({
+    reportId: item.report?.id || item.id,
+    truckId: "",
+    driverId: "",
+    scheduledAt: "",
+    location: locationString,  // ✅ YANG BENAR
+  });
+  setShowModal(true);
+};
 
   // =========================
   // INPUT CHANGE
