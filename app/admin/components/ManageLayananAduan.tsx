@@ -171,24 +171,12 @@ export default function ManagePenugasan() {
           ? penugasanRes.value.data?.data || []
           : [];
 
-      const laporanData =
-        laporanRes.status === "fulfilled"
-          ? laporanRes.value.data?.data || []
-          : [];
-
-      const trukData =
-        trukRes.status === "fulfilled"
-          ? trukRes.value.data?.data || []
-          : [];
-
-
-      const laporanBaru = (laporanData || [])
+      const laporanBaru = (laporanRes.data.data || [])
         .filter(
           (item: any) =>
             item.status === "LAPORAN_BARU" || item.status === "PENDING"
         )
         .map((item: any) => ({
-
           id: item.id,
           status: "LAPORAN_BARU",
           isLaporanBaru: true,
@@ -269,17 +257,28 @@ export default function ManagePenugasan() {
   // =========================
   // OPEN MODAL
   // =========================
-  const openTugaskanModal = (item: Item) => {
-    setSelectedItem(item);
-    setFormData({
-      reportId: item.report?.id || item.id,
-      truckId: "",
-      driverId: "",
-      scheduledAt: "",
-      location: item.location || item.description || "",
-    });
-    setShowModal(true);
-  };
+const openTugaskanModal = (item: Item) => {
+  setSelectedItem(item);
+  
+  // ✅ Ambil lokasi dengan benar
+  let locationString = "";
+  if (typeof item.location === "string") {
+    locationString = item.location;
+  } else if (item.location && typeof item.location === "object") {
+    locationString = (item.location as any)?.name || (item.location as any)?.address || "";
+  } else {
+    locationString = item.description || "";
+  }
+  
+  setFormData({
+    reportId: item.report?.id || item.id,
+    truckId: "",
+    driverId: "",
+    scheduledAt: "",
+    location: locationString,  // ✅ YANG BENAR
+  });
+  setShowModal(true);
+};
 
   // =========================
   // INPUT CHANGE
