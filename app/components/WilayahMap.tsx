@@ -1,6 +1,7 @@
 "use client";
+
 import React from 'react';
-import { MapContainer, TileLayer, Marker, Circle, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Circle, useMap, Polyline, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css';
@@ -15,7 +16,7 @@ const defaultIcon = L.icon({
   iconAnchor: [12, 41],
 });
 
-// Icon untuk hasil pencarian
+// Icon untuk hasil pencarian atau checkpoint
 const searchIcon = L.icon({
   iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
@@ -27,12 +28,12 @@ const searchIcon = L.icon({
 function ChangeView({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, map.getZoom());
+    if (center && !isNaN(center[0]) && !isNaN(center[1])) {
+      map.setView(center, map.getZoom());
+    }
   }, [center, map]);
   return null;
 }
-
-// Komponen untuk menghitung jarak
 
 interface AreaHighlight {
   id: string;
@@ -50,18 +51,53 @@ export default function WilayahMap({
   wilayahData = [],
   highlightAreas = []
 }: {
-  markerPos: [number, number];
+  markerPos: any; // Diubah ke any untuk fleksibilitas interceptor data rute vs single marker
   radius: number;
-  onMarkerDrag: (lat: number, lng: number) => void;
+  onMarkerDrag?: (lat: number, lng: number) => void; // Dibuat opsional agar mode tinjauan rute tidak crash
   wilayahData?: any[];
   highlightAreas?: AreaHighlight[];
 }) {
   const [isCalculating, setIsCalculating] = useState(false);
 
+  // ─── 1. INTERCEPTOR KOORDINAT AMAN (PENCEGAH CRASH LAT OF NULL) ───
+  const { safeCenter, isRouteMode, polylinePoints } = useMemo(() => {
+    // Kasus rute: data yang masuk berupa array multidimensi [[lat, lng], [lat, lng], ...]
+    if (Array.isArray(markerPos) && Array.isArray(markerPos[0])) {
+      const validPoints = markerPos.filter((pt: any) => pt && !isNaN(Number(pt[0])) && !isNaN(Number(pt[1])));
+      if (validPoints.length > 0) {
+        return {
+          safeCenter: [Number(validPoints[0][0]), Number(validPoints[0][1])] as [number, number],
+          isRouteMode: true,
+          polylinePoints: validPoints as [number, number][]
+        };
+      }
+    }
+
+    // Kasus single wilayah marker biasa: data yang masuk berupa [lat, lng]
+    if (Array.isArray(markerPos) && markerPos.length >= 2) {
+      const lat = Number(markerPos[0]);
+      const lng = Number(markerPos[1]);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        return {
+          safeCenter: [lat, lng] as [number, number],
+          isRouteMode: false,
+          polylinePoints: []
+        };
+      }
+    }
+
+    // Default Fallback koordinat pusat Toba jika prop bernilai null/kosong
+    return {
+      safeCenter: [2.3494, 99.1039] as [number, number],
+      isRouteMode: false,
+      polylinePoints: []
+    };
+  }, [markerPos]);
+
   const eventHandlers = useMemo(() => ({
     dragend(e: any) {
       const marker = e.target;
-      if (marker != null) {
+      if (marker != null && onMarkerDrag) {
         const { lat, lng } = marker.getLatLng();
         onMarkerDrag(lat, lng);
       }
@@ -81,53 +117,9 @@ export default function WilayahMap({
     return R * c;
   };
 
-  // Deteksi wilayah yang dekat dengan marker
-  const detectNearbyWilayah = async (center: [number, number]) => {
-    setIsCalculating(true);
-    try {
-      const response = await fetch('/api/admin/wilayah/polygons', {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch wilayah data');
-      }
-
-      const wilayahList = await response.json();
-
-      const areas = wilayahList.map((wilayah: any) => {
-        const distance = calculateDistance(
-          center[0],
-          center[1],
-          wilayah.center[0],
-          wilayah.center[1]
-        );
-        const isWithin = distance <= (wilayah.radius / 1000); // Convert meter to km
-
-        return {
-          id: wilayah.id,
-          name: wilayah.name,
-          center: wilayah.center,
-          radius: wilayah.radius,
-          isWithin,
-          distance: parseFloat(distance.toFixed(2))
-        };
-      });
-
-      return areas;
-    } catch (error) {
-      console.error('Error detecting nearby wilayah:', error);
-      return [];
-    } finally {
-      setIsCalculating(false);
-    }
-  };
-
   return (
     <MapContainer
-      center={markerPos}
+      center={safeCenter}
       zoom={13}
       className="h-full w-full z-0"
     >
@@ -136,91 +128,126 @@ export default function WilayahMap({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      <ChangeView center={markerPos} />
+      <ChangeView center={safeCenter} />
 
-      {/* Marker draggable */}
-      <Marker
-        draggable={true}
-        eventHandlers={eventHandlers}
-        position={markerPos}
-        icon={defaultIcon}
-      />
-
-      {/* Circle untuk radius marker */}
-      <Circle
-        center={markerPos}
-        radius={radius}
-        pathOptions={{
-          color: '#10b981',
-          fillColor: '#10b981',
-          fillOpacity: 0.2,
-          weight: 2,
-          dashArray: '5, 10'
-        }}
-      />
-
-      {/* Tampilkan semua wilayah dari data */}
-      {wilayahData.map((wilayah) => (
-        <React.Fragment key={`wilayah-${wilayah.id}`}>
-          <Circle
-            center={[parseFloat(wilayah.latitude), parseFloat(wilayah.longitude)]}
-            radius={wilayah.radius || 5000}
-            pathOptions={{
-              color: wilayah.isActive ? '#3b82f6' : '#9ca3af',
-              fillColor: wilayah.isActive ? '#3b82f6' : '#9ca3af',
-              fillOpacity: 0.1,
-              weight: 1,
-              dashArray: '3, 3'
-            }}
+      {/* MODE A: JALUR NAVIGASI RUTE (Render Polyline Jalur & Pin Berurutan) */}
+      {isRouteMode ? (
+        <>
+          <Polyline 
+            positions={polylinePoints} 
+            pathOptions={{ color: '#059669', weight: 4, opacity: 0.8 }} 
+          />
+          {polylinePoints.map((pos, index) => (
+            <Marker key={`checkpoint-${index}`} position={pos} icon={searchIcon}>
+              <Popup>
+                <div className="text-xs font-bold font-sans">
+                  <span className="text-emerald-700">Checkpoint {index + 1}</span>
+                  <p className="text-gray-400 font-mono mt-0.5 text-[10px]">{pos[0]}, {pos[1]}</p>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+        </>
+      ) : (
+        /* MODE B: GEOFENCING WILAYAH (Render Draggable Marker Tunggal & Radius Circle) */
+        <>
+          <Marker
+            draggable={onMarkerDrag ? true : false}
+            eventHandlers={eventHandlers}
+            position={safeCenter}
+            icon={defaultIcon}
           />
 
-          <Marker
-            position={[parseFloat(wilayah.latitude), parseFloat(wilayah.longitude)]}
-            icon={defaultIcon}
-          >
-            <div className="text-xs font-bold bg-white px-2 py-1 rounded shadow-md">
-              {wilayah.name}
-            </div>
-          </Marker>
-        </React.Fragment>
-      ))}
+          <Circle
+            center={safeCenter}
+            radius={radius || 0}
+            pathOptions={{
+              color: '#10b981',
+              fillColor: '#10b981',
+              fillOpacity: 0.2,
+              weight: 2,
+              dashArray: '5, 10'
+            }}
+          />
+        </>
+      )}
+
+      {/* Tampilkan semua wilayah dari database data */}
+      {(wilayahData || []).map((wilayah) => {
+        const lat = parseFloat(wilayah.latitude);
+        const lng = parseFloat(wilayah.longitude);
+        if (isNaN(lat) || isNaN(lng)) return null;
+
+        return (
+          <React.Fragment key={`wilayah-${wilayah.id}`}>
+            <Circle
+              center={[lat, lng]}
+              radius={wilayah.radius || 5000}
+              pathOptions={{
+                color: wilayah.isActive ? '#3b82f6' : '#9ca3af',
+                fillColor: wilayah.isActive ? '#3b82f6' : '#9ca3af',
+                fillOpacity: 0.1,
+                weight: 1,
+                dashArray: '3, 3'
+              }}
+            />
+
+            <Marker
+              position={[lat, lng]}
+              icon={defaultIcon}
+            >
+              <Popup>
+                <div className="text-xs font-bold px-1 text-gray-800">
+                  {wilayah.name}
+                </div>
+              </Popup>
+            </Marker>
+          </React.Fragment>
+        );
+      })}
 
       {/* Highlight area untuk hasil pencarian */}
-      {highlightAreas.map((area) => (
-        <React.Fragment key={`highlight-${area.id}`}>
-          <Circle
-            center={area.center}
-            radius={area.radius}
-            pathOptions={{
-              color: area.isWithin ? '#22c55e' : '#ef4444',
-              fillColor: area.isWithin ? '#22c55e' : '#ef4444',
-              fillOpacity: area.isWithin ? 0.3 : 0.1,
-              weight: 3
-            }}
-          />
+      {(highlightAreas || []).map((area) => {
+        if (!area.center || isNaN(area.center[0]) || isNaN(area.center[1])) return null;
 
-          <Marker
-            position={area.center}
-            icon={searchIcon}
-          >
-            <div className="text-xs font-bold px-2 py-1 rounded shadow-md bg-white border">
-              <div className="text-green-600">✓ {area.name}</div>
-              {area.distance !== undefined && (
-                <div className="text-xs text-gray-600">
-                  {area.distance} km dari marker
+        return (
+          <React.Fragment key={`highlight-${area.id}`}>
+            <Circle
+              center={area.center}
+              radius={area.radius}
+              pathOptions={{
+                color: area.isWithin ? '#22c55e' : '#ef4444',
+                fillColor: area.isWithin ? '#22c55e' : '#ef4444',
+                fillOpacity: area.isWithin ? 0.3 : 0.1,
+                weight: 3
+              }}
+            />
+
+            <Marker
+              position={area.center}
+              icon={searchIcon}
+            >
+              <Popup>
+                <div className="text-xs font-bold font-sans">
+                  <div className="text-green-600">✓ {area.name}</div>
+                  {area.distance !== undefined && (
+                    <div className="text-xs text-gray-600 font-normal mt-0.5">
+                      {area.distance} km dari marker utama
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </Marker>
-        </React.Fragment>
-      ))}
+              </Popup>
+            </Marker>
+          </React.Fragment>
+        );
+      })}
 
       {/* Loading indicator */}
       {isCalculating && (
         <div className="absolute top-4 right-4 z-[1000]">
           <div className="bg-white px-3 py-2 rounded-lg shadow-md flex items-center gap-2">
             <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium">Mendeteksi wilayah...</span>
+            <span className="text-sm font-medium text-gray-700">Mendeteksi wilayah...</span>
           </div>
         </div>
       )}

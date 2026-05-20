@@ -13,6 +13,11 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+type PenugasanDetailProps = {
+  penugasan: any;
+  onClose: () => void;
+};
+
 export default function PenugasanDetail({ penugasan, onClose }: PenugasanDetailProps) {
   // Config warna status yang lebih modern
   const getStatusStyle = (status: string) => {

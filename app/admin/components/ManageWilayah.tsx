@@ -62,17 +62,64 @@ export default function ManageWilayah() {
   const fetchWilayah = async () => {
     try {
       setLoading(true);
+
       const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Token belum ditemukan. Silakan login ulang.');
+        setWilayahList([]);
+        return;
+      }
+
       const res = await axios.get(`${API_BASE_URL}/wilayah`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const wilayahWithArea = res.data.map((w: Wilayah) => ({
+
+      const extractWilayahList = (payload: unknown): Wilayah[] => {
+        if (!payload) return [];
+        if (Array.isArray(payload)) return payload as Wilayah[];
+
+        const obj = payload as Record<string, unknown>;
+
+        const candidates: unknown[] = [
+          obj['data'],
+          obj['items'],
+          obj['result'],
+          // nested yang umum
+          (obj['data'] as any)?.data,
+          (obj['data'] as any)?.items,
+        ];
+
+        for (const c of candidates) {
+          if (Array.isArray(c)) return c as Wilayah[];
+        }
+
+        // fallback: cari array yang paling mungkin
+        const keyCandidates = ['wilayah', 'data', 'items', 'result'];
+        for (const key of keyCandidates) {
+          const v = obj[key];
+          if (Array.isArray(v)) return v as Wilayah[];
+        }
+
+        return [];
+      };
+
+      const wilayahListRaw = extractWilayahList(res.data);
+
+      if (!wilayahListRaw.length) {
+        toast.error('Data wilayah tidak ditemukan dari respons API.');
+        setWilayahList([]);
+        return;
+      }
+
+      const wilayahWithArea = wilayahListRaw.map((w: Wilayah) => ({
         ...w,
-        area: calculateArea(w.radius || 0)
+        area: calculateArea(w.radius ?? 0)
       }));
+
       setWilayahList(wilayahWithArea);
-    } catch (error) {
-      toast.error('Gagal mengambil data wilayah');
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || error?.message || 'Gagal mengambil data wilayah';
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -119,12 +166,15 @@ export default function ManageWilayah() {
   const toggleStatus = async (wilayah: Wilayah) => {
     try {
       const token = localStorage.getItem('token');
-      const newStatus = !wilayah.isActive;
-      await axios.put(`${API_BASE_URL}/wilayah/${wilayah.id}`, 
-        { ...wilayah, isActive: newStatus },
+
+      // Backend sudah menyediakan endpoint toggle khusus
+      await axios.patch(
+        `${API_BASE_URL}/wilayah/${wilayah.id}/toggle`,
+        {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      toast.success(`Wilayah ${newStatus ? 'diaktifkan' : 'dinonaktifkan'}`);
+
+      toast.success(`Status wilayah diperbarui`);
       fetchWilayah();
     } catch (error) {
       toast.error('Gagal mengubah status');

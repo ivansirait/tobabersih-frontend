@@ -190,7 +190,7 @@ function FleetHistorySection({ trukList, selectedDate, apiUrl }: any) {
     setLoadingHistory(true);
     try {
       const token = localStorage.getItem('token');
-      const promises = trukList.map(truk =>
+      const promises = trukList.map((truk: any) =>
         axios.get(`${apiUrl}/api/admin/tracking/riwayat/${truk.id}?tanggal=${selectedDate}`, {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 5000

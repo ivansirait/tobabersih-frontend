@@ -154,23 +154,41 @@ export default function ManagePenugasan() {
   // FETCH DATA
   // =========================
   const fetchData = async () => {
+    // Note: untuk menghindari error 500 dari salah satu endpoint
+    // kita gunakan per endpoint fallback (tidak throw total).
+
     try {
       setLoading(true);
 
-      const [penugasanRes, laporanRes, trukRes] = await Promise.all([
+      const [penugasanRes, laporanRes, trukRes] = await Promise.allSettled([
         api.get("/penugasan?type=ADUAN"),
         api.get("/laporan"),
         api.get("/admin/truks"),
       ]);
 
-      const penugasanData = penugasanRes.data.data || [];
+      const penugasanData =
+        penugasanRes.status === "fulfilled"
+          ? penugasanRes.value.data?.data || []
+          : [];
 
-      const laporanBaru = (laporanRes.data.data || [])
+      const laporanData =
+        laporanRes.status === "fulfilled"
+          ? laporanRes.value.data?.data || []
+          : [];
+
+      const trukData =
+        trukRes.status === "fulfilled"
+          ? trukRes.value.data?.data || []
+          : [];
+
+
+      const laporanBaru = (laporanData || [])
         .filter(
           (item: any) =>
             item.status === "LAPORAN_BARU" || item.status === "PENDING"
         )
         .map((item: any) => ({
+
           id: item.id,
           status: "LAPORAN_BARU",
           isLaporanBaru: true,
@@ -188,7 +206,9 @@ export default function ManagePenugasan() {
         }));
 
       setItemList([...laporanBaru, ...penugasanData]);
+
       setTrukList(trukRes.data.data || []);
+
       setCurrentPage(1);
     } catch (error) {
       console.error(error);
