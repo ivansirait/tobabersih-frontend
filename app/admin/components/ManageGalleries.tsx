@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import axios from 'axios';
 import {
   Edit, Trash2, Plus, Search, X,
@@ -62,9 +62,7 @@ function ResultModal({ variant, title, message, onClose }: ResultModalProps) {
         </div>
         <div className="px-6 py-6 text-center">
           <p className="text-gray-600 text-sm leading-relaxed mb-6">{message}</p>
-          <button onClick={onClose} className={`w-full px-4 py-3 text-white rounded-xl font-bold text-sm transition-colors ${isSuccess ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-red-500 hover:bg-red-600'}`}>
-            OK
-          </button>
+          <button onClick={onClose} className={`w-full px-4 py-3 text-white rounded-xl font-bold text-sm transition-colors ${isSuccess ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-red-500 hover:bg-red-600'}`}>OK</button>
         </div>
       </div>
     </div>
@@ -102,7 +100,11 @@ function AlbumModal({
         <form onSubmit={onSubmit} className="p-5 space-y-5">
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Foto Sampul Album</label>
-            <div className="relative w-full rounded-2xl bg-gray-50 border-2 border-dashed border-gray-200 overflow-hidden cursor-pointer hover:border-[#0B4D33] hover:bg-green-50 transition-all" style={{ paddingBottom: '56.25%' }} onClick={() => !uploadingCover && coverInputRef.current?.click()}>
+            <div
+              className="relative w-full rounded-2xl bg-gray-50 border-2 border-dashed border-gray-200 overflow-hidden cursor-pointer hover:border-[#0B4D33] hover:bg-green-50 transition-all"
+              style={{ paddingBottom: '56.25%' }}
+              onClick={() => !uploadingCover && coverInputRef.current?.click()}
+            >
               {coverPreview ? (
                 <>
                   <img src={coverPreview} alt="" className="absolute inset-0 w-full h-full object-cover" />
@@ -178,7 +180,9 @@ function DeleteModal({ deleteConfirm, onCancel, onConfirm, isDeleting }: DeleteM
         </div>
         <div className="p-6 text-center">
           <p className="text-sm text-gray-500 mb-6">
-            {isAlbum ? <><span className="font-semibold text-gray-700">"{deleteConfirm.title}"</span> beserta semua fotonya akan dihapus secara permanen.</> : 'Foto ini akan dihapus secara permanen.'}
+            {isAlbum
+              ? <><span className="font-semibold text-gray-700">"{deleteConfirm.title}"</span> beserta semua fotonya akan dihapus secara permanen.</>
+              : 'Foto ini akan dihapus secara permanen.'}
           </p>
           <div className="flex gap-3">
             <button onClick={onCancel} disabled={isDeleting} className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50">Batal</button>
@@ -193,8 +197,7 @@ function DeleteModal({ deleteConfirm, onCancel, onConfirm, isDeleting }: DeleteM
 }
 
 type ToastType = 'success' | 'error' | 'info';
-interface ToastProps { message: string; type: ToastType; }
-function Toast({ message, type }: ToastProps) {
+function Toast({ message, type }: { message: string; type: ToastType }) {
   const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
   const Icon = type === 'success' ? CheckCircle2 : AlertTriangle;
   return (
@@ -229,13 +232,19 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'album' | 'photo'; id: number; title?: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [resultModal, setResultModal] = useState<{ variant: ResultVariant; title: string; message: string; onClose: () => void } | null>(null);
 
-  const [resultModal, setResultModal] = useState<{
-    variant: ResultVariant;
-    title: string;
-    message: string;
-    onClose: () => void;
-  } | null>(null);
+  // ─── PERBAIKAN: BASE URL pakai /albums sesuai route baru ───────────────────
+  const BASE = process.env.NEXT_PUBLIC_API_URL
+    ? `${process.env.NEXT_PUBLIC_API_URL}/api/galleries`
+    : 'http://localhost:5000/api/galleries';
+
+  const ALBUMS_URL  = `${BASE}/albums`;          // /api/galleries/albums
+  const PHOTOS_URL  = `${BASE}/photos`;          // /api/galleries/photos
+
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
+  const authHeader = { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } };
+  // ──────────────────────────────────────────────────────────────────────────
 
   const showToast = (message: string, type: ToastType = 'success') => {
     setToast({ message, type });
@@ -246,27 +255,14 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
     setResultModal({ variant, title, message, onClose: () => { setResultModal(null); afterClose(); } });
   };
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
-    ? `${process.env.NEXT_PUBLIC_API_URL}/api/galleries`
-    : 'http://localhost:5000/api/galleries';
-
-
-  // Ambil token dari localStorage saat render (client component)
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
-  const authHeader = token
-    ? { headers: { Authorization: `Bearer ${token}` } }
-    : { headers: {} };
-
-
   const uploadFile = async (file: File): Promise<string> => {
     const fd = new FormData();
     fd.append('image', file);
-    const res = await axios.post('http://localhost:5000/api/upload', fd, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    });
+    const res = await axios.post(
+      `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000'}/api/upload`,
+      fd,
+      { headers: { 'Content-Type': 'multipart/form-data', ...(token ? { Authorization: `Bearer ${token}` } : {}) } }
+    );
     return res.data.imageUrl;
   };
 
@@ -337,19 +333,17 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
     if (!albumForm.title.trim()) { showToast('Judul album wajib diisi!', 'error'); return; }
     if (uploadingCover) { showToast('Tunggu cover selesai diupload!', 'error'); return; }
     try {
-      const data = { ...albumForm, coverUrl: coverUrl || null };
+      const data = { title: albumForm.title.trim(), description: albumForm.description.trim() || null, coverUrl: coverUrl || null };
       if (editingAlbum) {
-        await axios.put(`${API_BASE_URL}/albums/${editingAlbum.id}`, data, authHeader);
+        // PUT /api/galleries/albums/:id
+        await axios.put(`${ALBUMS_URL}/${editingAlbum.id}`, data, authHeader);
         setShowAlbumModal(false);
-        showResult('success', 'Album Diperbarui!', `Album "${albumForm.title}" berhasil diperbarui.`, () => {
-          onGalleriesUpdate();
-        });
+        showResult('success', 'Album Diperbarui!', `Album "${albumForm.title}" berhasil diperbarui.`, () => { onGalleriesUpdate(); });
       } else {
-        await axios.post(`${API_BASE_URL}/albums`, data, authHeader);
+        // POST /api/galleries/albums
+        await axios.post(ALBUMS_URL, data, authHeader);
         setShowAlbumModal(false);
-        showResult('success', 'Album Dibuat!', `Album "${albumForm.title}" berhasil dibuat.`, () => {
-          onGalleriesUpdate();
-        });
+        showResult('success', 'Album Dibuat!', `Album "${albumForm.title}" berhasil dibuat.`, () => { onGalleriesUpdate(); });
       }
     } catch (err: any) {
       const msg = err?.response?.data?.message || 'Gagal menyimpan album.';
@@ -361,7 +355,8 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
     const albumTitle = deleteConfirm?.title || '';
     setIsDeleting(true);
     try {
-      await axios.delete(`${API_BASE_URL}/albums/${id}`, authHeader);
+      // DELETE /api/galleries/albums/:id
+      await axios.delete(`${ALBUMS_URL}/${id}`, authHeader);
       setDeleteConfirm(null);
       setIsDeleting(false);
       showResult('success', 'Album Dihapus!', `Album "${albumTitle}" berhasil dihapus.`, () => {
@@ -371,8 +366,7 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
     } catch (err: any) {
       setIsDeleting(false);
       setDeleteConfirm(null);
-      const errorMsg = err.response?.data?.message || 'Terjadi kesalahan saat menghapus album.';
-      showResult('error', 'Gagal Menghapus', errorMsg, () => {});
+      showResult('error', 'Gagal Menghapus', err.response?.data?.message || 'Terjadi kesalahan.', () => {});
     }
   };
 
@@ -381,99 +375,97 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
     if (!readyFiles.length) { showToast('Pilih minimal 1 foto!', 'error'); return; }
     if (photoFiles.some(p => p.uploading)) { showToast('Tunggu semua foto selesai diupload!', 'error'); return; }
     setSavingPhotos(true);
+    const albumId = selectedAlbum?.id;
     try {
-      const albumId = selectedAlbum?.id;
+      // POST /api/galleries/albums/:albumId/photos
       await Promise.all(
         readyFiles.map(p =>
-          axios.post(`${API_BASE_URL}/albums/${albumId}/photos`, { imageUrl: p.url, caption: '' }, authHeader)
+          axios.post(`${ALBUMS_URL}/${albumId}/photos`, { imageUrl: p.url, caption: '' }, authHeader)
         )
       );
       setPhotoFiles([]);
       setSavingPhotos(false);
       showResult('success', 'Foto Ditambahkan!', `${readyFiles.length} foto berhasil ditambahkan.`, async () => {
         try {
-          const res = await axios.get(`${API_BASE_URL}/albums/${albumId}`, authHeader);
+          const res = await axios.get(`${ALBUMS_URL}/${albumId}`, authHeader);
           setSelectedAlbum(res.data);
-        } catch (err) {
-          console.error('Error refreshing album:', err);
-        }
+        } catch (err) { console.error('Error refreshing album:', err); }
         setView('album-detail');
         onGalleriesUpdate();
       });
     } catch (err: any) {
       setSavingPhotos(false);
-      const errorMsg = err.response?.data?.message || 'Gagal menyimpan foto.';
-      showResult('error', 'Gagal Upload Foto', errorMsg, () => {});
+      showResult('error', 'Gagal Upload Foto', err.response?.data?.message || 'Gagal menyimpan foto.', () => {});
     }
   };
 
   const deletePhoto = async (photoId: number) => {
     setIsDeleting(true);
+    const albumId = selectedAlbum?.id;
     try {
-      await axios.delete(`${API_BASE_URL}/photos/${photoId}`, authHeader);
-      const albumId = selectedAlbum?.id;
+      // DELETE /api/galleries/photos/:photoId
+      await axios.delete(`${PHOTOS_URL}/${photoId}`, authHeader);
       setDeleteConfirm(null);
       setIsDeleting(false);
       showResult('success', 'Foto Dihapus!', 'Foto berhasil dihapus dari album.', async () => {
         try {
-          const res = await axios.get(`${API_BASE_URL}/albums/${albumId}`, authHeader);
+          const res = await axios.get(`${ALBUMS_URL}/${albumId}`, authHeader);
           setSelectedAlbum(res.data);
-        } catch (err) {
-          console.error('Error refreshing album:', err);
-        }
+        } catch (err) { console.error('Error refreshing album:', err); }
         onGalleriesUpdate();
       });
     } catch (err: any) {
       setIsDeleting(false);
       setDeleteConfirm(null);
-      const errorMsg = err.response?.data?.message || 'Gagal menghapus foto.';
-      showResult('error', 'Gagal Menghapus Foto', errorMsg, () => {});
+      showResult('error', 'Gagal Menghapus Foto', err.response?.data?.message || 'Gagal menghapus foto.', () => {});
     }
   };
 
   const openAlbumDetail = async (album: Album) => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/albums/${album.id}`, authHeader);
+      // GET /api/galleries/albums/:id
+      const res = await axios.get(`${ALBUMS_URL}/${album.id}`, authHeader);
       setSelectedAlbum(res.data);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error fetching album detail:', err);
       setSelectedAlbum(album);
     }
     setView('album-detail');
   };
 
-  const openUploadView = () => {
-    setPhotoFiles([]);
-    setView('upload-photos');
-  };
+  const openUploadView = () => { setPhotoFiles([]); setView('upload-photos'); };
 
   const filteredAlbums = galleries.filter(a =>
     a.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     a.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const doneCount = photoFiles.filter(p => p.done).length;
+  const doneCount      = photoFiles.filter(p => p.done).length;
   const uploadingCount = photoFiles.filter(p => p.uploading).length;
-  const totalSizeMB = (photoFiles.reduce((acc, p) => acc + (p.file?.size || 0), 0) / (1024 * 1024)).toFixed(1);
+  const totalSizeMB    = (photoFiles.reduce((acc, p) => acc + (p.file?.size || 0), 0) / (1024 * 1024)).toFixed(1);
 
+  // ─── VIEW: Upload Photos ───────────────────────────────────────────────────
   if (view === 'upload-photos' && selectedAlbum) {
     return (
       <div className="bg-white rounded-xl shadow-sm min-h-[600px]">
         {toast && <Toast message={toast.message} type={toast.type} />}
         {resultModal && <ResultModal {...resultModal} />}
-
         <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
           <button onClick={() => { setView('album-detail'); setPhotoFiles([]); }} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 font-medium text-sm transition-colors group">
-            <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-            Kembali
+            <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" /> Kembali
           </button>
           <span className="text-gray-300">/</span>
           <span className="text-sm text-gray-500 truncate max-w-[200px]">{selectedAlbum.title}</span>
         </div>
-
         <div className="p-6 flex gap-6">
           <div className="flex-1">
-            <div onDrop={handleDrop} onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onClick={() => photoInputRef.current?.click()} className={`border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-4 cursor-pointer transition-all h-80 ${isDragging ? 'border-[#0B4D33] bg-green-50 scale-[1.01]' : 'border-gray-200 hover:border-[#0B4D33] hover:bg-gray-50'}`}>
+            <div
+              onDrop={handleDrop}
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onClick={() => photoInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-4 cursor-pointer transition-all h-80 ${isDragging ? 'border-[#0B4D33] bg-green-50 scale-[1.01]' : 'border-gray-200 hover:border-[#0B4D33] hover:bg-gray-50'}`}
+            >
               <div className={`w-20 h-20 rounded-2xl flex items-center justify-center transition-colors ${isDragging ? 'bg-green-100' : 'bg-gray-100'}`}>
                 <FileImage size={36} className={isDragging ? 'text-[#0B4D33]' : 'text-gray-400'} />
               </div>
@@ -487,7 +479,6 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
             </div>
             <input ref={photoInputRef} type="file" accept="image/*" multiple onChange={handlePhotoChange} className="hidden" />
           </div>
-
           <div className="w-72 shrink-0">
             <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
               <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
@@ -542,22 +533,22 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
     );
   }
 
+  // ─── VIEW: Album Detail ────────────────────────────────────────────────────
   if (view === 'album-detail' && selectedAlbum) {
     const photos = selectedAlbum.photos || [];
     return (
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
         {toast && <Toast message={toast.message} type={toast.type} />}
         {resultModal && <ResultModal {...resultModal} />}
-
         <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
           <button onClick={() => setView('albums')} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 font-medium text-sm transition-colors group">
-            <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-            Kembali
+            <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" /> Kembali
           </button>
         </div>
-
         <div className="relative w-full bg-gray-900 overflow-hidden" style={{ height: '340px' }}>
-          {selectedAlbum.coverUrl ? <img src={selectedAlbum.coverUrl} alt={selectedAlbum.title} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center"><Images size={64} className="text-gray-600" /></div>}
+          {selectedAlbum.coverUrl
+            ? <img src={selectedAlbum.coverUrl} alt={selectedAlbum.title} className="w-full h-full object-cover" />
+            : <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center"><Images size={64} className="text-gray-600" /></div>}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
           <div className="absolute bottom-0 left-0 right-0 p-6 flex items-end justify-between">
             <div>
@@ -569,7 +560,6 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
             </button>
           </div>
         </div>
-
         <div className="p-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-lg font-bold text-gray-900">Koleksi Foto <span className="ml-2 text-sm font-normal text-gray-400">({photos.length} foto)</span></h2>
@@ -579,7 +569,6 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
               </button>
             )}
           </div>
-
           {photos.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
               <div className="relative mb-5">
@@ -610,32 +599,27 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
             </div>
           )}
         </div>
-
         {lightboxImg && (
           <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4" onClick={() => setLightboxImg(null)}>
             <button className="absolute top-5 right-5 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors z-10"><X size={24} /></button>
             <img src={lightboxImg} alt="" className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" onClick={(e) => e.stopPropagation()} />
           </div>
         )}
-
         {showAlbumModal && (
           <AlbumModal editingAlbum={editingAlbum} albumForm={albumForm} setAlbumForm={setAlbumForm} coverPreview={coverPreview} setCoverPreview={setCoverPreview} coverUrl={coverUrl} setCoverUrl={setCoverUrl} uploadingCover={uploadingCover} coverInputRef={coverInputRef} onCoverChange={handleCoverChange} onSubmit={saveAlbum} onClose={() => setShowAlbumModal(false)} />
         )}
         {deleteConfirm && (
-          <DeleteModal deleteConfirm={deleteConfirm} isDeleting={isDeleting} onCancel={() => setDeleteConfirm(null)} onConfirm={() => {
-            const snap = deleteConfirm;
-            if (snap.type === 'album') deleteAlbum(snap.id); else deletePhoto(snap.id);
-          }} />
+          <DeleteModal deleteConfirm={deleteConfirm} isDeleting={isDeleting} onCancel={() => setDeleteConfirm(null)} onConfirm={() => { const s = deleteConfirm; if (s.type === 'album') deleteAlbum(s.id); else deletePhoto(s.id); }} />
         )}
       </div>
     );
   }
 
+  // ─── VIEW: Albums List ─────────────────────────────────────────────────────
   return (
     <div className="bg-white rounded-xl shadow-sm p-6">
       {toast && <Toast message={toast.message} type={toast.type} />}
       {resultModal && <ResultModal {...resultModal} />}
-
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Manajemen Galeri</h2>
@@ -653,7 +637,6 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
           <button onClick={() => openAlbumModal()} className="bg-[#0B4D33] text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-[#093d28] transition-colors flex items-center justify-center gap-2 text-sm"><Plus size={16} /> Tambah Album</button>
         </div>
       </div>
-
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="bg-white border border-gray-100 rounded-2xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow">
           <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-emerald-50 text-[#0B4D33] shrink-0"><FolderOpen size={22} /></div>
@@ -670,11 +653,10 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
           </div>
         </div>
       </div>
-
       {filteredAlbums.length === 0 ? (
         <div className="text-center py-20">
           <div className="w-20 h-20 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4"><FolderOpen size={36} className="text-gray-300" /></div>
-          <p className="text-gray-700 font-bold text-lg">Belum ada album</p>
+          <p className="text-gray-700 font-bold text-lg mb-4">Belum ada album</p>
           <button onClick={() => openAlbumModal()} className="bg-[#0B4D33] text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-[#093d28] transition-colors inline-flex items-center gap-2 text-sm"><Plus size={16} /> Buat Album Pertama</button>
         </div>
       ) : viewMode === 'grid' ? (
@@ -682,7 +664,9 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
           {filteredAlbums.map((album) => (
             <div key={album.id} className="group bg-white border border-gray-100 rounded-2xl overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex flex-col">
               <div className="relative w-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 cursor-pointer shrink-0" style={{ paddingBottom: '56.25%' }} onClick={() => openAlbumDetail(album)}>
-                {album.coverUrl ? <img src={album.coverUrl} alt={album.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" /> : <div className="absolute inset-0 flex items-center justify-center"><Images size={36} className="text-gray-300" /></div>}
+                {album.coverUrl
+                  ? <img src={album.coverUrl} alt={album.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  : <div className="absolute inset-0 flex items-center justify-center"><Images size={36} className="text-gray-300" /></div>}
                 <div className="absolute top-2.5 right-2.5 bg-black/50 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-xs flex items-center gap-1 font-medium"><Image size={10} /> {album.photos?.length || 0} foto</div>
               </div>
               <div className="p-4 flex-1 cursor-pointer" onClick={() => openAlbumDetail(album)}>
@@ -705,12 +689,14 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
           {filteredAlbums.map((album) => (
             <div key={album.id} className="flex items-center gap-4 p-3 border border-gray-100 rounded-2xl hover:bg-gray-50 hover:border-gray-200 transition-all group cursor-pointer" onClick={() => openAlbumDetail(album)}>
               <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-gray-100 shrink-0">
-                {album.coverUrl ? <img src={album.coverUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Images size={22} className="text-gray-300" /></div>}
+                {album.coverUrl
+                  ? <img src={album.coverUrl} alt="" className="w-full h-full object-cover" />
+                  : <div className="w-full h-full flex items-center justify-center"><Images size={22} className="text-gray-300" /></div>}
               </div>
               <div className="flex-1 min-w-0 overflow-hidden">
                 <h3 className="font-semibold text-gray-900 truncate max-w-full">{album.title}</h3>
                 {album.description && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2 break-words leading-relaxed">{album.description}</p>}
-                <p className="text-xs text-gray-400 mt-1">{album.photos?.length || 0} foto · {new Date(album.createdAt).toLocaleDateString('id-ID')}</p>
+                <p className="text-xedits text-gray-400 mt-1">{album.photos?.length || 0} foto · {new Date(album.createdAt).toLocaleDateString('id-ID')}</p>
               </div>
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => e.stopPropagation()}>
                 <button onClick={() => openAlbumModal(album)} className="p-2.5 text-blue-500 hover:bg-blue-50 rounded-xl transition-colors"><Edit size={16} /></button>
@@ -721,15 +707,11 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
           ))}
         </div>
       )}
-
       {showAlbumModal && (
         <AlbumModal editingAlbum={editingAlbum} albumForm={albumForm} setAlbumForm={setAlbumForm} coverPreview={coverPreview} setCoverPreview={setCoverPreview} coverUrl={coverUrl} setCoverUrl={setCoverUrl} uploadingCover={uploadingCover} coverInputRef={coverInputRef} onCoverChange={handleCoverChange} onSubmit={saveAlbum} onClose={() => setShowAlbumModal(false)} />
       )}
       {deleteConfirm && (
-        <DeleteModal deleteConfirm={deleteConfirm} isDeleting={isDeleting} onCancel={() => setDeleteConfirm(null)} onConfirm={() => {
-          const snap = deleteConfirm;
-          if (snap.type === 'album') deleteAlbum(snap.id); else deletePhoto(snap.id);
-        }} />
+        <DeleteModal deleteConfirm={deleteConfirm} isDeleting={isDeleting} onCancel={() => setDeleteConfirm(null)} onConfirm={() => { const s = deleteConfirm; if (s.type === 'album') deleteAlbum(s.id); else deletePhoto(s.id); }} />
       )}
     </div>
   );

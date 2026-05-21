@@ -154,49 +154,43 @@ export default function ManagePenugasan() {
   // FETCH DATA
   // =========================
   const fetchData = async () => {
-    // Note: untuk menghindari error 500 dari salah satu endpoint
-    // kita gunakan per endpoint fallback (tidak throw total).
-
     try {
       setLoading(true);
 
-      const [penugasanRes, laporanRes, trukRes] = await Promise.allSettled([
+      const [penugasanRes, laporanRes, trukRes] = await Promise.all([
         api.get("/penugasan?type=ADUAN"),
         api.get("/laporan"),
         api.get("/admin/truks"),
       ]);
 
-      const penugasanData =
-        penugasanRes.status === "fulfilled"
-          ? penugasanRes.value.data?.data || []
-          : [];
+      const penugasanData = penugasanRes.data.data || [];
 
-      const laporanBaru = (laporanRes.data.data || [])
-        .filter(
-          (item: any) =>
-            item.status === "LAPORAN_BARU" || item.status === "PENDING"
-        )
-        .map((item: any) => ({
-          id: item.id,
-          status: "LAPORAN_BARU",
-          isLaporanBaru: true,
-          taskNumber: null,
-          location: item.location || item.description,
-          district: item.jenisSampah,
-          description: item.description,
-          pelapor: item.pelapor,
-          report: {
-            id: item.id,
-            description: item.description,
-            jenisSampah: item.jenisSampah,
-            pelapor: item.pelapor,
-          },
-        }));
+const laporanBaru = (laporanRes.data.data || [])
+  .filter(
+    (item: any) =>
+      item.status === "LAPORAN_BARU" || item.status === "PENDING"
+  )
+  .map((item: any) => ({
+    id: item.id,
+    status: "LAPORAN_BARU",
+    isLaporanBaru: true,
+    taskNumber: null,
+    location: typeof item.location === "string" 
+      ? item.location 
+      : item.location?.name || item.description || "Lokasi tidak tersedia",  // ✅ YANG BENAR
+    district: item.jenisSampah,
+    description: item.description,
+    pelapor: item.pelapor,
+    report: {
+      id: item.id,
+      description: item.description,
+      jenisSampah: item.jenisSampah,
+      pelapor: item.pelapor,
+    },
+  }));
 
       setItemList([...laporanBaru, ...penugasanData]);
-
       setTrukList(trukRes.data.data || []);
-
       setCurrentPage(1);
     } catch (error) {
       console.error(error);
