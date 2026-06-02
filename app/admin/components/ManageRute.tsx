@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import {
   Plus, Trash2, Edit3, MapPin, ChevronDown, ChevronRight,
   ToggleLeft, ToggleRight, Save, X, Navigation, Truck, 
-  RefreshCw, Search, ArrowUp, ArrowDown, Info
+  RefreshCw, Search, ArrowUp, ArrowDown, Info, CheckCircle2
 } from 'lucide-react';
+import ConfirmDialog from './ConfirmDialog';
+import AlertDialog from './AlertDialog';
 
 // ─── Types ──────────────────────────────────────────────────
 interface Waypoint {
@@ -46,7 +48,7 @@ const HARI_COLOR: Record<string, string> = {
   MINGGU: 'bg-orange-50 text-orange-700 border-orange-100',
 };
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API = '/api';
 
 // ─── Sub-komponen: Peta Leaflet Inline ──────────────────────
 function PetaWaypoint({
@@ -179,6 +181,14 @@ export default function ManajemenRute() {
   const [filterTruk, setFilterTruk] = useState('');
   const [filterHari, setFilterHari] = useState('');
 
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [successTitle, setSuccessTitle] = useState('');
+  const [successDescription, setSuccessDescription] = useState('');
+  const [successIcon, setSuccessIcon] = useState<ReactNode>(<CheckCircle2 size={24} />);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [pendingDeleteName, setPendingDeleteName] = useState<string>('');
+
   const token = useCallback(() => localStorage.getItem('token'), []);
 
   const fetchRute = useCallback(async () => {
@@ -188,7 +198,7 @@ export default function ManajemenRute() {
       if (filterTruk) params.truckId = filterTruk;
       if (filterHari) params.hari = filterHari;
 
-      const res = await axios.get(`${API}/api/rute`, {
+      const res = await axios.get(`${API}/rute`, {
         headers: { Authorization: `Bearer ${token()}` },
         params,
       });
@@ -202,7 +212,7 @@ export default function ManajemenRute() {
 
   const fetchTruk = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/api/admin/truks`, {
+      const res = await axios.get(`${API}/admin/truks`, {
         headers: { Authorization: `Bearer ${token()}` },
       });
       setTrukList(res.data.data || []);
@@ -216,10 +226,13 @@ export default function ManajemenRute() {
   const handleBuatRute = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post(`${API}/api/rute`, formRute, {
+      await axios.post(`${API}/rute`, formRute, {
         headers: { Authorization: `Bearer ${token()}` },
       });
-      toast.success('Rute berhasil dibuat');
+      setSuccessTitle('Rute berhasil dibuat');
+      setSuccessDescription('Rute baru telah ditambahkan ke sistem.');
+      setSuccessIcon(<CheckCircle2 size={24} />);
+      setShowSuccessDialog(true);
       setShowModalRute(false);
       setFormRute({ truckId: '', dayOfWeek: '', name: '' });
       fetchRute();
@@ -230,7 +243,7 @@ export default function ManajemenRute() {
 
   const handleToggle = async (ruteId: string) => {
     try {
-      await axios.patch(`${API}/api/rute/${ruteId}/toggle`, {}, {
+      await axios.patch(`${API}/rute/${ruteId}/toggle`, {}, {
         headers: { Authorization: `Bearer ${token()}` },
       });
       fetchRute();
@@ -239,16 +252,23 @@ export default function ManajemenRute() {
     }
   };
 
-  const handleHapusRute = async (ruteId: string, name: string) => {
-    if (!confirm(`Hapus rute "${name}"?`)) return;
+  const handleHapusRute = async () => {
+    if (!pendingDeleteId) return;
     try {
-      await axios.delete(`${API}/api/rute/${ruteId}`, {
+      await axios.delete(`${API}/rute/${pendingDeleteId}`, {
         headers: { Authorization: `Bearer ${token()}` },
       });
-      toast.success('Rute dihapus');
+      setSuccessTitle('Rute berhasil dihapus');
+      setSuccessDescription('Rute telah dihapus secara permanen.');
+      setSuccessIcon(<Trash2 size={24} />);
+      setShowSuccessDialog(true);
       fetchRute();
     } catch {
       toast.error('Gagal menghapus rute');
+    } finally {
+      setShowConfirmDialog(false);
+      setPendingDeleteId(null);
+      setPendingDeleteName('');
     }
   };
 
@@ -305,7 +325,7 @@ export default function ManajemenRute() {
   const handleSimpanWaypoints = async () => {
     setSavingWp(true);
     try {
-      await axios.post(`${API}/api/rute/${editingRuteId}/waypoint`, {
+      await axios.post(`${API}/rute/${editingRuteId}/waypoint`, {
         bulk: localWaypoints.map(wp => ({
           name: wp.name,
           latitude: wp.latitude,
@@ -450,7 +470,11 @@ export default function ManajemenRute() {
                   <div className="flex gap-1.5">
                     <button onClick={() => openWaypointEditor(rute)} className="p-2.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-xl transition-all"><Edit3 size={20}/></button>
                     <button onClick={() => handleToggle(rute.id)} className="p-2.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-xl transition-all">{rute.isActive ? <ToggleRight size={24}/> : <ToggleLeft size={24}/>}</button>
-                    <button onClick={() => handleHapusRute(rute.id, rute.name)} className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={20}/></button>
+                    <button onClick={() => {
+                      setPendingDeleteId(rute.id);
+                      setPendingDeleteName(rute.name);
+                      setShowConfirmDialog(true);
+                    }} className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={20}/></button>
                   </div>
                 </div>
               </div>
@@ -643,6 +667,30 @@ export default function ManajemenRute() {
           </div>
         </div>
       )}
+
+      {/* DIALOGS */}
+      <AlertDialog
+        open={showSuccessDialog}
+        title={successTitle}
+        description={successDescription}
+        buttonText="OK"
+        icon={successIcon}
+        onClose={() => setShowSuccessDialog(false)}
+      />
+
+      <ConfirmDialog
+        open={showConfirmDialog}
+        title="Hapus Data Rute?"
+        description={`Aksi ini akan menghapus rute "${pendingDeleteName}" secara permanen dari sistem.`}
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        onConfirm={handleHapusRute}
+        onCancel={() => { 
+          setShowConfirmDialog(false); 
+          setPendingDeleteId(null);
+          setPendingDeleteName('');
+        }}
+      />
     </div>
   );
 }

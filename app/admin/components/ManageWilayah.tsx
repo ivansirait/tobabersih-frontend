@@ -1,15 +1,17 @@
 "use client";
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, ReactNode } from 'react';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
 import { 
   Plus, Edit, Trash2, Search, MapPin, 
   Building2, Map, X, Loader2, 
   CircleCheck, LayoutGrid, Eye, Power, PowerOff,
-  Calendar, Hash, Navigation, Globe
+  Calendar, Hash, Navigation, Globe, CheckCircle2, Edit3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast, { Toaster } from 'react-hot-toast';
+import ConfirmDialog from './ConfirmDialog';
+import AlertDialog from './AlertDialog';
 
 const WilayahMap = dynamic(() => import('../../components/WilayahMap'), {
   ssr: false,
@@ -29,7 +31,7 @@ interface Wilayah {
   area?: number;
 }
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = '/api';
 
 export default function ManageWilayah() {
   const [wilayahList, setWilayahList] = useState<Wilayah[]>([]);
@@ -41,6 +43,13 @@ export default function ManageWilayah() {
   const [submitting, setSubmitting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [successTitle, setSuccessTitle] = useState('');
+  const [successDescription, setSuccessDescription] = useState('');
+  const [successIcon, setSuccessIcon] = useState<ReactNode>(<CheckCircle2 size={24} />);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [pendingDeleteName, setPendingDeleteName] = useState<string>('');
 
   const [formData, setFormData] = useState({
     name: '', code: '', address: '',
@@ -163,35 +172,24 @@ export default function ManageWilayah() {
     }
   };
 
-  const toggleStatus = async (wilayah: Wilayah) => {
+  const handleDelete = async () => {
+    if (!pendingDeleteId) return;
     try {
       const token = localStorage.getItem('token');
-
-      // Backend sudah menyediakan endpoint toggle khusus
-      await axios.patch(
-        `${API_BASE_URL}/wilayah/${wilayah.id}/toggle`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      toast.success(`Status wilayah diperbarui`);
-      fetchWilayah();
-    } catch (error) {
-      toast.error('Gagal mengubah status');
-    }
-  };
-
-  const handleDelete = async (wilayah: Wilayah) => {
-    if (!confirm(`Hapus wilayah "${wilayah.name}"?`)) return;
-    try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${API_BASE_URL}/wilayah/${wilayah.id}`, {
+      await axios.delete(`${API_BASE_URL}/wilayah/${pendingDeleteId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      toast.success('Wilayah dihapus');
+      setSuccessTitle('Data berhasil dihapus');
+      setSuccessDescription('Wilayah telah dihapus secara permanen.');
+      setSuccessIcon(<Trash2 size={24} />);
+      setShowSuccessDialog(true);
       fetchWilayah();
     } catch (error) {
       toast.error('Gagal menghapus');
+    } finally {
+      setShowConfirmDialog(false);
+      setPendingDeleteId(null);
+      setPendingDeleteName('');
     }
   };
 
@@ -210,14 +208,20 @@ export default function ManageWilayah() {
         await axios.put(`${API_BASE_URL}/wilayah/${editingWilayah.id}`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
+        setSuccessTitle('Data berhasil diedit');
+        setSuccessDescription('Perubahan wilayah berhasil disimpan.');
+        setSuccessIcon(<Edit3 size={24} />);
       } else {
         await axios.post(`${API_BASE_URL}/wilayah`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
+        setSuccessTitle('Data berhasil ditambahkan');
+        setSuccessDescription('Wilayah baru berhasil ditambahkan ke sistem.');
+        setSuccessIcon(<CheckCircle2 size={24} />);
       }
       setShowModal(false);
+      setShowSuccessDialog(true);
       fetchWilayah();
-      toast.success('Berhasil disimpan');
     } catch (error) {
       toast.error('Gagal menyimpan');
     } finally {
@@ -353,15 +357,19 @@ export default function ManageWilayah() {
                   <p className="text-xs font-bold text-blue-600">{formatArea(w.area || 0)}</p>
                 </td>
                 <td className="px-6 py-4">
-                  <button onClick={() => toggleStatus(w)} className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold ${w.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold ${w.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                     {w.isActive ? <Power size={12} /> : <PowerOff size={12} />}
                     {w.isActive ? 'AKTIF' : 'OFF'}
-                  </button>
+                  </span>
                 </td>
                 <td className="px-6 py-4 text-right space-x-2">
                   <button onClick={() => setViewingWilayah(w)} className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors inline-flex"><Eye size={14} /></button>
                   <button onClick={() => { setEditingWilayah(w); setFormData({...w, code: w.code || '', address: w.address || '', radius: w.radius?.toString() || '5000'}); setShowModal(true); }} className="p-2 bg-yellow-400 text-white rounded-lg hover:bg-yellow-500 transition-colors inline-flex"><Edit size={14} /></button>
-                  <button onClick={() => handleDelete(w)} className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors inline-flex"><Trash2 size={14} /></button>
+                  <button onClick={() => {
+                    setPendingDeleteId(w.id);
+                    setPendingDeleteName(w.name);
+                    setShowConfirmDialog(true);
+                  }} className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors inline-flex"><Trash2 size={14} /></button>
                 </td>
               </tr>
             ))}
@@ -410,6 +418,17 @@ export default function ManageWilayah() {
                   <div>
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Radius Operasional (Meter)</label>
                     <input type="number" value={formData.radius} onChange={(e) => setFormData({...formData, radius: e.target.value})} className="w-full p-3 border rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Status Wilayah</label>
+                    <select
+                      value={formData.isActive ? 'ACTIVE' : 'INACTIVE'}
+                      onChange={(e) => setFormData({ ...formData, isActive: e.target.value === 'ACTIVE' })}
+                      className="w-full p-3 border rounded-xl text-sm bg-white"
+                    >
+                      <option value="ACTIVE">Aktif / Operasional</option>
+                      <option value="INACTIVE">Nonaktif</option>
+                    </select>
                   </div>
                 </div>
 
@@ -509,6 +528,30 @@ export default function ManageWilayah() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* DIALOGS */}
+      <AlertDialog
+        open={showSuccessDialog}
+        title={successTitle}
+        description={successDescription}
+        buttonText="OK"
+        icon={successIcon}
+        onClose={() => setShowSuccessDialog(false)}
+      />
+
+      <ConfirmDialog
+        open={showConfirmDialog}
+        title="Hapus Data Wilayah?"
+        description={`Aksi ini akan menghapus wilayah "${pendingDeleteName}" secara permanen dari sistem.`}
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        onConfirm={handleDelete}
+        onCancel={() => { 
+          setShowConfirmDialog(false); 
+          setPendingDeleteId(null);
+          setPendingDeleteName('');
+        }}
+      />
     </div>
   );
 }

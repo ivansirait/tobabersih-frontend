@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, ReactNode } from "react";
 import axios from "axios";
 import {
   Trash2,
@@ -16,14 +16,17 @@ import {
   Clock,
   CheckCircle2,
   FileText,
+  Edit3,
 } from "lucide-react";
 
 import toast, { Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import PenugasanDetail from "./PenugasanDetail";
+import ConfirmDialog from './ConfirmDialog';
+import AlertDialog from './AlertDialog';
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  "/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -101,6 +104,7 @@ interface Truk {
 }
 
 const ITEMS_PER_PAGE = 12;
+const MIN_SCHEDULE_DAYS = 3;
 
 export default function ManagePenugasan() {
   const [loading, setLoading] = useState(true);
@@ -111,6 +115,16 @@ export default function ManagePenugasan() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemList, setItemList] = useState<Item[]>([]);
   const [trukList, setTrukList] = useState<Truk[]>([]);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showConfirmTolakDialog, setShowConfirmTolakDialog] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [successTitle, setSuccessTitle] = useState('');
+  const [successDescription, setSuccessDescription] = useState('');
+  const [successIcon, setSuccessIcon] = useState<ReactNode>(<CheckCircle2 size={24} />);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [pendingDeleteName, setPendingDeleteName] = useState<string>('');
+  const [pendingTolakId, setPendingTolakId] = useState<string | null>(null);
+  const [pendingTolakName, setPendingTolakName] = useState<string>('');
 
   const [filter, setFilter] = useState({
     status: "",
@@ -123,6 +137,24 @@ export default function ManagePenugasan() {
     scheduledAt: "",
     location: "",
   });
+
+  const toDateTimeLocalValue = (date: Date) => {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    const hours = `${date.getHours()}`.padStart(2, '0');
+    const minutes = `${date.getMinutes()}`.padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
+  const getMinimumScheduleDate = () => {
+    const minDate = new Date();
+    minDate.setSeconds(0, 0);
+    minDate.setDate(minDate.getDate() + MIN_SCHEDULE_DAYS);
+    return minDate;
+  };
+
+  const minScheduleValue = toDateTimeLocalValue(getMinimumScheduleDate());
 
   // =========================
   // HELPER: ambil driver dari truk
@@ -300,6 +332,14 @@ const openTugaskanModal = (item: Item) => {
       return;
     }
 
+    const selectedSchedule = new Date(formData.scheduledAt);
+    const minScheduleDate = getMinimumScheduleDate();
+
+    if (Number.isNaN(selectedSchedule.getTime()) || selectedSchedule.getTime() < minScheduleDate.getTime()) {
+      toast.error(`Jadwal penugasan minimal ${MIN_SCHEDULE_DAYS} hari dari sekarang.`);
+      return;
+    }
+
     try {
       const payload = {
         reportId: formData.reportId,
@@ -314,7 +354,10 @@ const openTugaskanModal = (item: Item) => {
 
       await api.post("/penugasan/aduan", payload);
 
-      toast.success("Penugasan berhasil dibuat");
+      setSuccessTitle('Penugasan berhasil dibuat');
+      setSuccessDescription('Laporan aduan telah ditugaskan ke armada.');
+      setSuccessIcon(<CheckCircle2 size={24} />);
+      setShowSuccessDialog(true);
       setShowModal(false);
       resetForm();
       setSelectedItem(null);
@@ -328,30 +371,44 @@ const openTugaskanModal = (item: Item) => {
   // =========================
   // DELETE
   // =========================
-  const handleDelete = async (id: string) => {
-    if (!confirm("Hapus penugasan ini?")) return;
+  const handleDelete = async () => {
+    if (!pendingDeleteId) return;
 
     try {
-      await api.delete(`/penugasan/${id}`);
-      toast.success("Penugasan dihapus");
+      await api.delete(`/penugasan/${pendingDeleteId}`);
+      setSuccessTitle('Penugasan berhasil dihapus');
+      setSuccessDescription('Penugasan telah dihapus secara permanen.');
+      setSuccessIcon(<Trash2 size={24} />);
+      setShowSuccessDialog(true);
       fetchData();
     } catch (error) {
       toast.error("Gagal menghapus");
+    } finally {
+      setShowConfirmDialog(false);
+      setPendingDeleteId(null);
+      setPendingDeleteName('');
     }
   };
 
   // =========================
   // TOLAK
   // =========================
-  const handleTolak = async (id: string) => {
-    if (!confirm("Tolak laporan ini?")) return;
+  const handleTolak = async () => {
+    if (!pendingTolakId) return;
 
     try {
-      await api.put(`/laporan/${id}/tolak`);
-      toast.success("Laporan berhasil ditolak");
+      await api.put(`/laporan/${pendingTolakId}/tolak`);
+      setSuccessTitle('Laporan berhasil ditolak');
+      setSuccessDescription('Status laporan telah diubah menjadi ditolak.');
+      setSuccessIcon(<Edit3 size={24} />);
+      setShowSuccessDialog(true);
       fetchData();
     } catch (error) {
       toast.error("Gagal menolak laporan");
+    } finally {
+      setShowConfirmTolakDialog(false);
+      setPendingTolakId(null);
+      setPendingTolakName('');
     }
   };
 
@@ -635,7 +692,11 @@ const openTugaskanModal = (item: Item) => {
                             Tugaskan
                           </button>
                           <button
-                            onClick={() => handleTolak(item.id)}
+                            onClick={() => {
+                              setPendingTolakId(item.id);
+                              setPendingTolakName(item.location || 'Laporan');
+                              setShowConfirmTolakDialog(true);
+                            }}
                             className="px-4 py-2 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-all shadow-sm"
                           >
                             Tolak
@@ -663,7 +724,11 @@ const openTugaskanModal = (item: Item) => {
                           )}
 
                           <button
-                            onClick={() => handleDelete(item.id)}
+                            onClick={() => {
+                              setPendingDeleteId(item.id);
+                              setPendingDeleteName(item.location || 'Penugasan');
+                              setShowConfirmDialog(true);
+                            }}
                             className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors inline-flex shadow-sm"
                           >
                             <Trash2 size={16} />
@@ -836,8 +901,12 @@ const openTugaskanModal = (item: Item) => {
                     name="scheduledAt"
                     value={formData.scheduledAt}
                     onChange={handleInputChange}
+                    min={minScheduleValue}
                     className="w-full p-3 bg-gray-50 border-none rounded-xl outline-none text-sm focus:ring-1 focus:ring-green-500"
                   />
+                  <p className="mt-1 text-[11px] text-gray-500">
+                    Minimal jadwal {MIN_SCHEDULE_DAYS} hari dari waktu saat ini.
+                  </p>
                 </div>
 
                 <button
@@ -863,6 +932,44 @@ const openTugaskanModal = (item: Item) => {
           }}
         />
       )}
+
+      {/* DIALOGS */}
+      <AlertDialog
+        open={showSuccessDialog}
+        title={successTitle}
+        description={successDescription}
+        buttonText="OK"
+        icon={successIcon}
+        onClose={() => setShowSuccessDialog(false)}
+      />
+
+      <ConfirmDialog
+        open={showConfirmDialog}
+        title="Hapus Data Penugasan?"
+        description={`Aksi ini akan menghapus penugasan "${pendingDeleteName}" secara permanen dari sistem.`}
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        onConfirm={handleDelete}
+        onCancel={() => { 
+          setShowConfirmDialog(false); 
+          setPendingDeleteId(null);
+          setPendingDeleteName('');
+        }}
+      />
+
+      <ConfirmDialog
+        open={showConfirmTolakDialog}
+        title="Tolak Laporan?"
+        description={`Aksi ini akan menolak laporan "${pendingTolakName}" secara permanen.`}
+        confirmText="Ya, Tolak"
+        cancelText="Batal"
+        onConfirm={handleTolak}
+        onCancel={() => { 
+          setShowConfirmTolakDialog(false); 
+          setPendingTolakId(null);
+          setPendingTolakName('');
+        }}
+      />
     </div>
   );
 }

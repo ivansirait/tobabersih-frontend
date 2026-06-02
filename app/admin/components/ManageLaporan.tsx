@@ -35,6 +35,8 @@ interface TruckType {
   plateNumber: string;
 }
 
+const MIN_SCHEDULE_DAYS = 3;
+
 export default function ManageLaporan() {
   // --- State ---
   const [laporanList, setLaporanList] = useState<Laporan[]>([]);
@@ -64,12 +66,30 @@ export default function ManageLaporan() {
     notes: '',
   });
 
+  const toDateTimeLocalValue = (date: Date) => {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    const hours = `${date.getHours()}`.padStart(2, '0');
+    const minutes = `${date.getMinutes()}`.padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
+  const getMinimumScheduleDate = () => {
+    const minDate = new Date();
+    minDate.setSeconds(0, 0);
+    minDate.setDate(minDate.getDate() + MIN_SCHEDULE_DAYS);
+    return minDate;
+  };
+
+  const minScheduleValue = toDateTimeLocalValue(getMinimumScheduleDate());
+
   // --- API Calls ---
   const fetchLaporan = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const res = await axios.get('http://localhost:5000/api/laporan', {
+      const res = await axios.get('/api/laporan', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const allReports = res.data.data || [];
@@ -88,8 +108,8 @@ export default function ManageLaporan() {
     try {
       const token = localStorage.getItem('token');
       const [supirRes, trukRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/penugasan/supir', { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get('http://localhost:5000/api/penugasan/truk', { headers: { Authorization: `Bearer ${token}` } })
+        axios.get('/api/penugasan/supir', { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get('/api/penugasan/truk', { headers: { Authorization: `Bearer ${token}` } })
       ]);
       setSupirList(supirRes.data.data || []);
       setTrukList(trukRes.data.data || []);
@@ -101,7 +121,7 @@ export default function ManageLaporan() {
   const fetchAssignments = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('http://localhost:5000/api/penugasan?type=ADUAN', {
+      const res = await axios.get('/api/penugasan?type=ADUAN', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const assignments = res.data.data || [];
@@ -144,7 +164,7 @@ export default function ManageLaporan() {
     try {
       const token = localStorage.getItem('token');
       const newStatus = action === 'approve' ? 'DITERIMA' : 'DITOLAK';
-      await axios.patch(`http://localhost:5000/api/laporan/${id}`, 
+      await axios.patch(`/api/laporan/${id}`, 
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -161,7 +181,7 @@ export default function ManageLaporan() {
     setStatusLoading(true);
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`http://localhost:5000/api/admin/laporan/${selectedLaporanForStatusUpdate.id}/status`,
+      await axios.put(`/api/admin/laporan/${selectedLaporanForStatusUpdate.id}/status`,
         statusFormData, { headers: { Authorization: `Bearer ${token}` } }
       );
       toast.success('Status berhasil diperbarui');
@@ -176,6 +196,15 @@ export default function ManageLaporan() {
 
   const handleConversionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const selectedSchedule = new Date(formData.scheduledAt);
+    const minScheduleDate = getMinimumScheduleDate();
+
+    if (Number.isNaN(selectedSchedule.getTime()) || selectedSchedule.getTime() < minScheduleDate.getTime()) {
+      toast.error(`Jadwal penugasan minimal ${MIN_SCHEDULE_DAYS} hari dari sekarang.`);
+      return;
+    }
+
     setLoadingSubmit(true);
     try {
       const token = localStorage.getItem('token');
@@ -186,10 +215,10 @@ export default function ManageLaporan() {
         description: selectedLaporan?.description,
         type: 'ADUAN'
       };
-      await axios.post('http://localhost:5000/api/penugasan/aduan', payload, {
+      await axios.post('/api/penugasan/aduan', payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      await axios.patch(`http://localhost:5000/api/laporan/${formData.reportId}`, { status: 'DIPROSES' }, {
+      await axios.patch(`/api/laporan/${formData.reportId}`, { status: 'DIPROSES' }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       toast.success('Penugasan berhasil dibuat');
@@ -432,10 +461,15 @@ export default function ManageLaporan() {
                 <input 
                   type="datetime-local" 
                   name="scheduledAt" 
+                  value={formData.scheduledAt}
                   onChange={(e) => setFormData({...formData, scheduledAt: e.target.value})}
+                  min={minScheduleValue}
                   required 
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-orange-500 outline-none transition text-sm" 
                 />
+                <p className="text-[11px] text-gray-500 mt-1">
+                  Minimal jadwal {MIN_SCHEDULE_DAYS} hari dari waktu saat ini.
+                </p>
               </div>
 
               <div className="space-y-1.5">
