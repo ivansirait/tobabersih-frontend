@@ -24,30 +24,33 @@ export default function AlertDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-2xl rounded-[2rem] bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
-        <div className="flex items-center justify-between px-8 py-6 border-b border-slate-200">
-          <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-emerald-100 text-emerald-600">
-              {icon ?? <CheckCircle2 size={28} />}
+      <div className="w-full max-w-sm scale-150 rounded-3xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
+        {/* Header dengan icon dan title */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
+              {icon ?? <CheckCircle2 size={24} />}
             </div>
             <div>
-              <h3 className="text-xl font-semibold text-slate-900">{title}</h3>
-              {description && <p className="text-base text-slate-500 mt-2">{description}</p>}
+              <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+              {description && <p className="text-sm text-slate-500 mt-1">{description}</p>}
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
-            <X size={22} />
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0">
+            <X size={20} />
           </button>
         </div>
 
-        <div className="px-8 py-6">
-          <p className="text-base text-slate-600">{description ?? 'Operasi berhasil dilakukan.'}</p>
+        {/* Description */}
+        <div className="px-6 py-5">
+          <p className="text-sm text-slate-600">{description ?? 'Operasi berhasil dilakukan.'}</p>
         </div>
 
-        <div className="flex items-center justify-end gap-3 px-8 pb-8">
+        {/* Button */}
+        <div className="flex items-center justify-end gap-3 px-6 pb-6">
           <button
             onClick={onClose}
-            className="rounded-full bg-emerald-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-emerald-500/10 transition hover:bg-emerald-700"
+            className="rounded-full bg-emerald-600 px-6 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-600/10 transition hover:bg-emerald-700"
           >
             {buttonText}
           </button>

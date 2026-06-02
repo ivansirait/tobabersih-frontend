@@ -18,28 +18,38 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "/api";
+
+      const readArray = (payload: any) => {
+        if (Array.isArray(payload)) return payload;
+        if (Array.isArray(payload?.data)) return payload.data;
+        return [];
+      };
       
       // Fetch dengan timeout dan error handling
       const [laporanRes, postsRes] = await Promise.all([
-        axios.get(`${apiUrl}/api/laporan`, {
+        axios.get(`${apiUrl}/laporan`, {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 5000
         }).catch(err => {
-          console.warn("Laporan fetch gagal:", err.message);
+          if (err.response?.status !== 404) {
+            console.warn("Laporan fetch gagal:", err.message);
+          }
           return { data: { data: [] } }; // Fallback ke array kosong
         }),
-        axios.get(`${apiUrl}/api/posts`, {
+        axios.get(`${apiUrl}/posts`, {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 5000
         }).catch(err => {
-          console.warn("Posts fetch gagal:", err.message);
+          if (err.response?.status !== 404) {
+            console.warn("Posts fetch gagal:", err.message);
+          }
           return { data: { data: [] } }; // Fallback ke array kosong
         }),
       ]);
       
-      setLaporanList(laporanRes.data?.data || []);
-      setPosts(postsRes.data?.data || []);
+      setLaporanList(readArray(laporanRes.data));
+      setPosts(readArray(postsRes.data));
       setError(false);
     } catch (err) {
       console.error("Error fetching dashboard data:", err);

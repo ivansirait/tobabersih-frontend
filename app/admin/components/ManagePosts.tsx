@@ -1,13 +1,15 @@
 "use client";
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, ReactNode } from 'react';
 import axios from 'axios';
 import { 
   Edit, Trash2, Plus, Search, Megaphone, Newspaper, 
   Upload, Image as ImageIcon, X, FilePlus, Eye, 
-  Grid3X3, List, CheckCircle, AlertCircle, AlertTriangle,
-  Calendar, User, Hash, Loader2, TrendingUp
+  CheckCircle, AlertCircle, AlertTriangle,
+  Calendar, User, Hash, Loader2, TrendingUp, Edit3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import AlertDialog from './AlertDialog';
+import ConfirmDialog from './ConfirmDialog';
 
 interface ManagePostsProps {
   posts?: any[];
@@ -15,7 +17,6 @@ interface ManagePostsProps {
 }
 
 type TabType = 'SEMUA' | 'BERITA' | 'PENGUMUMAN';
-type ViewMode = 'GRID' | 'LIST';
 
 const INITIAL_FORM = {
   title: '',
@@ -26,21 +27,27 @@ const INITIAL_FORM = {
   author_id: 1,
 };
 
-const BASE_URL = 'http://localhost:5000';
+// Gunakan proxy Next.js - panggil /api/* dari frontend
+const BASE_URL = '';
 
 export default function ManagePosts({ posts = [], onPostsUpdate }: ManagePostsProps) {
   const [showModal, setShowModal] = useState(false);
   const [editingPost, setEditingPost] = useState<any>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [viewingPost, setViewingPost] = useState<any>(null);
-  const [deleteModal, setDeleteModal] = useState<{show: boolean, id: number | null}>({ show: false, id: null });
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [successTitle, setSuccessTitle] = useState('');
+  const [successDescription, setSuccessDescription] = useState('');
+  const [successIcon, setSuccessIcon] = useState<ReactNode>(<CheckCircle size={24} />);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+  const [pendingDeleteTitle, setPendingDeleteTitle] = useState<string>('');
   const [toast, setToast] = useState<{show: boolean, message: string, type: 'success' | 'error'}>({
     show: false, message: '', type: 'success'
   });
 
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('SEMUA');
-  const [viewMode, setViewMode] = useState<ViewMode>('GRID');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState(INITIAL_FORM);
@@ -51,7 +58,7 @@ export default function ManagePosts({ posts = [], onPostsUpdate }: ManagePostsPr
   const fetchPosts = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${BASE_URL}/api/posts`);
+      const response = await axios.get(`${BASE_URL}/posts`);
       const postsData = Array.isArray(response.data)
         ? response.data
         : Array.isArray(response.data?.data)
@@ -115,12 +122,14 @@ export default function ManagePosts({ posts = [], onPostsUpdate }: ManagePostsPr
     setShowDetailModal(true);
   };
 
-  const handleDeleteClick = (id: number) => {
-    setDeleteModal({ show: true, id });
+  const handleDeleteClick = (id: number, title: string) => {
+    setPendingDeleteId(id);
+    setPendingDeleteTitle(title);
+    setShowConfirmDialog(true);
   };
 
   const handleDeleteConfirm = async () => {
-    if (deleteModal.id === null) return;
+    if (pendingDeleteId === null) return;
 
     setLoading(true);
     const token = localStorage.getItem('token');
@@ -132,7 +141,7 @@ export default function ManagePosts({ posts = [], onPostsUpdate }: ManagePostsPr
     }
 
     try {
-      const response = await axios.delete(`${BASE_URL}/api/posts/${deleteModal.id}`, {
+      const response = await axios.delete(`${BASE_URL}/api/posts/${pendingDeleteId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -140,14 +149,21 @@ export default function ManagePosts({ posts = [], onPostsUpdate }: ManagePostsPr
         throw new Error(response.data?.message || 'Gagal menghapus berita');
       }
 
-      showNotification('Berita berhasil dihapus!', 'success');
+      setSuccessTitle('Berita berhasil dihapus');
+      setSuccessDescription('Berita telah dihapus secara permanen dari sistem.');
+      setSuccessIcon(<Trash2 size={24} />);
+      setShowSuccessDialog(true);
       if (onPostsUpdate) onPostsUpdate();
-      setDeleteModal({ show: false, id: null });
+      setShowDetailModal(false);
+      await refreshPosts();
     } catch (err: any) {
       const message = err.response?.data?.message || err.message || 'Gagal menghapus berita';
       showNotification(message, 'error');
     } finally {
       setLoading(false);
+      setShowConfirmDialog(false);
+      setPendingDeleteId(null);
+      setPendingDeleteTitle('');
     }
   };
 
@@ -209,7 +225,16 @@ export default function ManagePosts({ posts = [], onPostsUpdate }: ManagePostsPr
         throw new Error(response.data?.message || 'Gagal menyimpan data');
       }
 
-      showNotification(editingPost ? 'Berita berhasil diperbarui!' : 'Berita berhasil ditambahkan!', 'success');
+      if (editingPost) {
+        setSuccessTitle('Berita berhasil diperbarui');
+        setSuccessDescription('Perubahan berita telah disimpan ke sistem.');
+        setSuccessIcon(<Edit3 size={24} />);
+      } else {
+        setSuccessTitle('Berita berhasil ditambahkan');
+        setSuccessDescription('Berita baru telah ditambahkan ke sistem.');
+        setSuccessIcon(<CheckCircle size={24} />);
+      }
+      setShowSuccessDialog(true);
       setShowModal(false);
       setFormData(INITIAL_FORM);
       setImagePreview('');
@@ -321,66 +346,66 @@ export default function ManagePosts({ posts = [], onPostsUpdate }: ManagePostsPr
           ))}
         </div>
 
-        <div className="flex flex-1 max-w-2xl gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input 
-              type="text" placeholder="Cari judul atau konten..." value={searchTerm} 
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-green-500/20 outline-none text-sm font-medium" 
-            />
-          </div>
-          <div className="hidden sm:flex border border-gray-100 rounded-2xl overflow-hidden p-1 bg-gray-50">
-            <button onClick={() => setViewMode('GRID')} className={`p-2.5 rounded-xl transition-all ${viewMode === 'GRID' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`}><Grid3X3 size={18}/></button>
-            <button onClick={() => setViewMode('LIST')} className={`p-2.5 rounded-xl transition-all ${viewMode === 'LIST' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`}><List size={18}/></button>
-          </div>
+        <div className="relative flex-1 max-w-2xl">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input 
+            type="text" placeholder="Cari judul atau konten..." value={searchTerm} 
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-green-500/20 outline-none text-sm font-medium" 
+          />
         </div>
       </div>
 
       {/* --- CONTENT LIST --- */}
       <AnimatePresence mode="wait">
-        <motion.div 
-          layout className={viewMode === 'GRID' ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" : "flex flex-col gap-4"}
-        >
+        <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredPosts.map((post) => (
             <motion.div
-              layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+              layout
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               key={post.id}
-              className={`bg-white rounded-[24px] border border-gray-100 overflow-hidden hover:shadow-xl transition-all group ${viewMode === 'LIST' ? 'flex items-center p-4' : ''}`}
+              className="group bg-white border border-gray-100 rounded-2xl overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex flex-col"
             >
-              <div className={`${viewMode === 'GRID' ? 'h-48 w-full' : 'w-32 h-32 rounded-2xl'} overflow-hidden relative bg-gray-100 shrink-0`}>
-                <img 
-                  src={resolveImageUrl(post.imageUrl || post.image_url)} 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              <div
+                className="relative w-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 cursor-pointer shrink-0"
+                style={{ paddingBottom: '56.25%' }}
+                onClick={() => openDetailModal(post)}
+              >
+                <img
+                  src={resolveImageUrl(post.imageUrl || post.image_url)}
+                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   onError={e => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x300?text=No+Image'; }}
-                  alt=""
+                  alt={post.title}
                 />
-                <div className="absolute top-3 left-3">
-                  <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm border border-white/20 ${post.category === 'BERITA' ? 'bg-blue-500 text-white' : 'bg-orange-500 text-white'}`}>
-                    {post.category}
-                  </span>
+                <div className="absolute top-2.5 left-2.5 bg-black/50 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-[10px] flex items-center gap-1 font-semibold">
+                  {post.category}
                 </div>
               </div>
 
-              <div className={`p-6 flex-1 flex flex-col h-full ${viewMode === 'LIST' ? 'py-2' : ''}`}>
+              <div className="p-4 flex-1 cursor-pointer" onClick={() => openDetailModal(post)}>
                 <div className="flex items-center gap-3 text-[10px] font-bold text-gray-400 uppercase tracking-tighter mb-2">
-                  <span className="flex items-center gap-1"><Calendar size={12}/> {new Date(post.createdAt || Date.now()).toLocaleDateString('id-ID')}</span>
-                  <span className="flex items-center gap-1"><User size={12}/> Admin</span>
+                  <span className="flex items-center gap-1"><Calendar size={12} /> {new Date(post.createdAt || Date.now()).toLocaleDateString('id-ID')}</span>
+                  <span className="flex items-center gap-1"><User size={12} /> Admin</span>
                 </div>
-                <h3 className={`font-black text-gray-900 leading-tight mb-2 group-hover:text-[#4A6D55] transition-colors line-clamp-2 ${viewMode === 'GRID' ? 'text-lg' : 'text-base'}`}>
+                <h3 className="font-bold text-gray-900 line-clamp-1 mb-0.5">
                   {post.title}
                 </h3>
-                <p className="text-sm text-gray-500 line-clamp-2 mb-6 flex-1 leading-relaxed">
-                  {post.content}
-                </p>
+                {post.content && <p className="text-xs text-gray-500 line-clamp-2 mb-2 leading-relaxed">{post.content}</p>}
+              </div>
 
-                <div className="flex items-center gap-2 pt-4 border-t border-gray-50">
-                  <button onClick={() => openDetailModal(post)} className="flex-1 py-2.5 bg-gray-50 text-gray-600 rounded-xl font-bold text-xs hover:bg-gray-100 transition-all flex items-center justify-center gap-2">
-                    <Eye size={14}/> Detail
-                  </button>
-                  <button onClick={() => openModal(post)} className="p-2.5 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100"><Edit size={16}/></button>
-                  <button onClick={() => handleDeleteClick(post.id)} className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100"><Trash2 size={16}/></button>
-                </div>
+              <div className="border-t border-gray-100 flex shrink-0">
+                <button onClick={() => openDetailModal(post)} className="flex-1 flex items-center justify-center gap-1.5 py-3 text-sm text-[#0B4D33] hover:bg-green-50 transition-colors font-semibold">
+                  <Eye size={14} /> Detail
+                </button>
+                <div className="w-px bg-gray-100" />
+                <button onClick={() => openModal(post)} className="px-4 flex items-center justify-center text-amber-500 hover:bg-amber-50 transition-colors">
+                  <Edit size={15} />
+                </button>
+                <div className="w-px bg-gray-100" />
+                <button onClick={() => handleDeleteClick(post.id, post.title)} className="px-4 flex items-center justify-center text-red-400 hover:bg-red-50 transition-colors">
+                  <Trash2 size={15} />
+                </button>
               </div>
             </motion.div>
           ))}
@@ -520,7 +545,7 @@ export default function ManagePosts({ posts = [], onPostsUpdate }: ManagePostsPr
                   <button onClick={() => { setShowDetailModal(false); openModal(viewingPost); }} className="flex-1 py-4 bg-amber-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-amber-600 transition-all flex items-center justify-center gap-2">
                     <Edit size={16} /> Edit
                   </button>
-                  <button onClick={() => { setShowDetailModal(false); handleDeleteClick(viewingPost.id); }} className="flex-1 py-4 bg-red-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-600 transition-all flex items-center justify-center gap-2">
+                  <button onClick={() => { setShowDetailModal(false); handleDeleteClick(viewingPost.id, viewingPost.title); }} className="flex-1 py-4 bg-red-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-600 transition-all flex items-center justify-center gap-2">
                     <Trash2 size={16} /> Hapus
                   </button>
                 </div>
@@ -530,39 +555,34 @@ export default function ManagePosts({ posts = [], onPostsUpdate }: ManagePostsPr
         )}
       </AnimatePresence>
 
-      {/* --- DELETE CONFIRMATION MODAL --- */}
-      <AnimatePresence>
-        {deleteModal.show && (
-          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-[32px] shadow-2xl w-full max-w-md overflow-hidden border border-white/20">
-              <div className="px-8 py-6 border-b flex justify-between items-center bg-red-50/50">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-red-500 flex items-center justify-center text-white">
-                    <AlertTriangle size={24} />
-                  </div>
-                  <div>
-                    <h3 className="font-black text-xl uppercase text-red-700">Konfirmasi Hapus</h3>
-                    <p className="text-xs font-bold text-red-500">Tindakan ini tidak dapat dibatalkan.</p>
-                  </div>
-                </div>
-              </div>
+      {/* Dialog Components */}
+      <ConfirmDialog
+        open={showConfirmDialog}
+        title={`Hapus "${pendingDeleteTitle}"?`}
+        description="Berita akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan."
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => {
+          setShowConfirmDialog(false);
+          setPendingDeleteId(null);
+          setPendingDeleteTitle('');
+        }}
+      />
 
-              <div className="p-8 space-y-6">
-                <p className="text-gray-600 text-sm leading-relaxed">
-                  Apakah Anda yakin ingin menghapus postingan ini? Semua data terkait akan hilang secara permanen.
-                </p>
-
-                <div className="flex gap-4">
-                  <button onClick={() => setDeleteModal({ show: false, id: null })} className="flex-1 py-4 bg-gray-100 text-gray-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-200 transition-all">Batal</button>
-                  <button onClick={handleDeleteConfirm} disabled={loading} className="flex-1 py-4 bg-red-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-600 transition-all flex items-center justify-center gap-2">
-                    {loading ? <Loader2 className="animate-spin" /> : 'Hapus'}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <AlertDialog
+        open={showSuccessDialog}
+        title={successTitle}
+        description={successDescription}
+        buttonText="Lanjut"
+        icon={successIcon}
+        onClose={() => {
+          setShowSuccessDialog(false);
+          setSuccessTitle('');
+          setSuccessDescription('');
+          setSuccessIcon(<CheckCircle size={24} />);
+        }}
+      />
     </div>
   );
 }

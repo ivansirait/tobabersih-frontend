@@ -142,7 +142,7 @@
         let response;
         if (editingPost) {
           response = await axios.put(
-            `http://localhost:5000/api/posts/${editingPost.id}`, 
+            `/api/posts/${editingPost.id}`, 
             dataToSend, 
             config
           );
@@ -150,7 +150,7 @@
           alert('Berita berhasil diperbarui!');
         } else {
           response = await axios.post(
-            'http://localhost:5000/api/posts', 
+            '/api/posts', 
             dataToSend, 
             config
           );
@@ -195,7 +195,7 @@
       }
 
       try {
-        await axios.delete(`http://localhost:5000/api/posts/${id}`, {
+        await axios.delete(`/api/posts/${id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         alert('Berita berhasil dihapus!');

@@ -5,17 +5,10 @@ import Link from 'next/link';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import { Mail, Lock, LogIn, Eye, EyeOff, Leaf } from 'lucide-react';
+import { getRoleRoute, normalizeRole } from '@/lib/authRole';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-
-const normalizeRole = (role?: string) => {
-  const safeRole = (role || '').toLowerCase();
-  if (safeRole.includes('admin')) return 'admin';
-  if (safeRole.includes('kabid')) return 'kabid';
-  if (safeRole.includes('operator') || safeRole.includes('supir')) return 'supir';
-  if (safeRole.includes('warga') || safeRole.includes('masyarakat')) return 'warga';
-  return '';
-};
+// Gunakan proxy Next.js untuk backend communication
+const API_BASE_URL = '/api/auth';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,7 +24,7 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const res = await axios.post(`${API_BASE_URL}/auth/login`, { email, password });
+      const res = await axios.post(`${API_BASE_URL}/login`, { email, password });
 
       if (res.data?.success) {
         const user = res.data.user || res.data.data?.user || res.data.data || null;
@@ -44,23 +37,14 @@ export default function LoginPage() {
         const role = normalizeRole(res.data.role || user?.role || res.data.data?.role);
 
         if (user) {
-          localStorage.setItem('user', JSON.stringify(user));
+          localStorage.setItem('user', JSON.stringify({ ...user, role }));
         }
 
         localStorage.setItem('token', token);
+        localStorage.setItem('role', role);
         Cookies.set('token', token, { expires: 1, path: '/', sameSite: 'lax' });
 
-        if (role === 'admin') {
-          router.push('/admin');
-        } else if (role === 'kabid') {
-          router.push('/kabid');
-        } else if (role === 'supir') {
-          router.push('/Supir');
-        } else if (role === 'warga') {
-          router.push('/Warga');
-        } else {
-          router.push('/');
-        }
+        router.push(getRoleRoute(role));
       } else {
         setError(res.data?.message || 'Login gagal.');
       }

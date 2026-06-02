@@ -2,6 +2,7 @@
 import Sidebar from "./components/Sidebar";
 import { useRouter, usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
+import { normalizeRole } from '@/lib/authRole';
 
 export default function AdminLayout({
   children,
@@ -12,6 +13,7 @@ export default function AdminLayout({
   const pathname = usePathname();
   const [isMobile, setIsMobile] = useState(false);
   const [activeMenu, setActiveMenu] = useState('dashboard');
+  const [isAuthorized, setIsAuthorized] = useState(false);
 
   // Map path ke menu ID
   const getMenuIdFromPath = (path: string) => {
@@ -40,12 +42,36 @@ export default function AdminLayout({
     setActiveMenu(menuId);
   }, [pathname]);
 
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const userStr = localStorage.getItem("user");
+
+    if (!token || !userStr) {
+      router.replace("/login");
+      return;
+    }
+
+    try {
+      const user = JSON.parse(userStr);
+      const role = normalizeRole(user?.role || localStorage.getItem("role") || "");
+
+      if (role !== "ADMIN") {
+        router.replace("/unauthorized");
+        return;
+      }
+
+      setIsAuthorized(true);
+    } catch (error) {
+      router.replace("/login");
+    }
+  }, [router]);
+
   // Fungsi logout yang nanti dikirim ke Sidebar
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("role");
-    router.push("/login");
+    router.replace("/login");
   };
 
   // Detect mobile view
@@ -58,6 +84,10 @@ export default function AdminLayout({
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  if (!isAuthorized) {
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen bg-slate-50">

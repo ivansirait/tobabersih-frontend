@@ -1,11 +1,9 @@
 // Service Worker - CleanCity PWA
-const CACHE_NAME = 'cleancity-v1';
+const CACHE_NAME = 'cleancity-v2';
 const OFFLINE_URL = '/offline';
 
 // Assets to cache on install
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
@@ -44,6 +42,11 @@ self.addEventListener('activate', (event) => {
 // Fetch event - implement caching strategy
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
+
+  // Skip caching Next.js chunks (they change frequently in dev mode)
+  if (url.pathname.includes('/.next/') || url.pathname.includes('_next/')) {
+    return;
+  }
 
   // Skip cross-origin requests
   if (url.origin !== location.origin) {

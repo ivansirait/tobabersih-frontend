@@ -29,7 +29,20 @@ interface FormData {
   isActive: boolean;
 }
 
-const API_BASE_URL = "http://localhost:5000/api/admin";
+interface PenugasanLite {
+  status?: string;
+  driverId?: string | null;
+  operatorId?: string | null;
+  driver?: { id?: string | null } | null;
+  operator?: { id?: string | null } | null;
+  truck?: {
+    operatorId?: string | null;
+    operator?: { id?: string | null } | null;
+    driver?: { id?: string | null } | null;
+  } | null;
+}
+
+const API_BASE_URL = "/api/admin";
 const INITIAL_FORM_DATA: FormData = {
   fullName: "",
   email: "",
@@ -53,9 +66,16 @@ export default function ManageSupir() {
   const [successTitle, setSuccessTitle] = useState('');
   const [successDescription, setSuccessDescription] = useState('');
   const [successIcon, setSuccessIcon] = useState<ReactNode>(<CheckCircle2 size={24} />);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [errorTitle, setErrorTitle] = useState('Aksi Gagal');
+  const [errorDescription, setErrorDescription] = useState('Terjadi kesalahan. Silakan coba lagi.');
   const [formData, setFormData] = useState<FormData>(INITIAL_FORM_DATA);
-  const [selectedSupirForToggle, setSelectedSupirForToggle] = useState<Supir | null>(null);
-  const [showToggleConfirm, setShowToggleConfirm] = useState(false);
+
+  const showErrorAlert = (message: string, title = 'Aksi Gagal') => {
+    setErrorTitle(title);
+    setErrorDescription(message || 'Terjadi kesalahan. Silakan coba lagi.');
+    setShowErrorDialog(true);
+  };
 
   const fetchSupir = async (): Promise<void> => {
     try {
@@ -121,6 +141,38 @@ export default function ManageSupir() {
     if (!pendingDeleteId) return;
     try {
       const token = localStorage.getItem("token");
+
+      // Blokir hapus supir jika masih terikat penugasan aktif
+      const penugasanRes = await axios.get('/api/penugasan?type=ADUAN', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const activeStatuses = new Set(['DITUGASKAN', 'BEKERJA']);
+      const penugasanList: PenugasanLite[] = penugasanRes.data?.data || [];
+
+      const masihAktif = penugasanList.some((item) => {
+        const status = (item.status || '').toUpperCase();
+        if (!activeStatuses.has(status)) return false;
+
+        return [
+          item.driverId,
+          item.operatorId,
+          item.driver?.id,
+          item.operator?.id,
+          item.truck?.operatorId,
+          item.truck?.operator?.id,
+          item.truck?.driver?.id,
+        ].some((id) => id === pendingDeleteId);
+      });
+
+      if (masihAktif) {
+        showErrorAlert(
+          'Supir tidak bisa dihapus karena masih memiliki penugasan aktif (Ditugaskan/Bekerja). Selesaikan penugasan terlebih dahulu.',
+          'Penghapusan Ditolak'
+        );
+        return;
+      }
+
       await axios.delete(`${API_BASE_URL}/supir/${pendingDeleteId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -130,24 +182,10 @@ export default function ManageSupir() {
       setShowSuccessDialog(true);
       fetchSupir();
     } catch (error: any) {
-      toast.error("Gagal menghapus supir");
+      showErrorAlert(error.response?.data?.message || 'Gagal menghapus supir.', 'Penghapusan Ditolak');
     } finally {
       setShowConfirmDialog(false);
       setPendingDeleteId(null);
-    }
-  };
-
-  const toggleStatus = async (supir: Supir): Promise<void> => {
-    try {
-      const token = localStorage.getItem("token");
-      await axios.put(`${API_BASE_URL}/supir/${supir.id}`, 
-        { ...supir, isActive: !supir.isActive },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      toast.success(`Supir berhasil ${!supir.isActive ? "diaktifkan" : "dinonaktifkan"}`);
-      fetchSupir();
-    } catch (error) {
-      toast.error("Gagal mengubah status");
     }
   };
 
@@ -181,6 +219,43 @@ export default function ManageSupir() {
         icon={successIcon}
         onClose={() => setShowSuccessDialog(false)}
       />
+
+      {showErrorDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm scale-150 rounded-3xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-600">
+                  <XCircle size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">{errorTitle}</h3>
+                  <p className="text-sm text-slate-500 mt-1">Operasi tidak dapat dilanjutkan.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowErrorDialog(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="px-6 py-5">
+              <p className="text-sm leading-relaxed text-slate-600">{errorDescription}</p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 px-6 pb-6">
+              <button
+                onClick={() => setShowErrorDialog(false)}
+                className="rounded-full bg-rose-600 px-6 py-2 text-sm font-semibold text-white shadow-lg shadow-rose-600/10 transition hover:bg-rose-700"
+              >
+                Oke
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* HEADER */}
       <div className="mb-8">
@@ -284,12 +359,8 @@ export default function ManageSupir() {
                       </div>
                     </td>
                     <td className="px-6 py-5">
-                      <button 
-                        onClick={() => {
-                          setSelectedSupirForToggle(supir);
-                          setShowToggleConfirm(true);
-                        }}
-                        className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold ring-1 ring-inset transition-all ${
+                      <span
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold ring-1 ring-inset ${
                         supir.isActive 
                           ? 'bg-green-100 text-green-800 ring-green-600/20' 
                           : 'bg-red-100 text-red-800 ring-red-600/20'
@@ -297,7 +368,7 @@ export default function ManageSupir() {
                       >
                         <span className={`w-1.5 h-1.5 rounded-full mr-2 ${supir.isActive ? 'bg-green-600' : 'bg-red-600'}`}></span>
                         {supir.isActive ? 'Aktif' : 'Nonaktif'}
-                      </button>
+                      </span>
                     </td>
                     <td className="px-6 py-5 text-right">
                       <div className="flex justify-end gap-1">
@@ -409,6 +480,18 @@ export default function ManageSupir() {
                 />
               </div>
 
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">Status Akun</label>
+                <select
+                  value={formData.isActive ? 'ACTIVE' : 'INACTIVE'}
+                  onChange={(e) => setFormData({ ...formData, isActive: e.target.value === 'ACTIVE' })}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition text-black bg-white"
+                >
+                  <option value="ACTIVE">Aktif</option>
+                  <option value="INACTIVE">Nonaktif</option>
+                </select>
+              </div>
+
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-6 py-3 rounded-xl text-gray-600 font-bold hover:bg-gray-100 transition-all">Batal</button>
                 <button 
@@ -433,22 +516,6 @@ export default function ManageSupir() {
         cancelText="Batal"
         onConfirm={handleDelete}
         onCancel={() => { setShowConfirmDialog(false); setPendingDeleteId(null); }}
-      />
-
-      <ConfirmDialog
-        open={showToggleConfirm}
-        title={selectedSupirForToggle?.isActive ? "Nonaktifkan Supir?" : "Aktifkan Supir?"}
-        description={selectedSupirForToggle?.isActive 
-          ? "Supir ini tidak akan bisa masuk ke aplikasi mobile sementara waktu." 
-          : "Berikan kembali akses aplikasi mobile kepada supir ini."}
-        confirmText="Ya, Lanjutkan"
-        cancelText="Batal"
-        onConfirm={() => {
-          if (selectedSupirForToggle) toggleStatus(selectedSupirForToggle);
-          setShowToggleConfirm(false);
-          setSelectedSupirForToggle(null);
-        }}
-        onCancel={() => { setShowToggleConfirm(false); setSelectedSupirForToggle(null); }}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, ReactNode } from 'react';
 import axios from 'axios';
 import {
   Plus,
@@ -17,7 +17,10 @@ import {
   CheckCircle2,
   AlertTriangle,
   Eye,
+  Edit3,
 } from 'lucide-react';
+import AlertDialog from './AlertDialog';
+import ConfirmDialog from './ConfirmDialog';
 
 type MediaType = 'IMAGE' | 'VIDEO';
 
@@ -244,19 +247,10 @@ export default function ManageEdukasi() {
   const [search, setSearch] = useState('');
 
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
-  const [result, setResult] = useState<{
-    variant: 'success' | 'error';
-    title: string;
-    message: string;
-  } | null>(null);
 
   const showToast = (message: string, type: ToastType = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
-  };
-
-  const showResult = (variant: 'success' | 'error', title: string, message: string) => {
-    setResult({ variant, title, message });
   };
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -268,19 +262,25 @@ export default function ManageEdukasi() {
   const [mediaUrl, setMediaUrl] = useState<string>('');
   const [uploading, setUploading] = useState(false);
 
-  const [deleteConfirm, setDeleteConfirm] = useState<EdukasiItem | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [successTitle, setSuccessTitle] = useState('');
+  const [successDescription, setSuccessDescription] = useState('');
+  const [successIcon, setSuccessIcon] = useState<ReactNode>(<CheckCircle2 size={24} />);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+  const [pendingDeleteTitle, setPendingDeleteTitle] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
   const authHeader = token ? { headers: { Authorization: `Bearer ${token}` } } : { headers: {} };
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/api/edukasi` : 'http://localhost:5000/api/edukasi';
+  const API_BASE_URL = '/api/edukasi';
 
   const uploadFile = async (file: File): Promise<string> => {
     const fd = new FormData();
     // backend multer field name = image
     fd.append('image', file);
-    const res = await axios.post('http://localhost:5000/api/upload', fd, {
+    const res = await axios.post('/api/upload', fd, {
       headers: {
         'Content-Type': 'multipart/form-data',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -362,52 +362,47 @@ export default function ManageEdukasi() {
     try {
       if (editing) {
         await axios.put(`${API_BASE_URL}/${editing.id}`, payload, authHeader);
-        setModalOpen(false);
-        showResult('success', 'Edukasi Diperbarui!', 'Data edukasi berhasil diperbarui.');
+        setSuccessTitle('Edukasi berhasil diperbarui');
+        setSuccessDescription('Perubahan edukasi telah disimpan ke sistem.');
+        setSuccessIcon(<Edit3 size={24} />);
       } else {
         await axios.post(`${API_BASE_URL}/`, payload, authHeader);
-        setModalOpen(false);
-        showResult('success', 'Edukasi Dibuat!', 'Data edukasi berhasil dibuat.');
+        setSuccessTitle('Edukasi berhasil ditambahkan');
+        setSuccessDescription('Edukasi baru telah ditambahkan ke sistem.');
+        setSuccessIcon(<CheckCircle2 size={24} />);
       }
-
-      setTimeout(() => {
-        setResult(null);
-        refresh();
-      }, 800);
+      setShowSuccessDialog(true);
+      setModalOpen(false);
+      refresh();
     } catch (err: any) {
       const msg = err?.response?.data?.message || 'Gagal menyimpan edukasi.';
-      showResult('error', 'Gagal Menyimpan', msg);
+      showToast(msg, 'error');
     }
   };
 
-  const remove = async (item: EdukasiItem) => {
+  const remove = async () => {
+    if (pendingDeleteId === null) return;
     setIsDeleting(true);
     try {
-      await axios.delete(`${API_BASE_URL}/${item.id}`, authHeader);
-      setDeleteConfirm(null);
-      setIsDeleting(false);
-      showResult('success', 'Dihapus!', 'Edukasi berhasil dihapus.');
-      setTimeout(() => {
-        setResult(null);
-        refresh();
-      }, 800);
+      await axios.delete(`${API_BASE_URL}/${pendingDeleteId}`, authHeader);
+      setSuccessTitle('Edukasi berhasil dihapus');
+      setSuccessDescription('Edukasi telah dihapus secara permanen dari sistem.');
+      setSuccessIcon(<Trash2 size={24} />);
+      setShowSuccessDialog(true);
+      refresh();
     } catch (err: any) {
+      showToast(err?.response?.data?.message || 'Terjadi kesalahan.', 'error');
+    } finally {
       setIsDeleting(false);
-      showResult('error', 'Gagal Menghapus', err?.response?.data?.message || 'Terjadi kesalahan.');
+      setShowConfirmDialog(false);
+      setPendingDeleteId(null);
+      setPendingDeleteTitle('');
     }
   };
 
   return (
     <div className="bg-white rounded-xl shadow-sm p-6">
       {toast && <Toast message={toast.message} type={toast.type} />}
-      {result && (
-        <ResultModal
-          variant={result.variant}
-          title={result.title}
-          message={result.message}
-          onClose={() => setResult(null)}
-        />
-      )}
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
@@ -477,7 +472,11 @@ export default function ManageEdukasi() {
                     <Edit size={16} /> Edit
                   </button>
                   <button
-                    onClick={() => setDeleteConfirm(x)}
+                    onClick={() => {
+                      setPendingDeleteId(x.id);
+                      setPendingDeleteTitle(x.judul);
+                      setShowConfirmDialog(true);
+                    }}
                     className="w-11 flex items-center justify-center px-2 py-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
                     aria-label="Hapus"
                   >
@@ -505,46 +504,33 @@ export default function ManageEdukasi() {
         />
       )}
 
-      {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
-            <div className="bg-gradient-to-br from-red-500 to-rose-600 px-5 py-6 text-center relative overflow-hidden">
-              <div className="absolute -top-4 -right-4 w-20 h-20 bg-white/10 rounded-full" />
-              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-2 border-2 border-white/30 relative z-10">
-                <Trash2 size={28} className="text-white" />
-              </div>
-              <h3 className="text-lg font-black text-white relative z-10">Hapus Edukasi?</h3>
-            </div>
-            <div className="p-6 text-center">
-              <p className="text-sm text-gray-500 mb-6">
-                "{deleteConfirm.judul}" akan dihapus permanen.
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setDeleteConfirm(null)}
-                  disabled={isDeleting}
-                  className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={() => remove(deleteConfirm)}
-                  disabled={isDeleting}
-                  className="flex-1 px-4 py-2.5 bg-red-500 text-white rounded-xl text-sm font-bold hover:bg-red-600 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-                >
-                  {isDeleting ? (
-                    <>
-                      <Loader2 size={15} className="animate-spin" /> Menghapus...
-                    </>
-                  ) : (
-                    'Ya, Hapus'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={showConfirmDialog}
+        title={`Hapus "${pendingDeleteTitle}"?`}
+        description="Edukasi akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan."
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        onConfirm={remove}
+        onCancel={() => {
+          setShowConfirmDialog(false);
+          setPendingDeleteId(null);
+          setPendingDeleteTitle('');
+        }}
+      />
+
+      <AlertDialog
+        open={showSuccessDialog}
+        title={successTitle}
+        description={successDescription}
+        buttonText="Lanjut"
+        icon={successIcon}
+        onClose={() => {
+          setShowSuccessDialog(false);
+          setSuccessTitle('');
+          setSuccessDescription('');
+          setSuccessIcon(<CheckCircle2 size={24} />);
+        }}
+      />
     </div>
   );
 }

@@ -1206,7 +1206,7 @@ export default function PetaSampah() {
             <Truck size={18} /> Tracking Armada
           </button>
         </div>
-      </div>
+      </div> 
 
       {activeTab === 'laporan' ? <TabLaporan /> : <TabTracking />}
     </div>

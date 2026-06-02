@@ -1,10 +1,18 @@
 "use client";
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Plus, Edit, Trash2, Search, UserPlus, Key, Mail, Phone, User, X, Eye, EyeOff } from 'lucide-react';
-import toast, { Toaster } from 'react-hot-toast';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+import { useState, useEffect, ReactNode, useMemo } from 'react';
+import axios from 'axios';
+import { 
+  Plus, Edit3, Trash2, Search, Mail, Phone, X, Users,
+  CheckCircle2, XCircle, UserPlus, Eye, Lock, ChevronDown,
+  BadgeCheck, UserCog, Activity
+} from 'lucide-react';
+import toast, { Toaster } from 'react-hot-toast';
+import ConfirmDialog from '../components/ConfirmDialog';
+import AlertDialog from '../components/AlertDialog';
+
+// Gunakan proxy Next.js
+const API_BASE_URL = '/api';
 
 interface Kabid {
   id: string;
@@ -15,14 +23,35 @@ interface Kabid {
   createdAt: string;
 }
 
+interface FormData {
+  email: string;
+  fullName: string;
+  password: string;
+  phoneNumber: string;
+  newPassword: string;
+  isActive: boolean;
+}
+
 export default function KelolaKabid() {
   const [kabidList, setKabidList] = useState<Kabid[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [viewingKabid, setViewingKabid] = useState<Kabid | null>(null);
   const [editingKabid, setEditingKabid] = useState<Kabid | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [successTitle, setSuccessTitle] = useState('');
+  const [successDescription, setSuccessDescription] = useState('');
+  const [successIcon, setSuccessIcon] = useState<ReactNode>(<CheckCircle2 size={24} />);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [errorTitle, setErrorTitle] = useState('Aksi Gagal');
+  const [errorDescription, setErrorDescription] = useState('Terjadi kesalahan. Silakan coba lagi.');
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [pendingDeleteName, setPendingDeleteName] = useState<string>('');
+  const [formData, setFormData] = useState<FormData>({
     email: '',
     fullName: '',
     password: '',
@@ -30,6 +59,12 @@ export default function KelolaKabid() {
     newPassword: '',
     isActive: true
   });
+
+  const showErrorAlert = (message: string, title = 'Aksi Gagal') => {
+    setErrorTitle(title);
+    setErrorDescription(message || 'Terjadi kesalahan. Silakan coba lagi.');
+    setShowErrorDialog(true);
+  };
 
   // Fetch data
   const fetchKabid = async () => {
@@ -45,8 +80,6 @@ export default function KelolaKabid() {
       setKabidList(res.data.data);
     } catch (error: any) {
       console.error('Error fetching kabid:', error);
-      console.error('Error response:', error.response?.data);
-      console.error('Error status:', error.response?.status);
       toast.error(error.response?.data?.error || 'Gagal mengambil data Kepala Bidang');
     } finally {
       setLoading(false);
@@ -57,12 +90,19 @@ export default function KelolaKabid() {
     fetchKabid();
   }, []);
 
+  // Stats
+  const stats = useMemo(() => ({
+    total: kabidList.length,
+    active: kabidList.filter((k) => k.isActive).length,
+    inactive: kabidList.filter((k) => !k.isActive).length,
+  }), [kabidList]);
+
   // Handle input change
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
     setFormData({
       ...formData,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
     });
   };
 
@@ -97,6 +137,7 @@ export default function KelolaKabid() {
   // Handle submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
     
     try {
       const token = localStorage.getItem('token');
@@ -119,7 +160,9 @@ export default function KelolaKabid() {
           },
           config
         );
-        toast.success('Data Kepala Bidang berhasil diperbarui!');
+        setSuccessTitle('Data berhasil diedit');
+        setSuccessDescription('Perubahan Kepala Bidang berhasil disimpan.');
+        setSuccessIcon(<Edit3 size={24} />);
       } else {
         // CREATE
         await axios.post(
@@ -132,38 +175,47 @@ export default function KelolaKabid() {
           },
           config
         );
-        toast.success('Akun Kepala Bidang berhasil ditambahkan!');
+        setSuccessTitle('Data berhasil ditambahkan');
+        setSuccessDescription('Akun Kepala Bidang baru berhasil ditambahkan ke sistem.');
+        setSuccessIcon(<CheckCircle2 size={24} />);
       }
 
       setShowModal(false);
+      setShowSuccessDialog(true);
       fetchKabid();
       resetForm();
     } catch (error: any) {
       console.error('Error saving kabid:', error);
-      console.error('Error response:', error.response?.data);
-      console.error('Error status:', error.response?.status);
       toast.error(error.response?.data?.message || error.response?.data?.error || 'Gagal menyimpan data');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  // Handle delete (nonaktifkan)
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Nonaktifkan akun ${name}?`)) return;
+  // Handle delete
+  const handleDelete = async () => {
+    if (!pendingDeleteId) return;
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`${API_BASE_URL}/admin/kabid/${id}`, {
+      await axios.delete(`${API_BASE_URL}/admin/kabid/${pendingDeleteId}`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
-      toast.success('Akun Kepala Bidang dinonaktifkan!');
+      setSuccessTitle('Data berhasil dihapus');
+      setSuccessDescription('Akun Kepala Bidang telah dihapus secara permanen.');
+      setSuccessIcon(<Trash2 size={24} />);
+      setShowSuccessDialog(true);
       fetchKabid();
     } catch (error: any) {
       console.error('Error deleting kabid:', error);
-      console.error('Error response:', error.response?.data);
-      toast.error(error.response?.data?.error || 'Gagal menonaktifkan akun');
+      showErrorAlert(error.response?.data?.error || 'Gagal menghapus akun', 'Penghapusan Ditolak');
+    } finally {
+      setShowConfirmDialog(false);
+      setPendingDeleteId(null);
+      setPendingDeleteName('');
     }
   };
 
@@ -188,134 +240,222 @@ export default function KelolaKabid() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto space-y-8 p-4">
       <Toaster position="top-right" />
       
-      {/* Header */}
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800">Manajemen Kepala Bidang</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              Kelola akun Kepala Bidang Kebersihan (memiliki akses monitoring & laporan)
-            </p>
-          </div>
-          
-          <button
-            onClick={openCreateModal}
-            className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all flex items-center gap-2"
-          >
-            <UserPlus size={18} />
-            <span>Tambah Kepala Bidang</span>
-          </button>
-        </div>
+      {/* Success Dialog */}
+      <AlertDialog
+        open={showSuccessDialog}
+        title={successTitle}
+        description={successDescription}
+        buttonText="OK"
+        icon={successIcon}
+        onClose={() => setShowSuccessDialog(false)}
+      />
 
-        {/* Search Bar */}
-        <div className="mt-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-            <input
-              type="text"
-              placeholder="Cari berdasarkan nama, email, atau telepon..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            />
+      {/* Error Dialog */}
+      {showErrorDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm scale-150 rounded-3xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-600">
+                  <XCircle size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">{errorTitle}</h3>
+                  <p className="text-sm text-slate-500 mt-1">Operasi tidak dapat dilanjutkan.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowErrorDialog(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="px-6 py-5">
+              <p className="text-sm leading-relaxed text-slate-600">{errorDescription}</p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 px-6 pb-6">
+              <button
+                onClick={() => setShowErrorDialog(false)}
+                className="rounded-full bg-rose-600 px-6 py-2 text-sm font-semibold text-white shadow-lg shadow-rose-600/10 transition hover:bg-rose-700"
+              >
+                Oke
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HEADER - Consistent with ManageSupir */}
+      <div className="mb-8">
+        <div className="bg-gradient-to-r from-[#DDE9E1] to-[#E8F1EB] rounded-[24px] p-8 shadow-sm border border-white/50">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+            <div>
+              <span className="bg-white/60 text-[#4A6D55] px-4 py-1.5 rounded-full text-xs font-medium tracking-wider uppercase inline-block mb-3">
+                Manajemen User
+              </span>
+              <h1 className="text-3xl font-extrabold text-[#1A2E35] tracking-tight">Manajemen Kepala Bidang</h1>
+              <p className="text-[#5B7078] mt-2 font-medium">
+                Kelola akun akses untuk Kepala Bidang Kebersihan
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      {/* STATS CARD - Consistent with ManageSupir */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[
+          { label: 'Total Kepala Bidang', val: stats.total, color: 'text-gray-600', bg: 'bg-gray-50', icon: Users },
+          { label: 'Akun Aktif', val: stats.active, color: 'text-green-600', bg: 'bg-green-50', icon: CheckCircle2 },
+          { label: 'Nonaktif', val: stats.inactive, color: 'text-red-600', bg: 'bg-red-50', icon: XCircle },
+        ].map((stat, i) => (
+          <div key={i} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
+            <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
+              <stat.icon size={24} />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">{stat.label}</p>
+              <p className="text-2xl font-bold text-gray-900">{stat.val}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tombol Tambah */}
+      <div className="flex justify-end mt-4">
+        <button
+          onClick={openCreateModal}
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-[#064E3B] text-white text-sm font-bold transition-all duration-200 shadow-lg shadow-slate-200 hover:bg-[#053f30] active:scale-95"
+        >
+          <Plus size={18} /> Tambah Kepala Bidang
+        </button>
+      </div>
+
+      {/* TABLE */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-gray-50">
+          <div className="relative group max-w-md">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="text"
+              placeholder="Cari nama, email, atau telepon..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-green-500/20 outline-none text-black"
+            />
+          </div>
+        </div>
+
         {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
+          <div className="flex flex-col items-center justify-center h-64 space-y-4 text-gray-400">
+            <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+            <p>Sinkronisasi data...</p>
           </div>
         ) : filteredKabid.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            {searchTerm ? 'Tidak ada data yang cocok' : 'Belum ada data Kepala Bidang'}
+          <div className="text-center py-12">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-2xl mb-4">
+              <Users size={32} className="text-gray-400" />
+            </div>
+            <p className="text-gray-500 font-medium">
+              {searchTerm ? 'Tidak ada data yang cocok' : 'Belum ada data Kepala Bidang'}
+            </p>
+            {!searchTerm && (
+              <button
+                onClick={openCreateModal}
+                className="mt-4 text-green-600 font-medium hover:text-green-700"
+              >
+                + Tambah Kepala Bidang sekarang
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    No
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Nama Lengkap
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Telepon
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tanggal Daftar
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Aksi
-                  </th>
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-50/50">
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest w-12 text-center">No</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Informasi Kepala Bidang</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Kontak</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Status</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Tanggal Daftar</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Aksi</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-100">
                 {filteredKabid.map((kabid, index) => (
-                  <tr key={kabid.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {index + 1}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center mr-3">
-                          <User size={16} className="text-purple-600" />
+                  <tr key={kabid.id} className="hover:bg-gray-50/80 transition-colors group">
+                    <td className="px-6 py-5 text-center text-sm text-gray-400">{index + 1}</td>
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 group-hover:bg-green-100 group-hover:text-green-600 transition-colors font-bold">
+                          {kabid.fullName.charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-sm font-medium text-gray-900">{kabid.fullName}</span>
+                        <div>
+                          <p className="font-bold text-gray-900 leading-none">{kabid.fullName}</p>
+                          <span className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                            <BadgeCheck size={12} className="text-purple-500" />
+                            Kepala Bidang
+                          </span>
+                        </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <Mail size={14} className="text-gray-400 mr-2" />
-                        <span className="text-sm text-gray-600">{kabid.email}</span>
+                    <td className="px-6 py-5">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Mail size={14} className="text-gray-400" /> {kabid.email}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                          <Phone size={12} /> {kabid.phoneNumber || '-'}
+                        </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <Phone size={14} className="text-gray-400 mr-2" />
-                        <span className="text-sm text-gray-600">{kabid.phoneNumber || '-'}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                        kabid.isActive 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
+                    <td className="px-6 py-5">
+                      <span
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold ring-1 ring-inset ${
+                          kabid.isActive 
+                            ? 'bg-green-100 text-green-800 ring-green-600/20' 
+                            : 'bg-red-100 text-red-800 ring-red-600/20'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full mr-2 ${kabid.isActive ? 'bg-green-600' : 'bg-red-600'}`}></span>
                         {kabid.isActive ? 'Aktif' : 'Nonaktif'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-5 text-sm text-gray-500 whitespace-nowrap">
                       {new Date(kabid.createdAt).toLocaleDateString('id-ID')}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => openEditModal(kabid)}
-                          className="text-blue-600 hover:text-blue-900 bg-blue-50 p-2 rounded-lg hover:bg-blue-100 transition-colors"
+                    <td className="px-6 py-5 text-right">
+                      <div className="flex justify-end gap-1">
+                        <button 
+                          onClick={() => setViewingKabid(kabid)} 
+                          className="p-2 text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-all"
+                          title="Lihat Detail"
+                        >
+                          <Eye size={18} />
+                        </button>
+                        <button 
+                          onClick={() => openEditModal(kabid)} 
+                          className="p-2 text-white bg-yellow-400 rounded-lg hover:bg-yellow-500 transition-all"
                           title="Edit"
                         >
-                          <Edit size={16} />
+                          <Edit3 size={18} />
                         </button>
-                        <button
-                          onClick={() => handleDelete(kabid.id, kabid.fullName)}
-                          className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-lg hover:bg-red-100 transition-colors"
-                          title="Nonaktifkan"
+                        <button 
+                          onClick={() => {
+                            setPendingDeleteId(kabid.id);
+                            setPendingDeleteName(kabid.fullName);
+                            setShowConfirmDialog(true);
+                          }} 
+                          className="p-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-all"
+                          title="Hapus"
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={18} />
                         </button>
                       </div>
                     </td>
@@ -327,25 +467,82 @@ export default function KelolaKabid() {
         )}
       </div>
 
-      {/* Modal Form */}
+      {/* MODAL VIEW DETAIL - Consistent with ManageSupir */}
+      {viewingKabid && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-white/20">
+            <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h3 className="text-xl font-bold text-gray-900">Detail Kepala Bidang</h3>
+              <button onClick={() => setViewingKabid(null)} className="p-2 hover:bg-white rounded-full transition-colors text-gray-400">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-8 space-y-6">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-20 h-20 bg-gradient-to-br from-purple-100 to-pink-100 text-purple-700 rounded-2xl flex items-center justify-center text-3xl font-black shadow-inner">
+                  {viewingKabid.fullName.charAt(0).toUpperCase()}
+                </div>
+                <div className="text-center">
+                  <h4 className="text-xl font-bold text-gray-900">{viewingKabid.fullName}</h4>
+                  <span className={`text-xs font-bold uppercase tracking-widest ${viewingKabid.isActive ? 'text-green-600' : 'text-red-600'}`}>
+                    {viewingKabid.isActive ? 'Akun Aktif' : 'Akun Nonaktif'}
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-4 bg-gray-50 p-6 rounded-2xl border border-gray-100">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Alamat Email</label>
+                  <p className="text-gray-700 font-medium flex items-center gap-2 mt-1">
+                    <Mail size={16} className="text-purple-600" /> {viewingKabid.email}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nomor Telepon</label>
+                  <p className="text-gray-700 font-medium flex items-center gap-2 mt-1">
+                    <Phone size={16} className="text-purple-600" /> {viewingKabid.phoneNumber || 'Tidak ada nomor'}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tanggal Registrasi</label>
+                  <p className="text-gray-700 font-medium mt-1">
+                    {new Date(viewingKabid.createdAt).toLocaleDateString('id-ID', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric'
+                    })}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Role</label>
+                  <p className="text-gray-700 font-medium flex items-center gap-2 mt-1">
+                    <UserCog size={16} className="text-purple-600" /> Kepala Bidang Kebersihan
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setViewingKabid(null)} className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold hover:bg-gray-800 transition-all">
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL FORM - Consistent with ManageSupir */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-md w-full">
-            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-              <h3 className="text-xl font-semibold text-gray-900">
-                {editingKabid ? 'Edit Kepala Bidang' : 'Tambah Kepala Bidang Baru'}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-white/20">
+            <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h3 className="text-xl font-bold text-gray-900">
+                {editingKabid ? 'Edit Data Kepala Bidang' : 'Tambah Kepala Bidang Baru'}
               </h3>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
+              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-white rounded-full transition-colors text-gray-400">
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+            <form onSubmit={handleSubmit} className="p-8 space-y-5">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">
                   Nama Lengkap <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -354,30 +551,45 @@ export default function KelolaKabid() {
                   value={formData.fullName}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   placeholder="Masukkan nama lengkap"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition font-medium text-black"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  required
-                  disabled={!!editingKabid}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100"
-                  placeholder="kabid@cleancity.com"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">
+                    Email <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    required
+                    disabled={!!editingKabid}
+                    placeholder="kabid@cleancity.com"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition font-medium text-black disabled:bg-gray-100 disabled:text-gray-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">
+                    Nomor Telepon
+                  </label>
+                  <input
+                    type="tel"
+                    name="phoneNumber"
+                    value={formData.phoneNumber}
+                    onChange={handleInputChange}
+                    placeholder="08123456789"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition font-medium text-black"
+                  />
+                </div>
               </div>
 
               {!editingKabid && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">
                     Password <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
@@ -387,85 +599,88 @@ export default function KelolaKabid() {
                       value={formData.password}
                       onChange={handleInputChange}
                       required={!editingKabid}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-10"
                       placeholder="Minimal 6 karakter"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition font-medium text-black pr-12"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      {showPassword ? <XCircle size={18} /> : <Lock size={18} />}
                     </button>
                   </div>
                 </div>
               )}
 
               {editingKabid && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Password Baru (Opsional)
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">
+                    Password Baru <span className="text-gray-400">(Opsional)</span>
                   </label>
                   <input
                     type="password"
                     name="newPassword"
                     value={formData.newPassword}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     placeholder="Isi jika ingin mengganti password"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition font-medium text-black"
                   />
                 </div>
               )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nomor Telepon
-                </label>
-                <input
-                  type="text"
-                  name="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  placeholder="08123456789"
-                />
-              </div>
 
               {editingKabid && (
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    name="isActive"
-                    id="isActive"
-                    checked={formData.isActive}
-                    onChange={handleInputChange}
-                    className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="isActive" className="ml-2 block text-sm text-gray-700">
-                    Aktif (akun bisa login)
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">
+                    Status Akun
                   </label>
+                  <select
+                    name="isActive"
+                    value={formData.isActive ? 'ACTIVE' : 'INACTIVE'}
+                    onChange={(e) => setFormData({ ...formData, isActive: e.target.value === 'ACTIVE' })}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition text-black bg-white"
+                  >
+                    <option value="ACTIVE">Aktif</option>
+                    <option value="INACTIVE">Nonaktif</option>
+                  </select>
                 </div>
               )}
 
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="submit"
-                  className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2 px-4 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all"
-                >
-                  {editingKabid ? 'Update Data' : 'Simpan'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition-all"
+              <div className="pt-4 flex gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => setShowModal(false)} 
+                  className="flex-1 px-6 py-3 rounded-xl text-gray-600 font-bold hover:bg-gray-100 transition-all"
                 >
                   Batal
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={submitting}
+                  className="flex-1 bg-green-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-200 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {submitting ? 'Memproses...' : (editingKabid ? 'Simpan Perubahan' : 'Tambah Kepala Bidang')}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        open={showConfirmDialog}
+        title="Hapus Data Kepala Bidang?"
+        description={`Aksi ini akan menghapus akun Kepala Bidang "${pendingDeleteName}" secara permanen dari sistem.`}
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        onConfirm={handleDelete}
+        onCancel={() => { 
+          setShowConfirmDialog(false); 
+          setPendingDeleteId(null);
+          setPendingDeleteName('');
+        }}
+      />
     </div>
   );
 }
