@@ -14,13 +14,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CleanCity - Lapor Sampah",
+  title: "Toba Bersih - Dinas Lingkungan Hidup Kabupaten Toba",
   description: "Aplikasi PWA untuk melaporkan sampah liar dan menjaga kebersihan lingkungan",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "CleanCity",
+    title: "Toba Bersih",
   },
   formatDetection: {
     telephone: false,

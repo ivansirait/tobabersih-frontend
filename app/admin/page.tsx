@@ -1,27 +1,25 @@
 "use client";
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import Cookies from 'js-cookie';
-import { Bell, Settings, Calendar, Search, User, LogOut } from 'lucide-react';
 
 // Import Komponen
 import Dashboard from './components/Dashboard';
-import LaporanCard from './components/LaporanCard';
 import LoginForm from './components/LoginForm';
 import ManagePosts from './components/ManagePosts';
 import ManageSupir from './components/ManageSupir';
 import ManageTruk from './components/ManageTruk';
 import PetaSampah from './components/PetaSampah';
 import ManageWilayah from './components/ManageWilayah';
-import ManagePenugasan from './components/ManagePenugasan';
+import ManagePenugasan from './components/ManageLayananAduan';
 import ManageLaporan from './components/ManageLaporan';
-import ManageAkunMasyarakat from './components/ManageAkunMasyarakat';
-
-
+import ManageGalleries from './components/ManageGalleries';
+import ManageEdukasi from './components/ManageEdukasi';
 
 // --- API Instance ---
+
 const api = axios.create({
-  baseURL: 'http://localhost:5000', // Use backend server URL
+  baseURL: 'http://localhost:5000/api',
   timeout: 15000, // ✅ FIX: tambah timeout global 15 detik
 });
 
@@ -59,116 +57,128 @@ api.interceptors.response.use(
   }
 );
 
-// ✅ Helper: normalisasi response ke array
-const toArray = (res: any): any[] => {
-  if (Array.isArray(res.data)) return res.data;
-  if (Array.isArray(res.data?.data)) return res.data.data;
-  return [];
-};
-
 export default function AdminPage() {
+  // Auth State
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [activeMenu, setActiveMenu] = useState('dashboard');
   const [userRole, setUserRole] = useState<string | null>(null);
   const [credentials, setCredentials] = useState({ username: '', password: '' });
-  interface AdminData {
-  laporan: any[];
-  posts: any[];
-  educations: any[];
-}
 
-const [data, setData] = useState<AdminData>({ laporan: [], posts: [], educations: [] });
+  // UI State
+  const [activeMenu, setActiveMenu] = useState('dashboard');
   const [loading, setLoading] = useState({ login: false, data: false });
 
-  const formattedDate = useMemo(() => {
-    return new Intl.DateTimeFormat('id-ID', {
-      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-    }).format(new Date());
+  // Data State
+  const [data, setData] = useState({
+    laporan: [],
+    posts: [],
+    supir: [],
+    truk: [],
+    wilayah: [],
+    penugasan: []
+  });
+
+  const [laporanList, setLaporanList] = useState([]);
+  const [posts, setPosts] = useState([]);
+
+  // Format tanggal
+  const formattedDate = new Date().toLocaleDateString('id-ID', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  // Check if user is logged in
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user');
+    if (token && user) {
+      try {
+        const userData = JSON.parse(user);
+        setUserRole(userData.role || normalizeRole(userData.role));
+        setIsLoggedIn(true);
+      } catch (e) {
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+      }
+    }
   }, []);
 
-  const handleLogout = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    Cookies.remove('token', { path: '/' });
-    setIsLoggedIn(false);
-    setUserRole(null);
-  }, []);
+  const fetchAllData = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setLaporanList([]);
+      setPosts([]);
+      return;
+    }
 
-  // ✅ FIX: fetchAllData dengan error handling per-endpoint
-  const fetchAllData = useCallback(async () => {
-    if (!isLoggedIn) return;
+    const headers = { Authorization: `Bearer ${token}` };
     setLoading(prev => ({ ...prev, data: true }));
 
     try {
-      // Fetch laporan, posts, dan educations secara terpisah agar salah satu gagal tidak block yang lain
-      const [laporanResult, postsResult, educationsResult] = await Promise.allSettled([
-        api.get('/api/laporan').catch(err => { throw err; }),
-        api.get('/api/posts').catch(err => { throw err; }),
-        api.get('/api/education').catch(err => { throw err; }),
-      ]);
-
-      const laporanData = laporanResult.status === 'fulfilled'
-        ? toArray(laporanResult.value)
-        : [];
-
-      const postsData = postsResult.status === 'fulfilled'
-        ? toArray(postsResult.value)
-        : [];
-
-      const educationsData = educationsResult.status === 'fulfilled'
-        ? toArray(educationsResult.value)
-        : [];
-
-      if (laporanResult.status === 'rejected') {
-        console.error('[Admin] Gagal fetch laporan:', laporanResult.reason?.response?.status, laporanResult.reason?.message);
-      }
-      if (postsResult.status === 'rejected') {
-        console.error('[Admin] Gagal fetch posts:', postsResult.reason?.response?.status, postsResult.reason?.message);
-      }
-      if (educationsResult.status === 'rejected') {
-        console.error('[Admin] Gagal fetch educations:', educationsResult.reason?.response?.status, educationsResult.reason?.message);
+      // Fetch laporan - coba berbagai endpoint
+      try {
+        const laporanRes = await axios.get('http://localhost:5000/api/admin/laporan', { headers, timeout: 5000 });
+        const laporanData = Array.isArray(laporanRes.data) ? laporanRes.data : (laporanRes.data?.data || []);
+        setLaporanList(laporanData);
+        setData(prev => ({ ...prev, laporan: laporanData }));
+        console.log('✅ Laporan berhasil dimuat:', laporanData.length, 'item');
+      } catch (err: any) {
+        console.warn('⚠️ Fetch laporan admin gagal, coba endpoint umum:', err.message);
+        try {
+          const laporanRes = await axios.get('http://localhost:5000/api/laporan', { headers, timeout: 5000 });
+          const laporanData = Array.isArray(laporanRes.data) ? laporanRes.data : (laporanRes.data?.data || []);
+          setLaporanList(laporanData);
+          setData(prev => ({ ...prev, laporan: laporanData }));
+          console.log('✅ Laporan dari endpoint umum:', laporanData.length, 'item');
+        } catch {
+          console.error('❌ Gagal fetch laporan dari semua endpoint');
+          setLaporanList([]);
+        }
       }
 
-      setData({ laporan: laporanData, posts: postsData, educations: educationsData });
-      console.log('[Admin] Data fetched:', { laporan: laporanData.length, posts: postsData.length, educations: educationsData.length });
-    } catch (error) {
-      console.error('[Admin] Fatal error in fetchAllData:', error);
+      // Fetch posts/berita
+      try {
+        const postsRes = await axios.get('http://localhost:5000/api/posts', { headers, timeout: 5000 });
+        const postsData = Array.isArray(postsRes.data)
+          ? postsRes.data
+          : Array.isArray(postsRes.data?.data)
+            ? postsRes.data.data
+            : [];
+        setPosts(postsData);
+        setData(prev => ({ ...prev, posts: postsData }));
+        console.log('✅ Posts berhasil dimuat:', postsData.length, 'item');
+      } catch (err: any) {
+        console.warn('⚠️ Fetch posts gagal:', err.message);
+        setPosts([]);
+        setData(prev => ({ ...prev, posts: [] }));
+      }
     } finally {
       setLoading(prev => ({ ...prev, data: false }));
     }
+  };
+
+  // Fetch data when logged in + auto-refresh setiap 30 detik
+  useEffect(() => {
+    if (isLoggedIn) {
+      // Fetch data immediately
+      fetchAllData();
+
+      // Auto-refresh setiap 30 detik
+      const interval = setInterval(() => {
+        console.log('🔄 Auto-refresh data...');
+        fetchAllData();
+      }, 30000); // 30 detik
+
+      return () => clearInterval(interval);
+    }
   }, [isLoggedIn]);
 
-  // Check login status on mount
-  useEffect(() => {
-    const token = localStorage.getItem('token') || Cookies.get('token');
-    const userStr = localStorage.getItem('user');
-
-    if (token && token !== 'undefined' && token !== 'null') {
-      localStorage.setItem('token', token);
-      setIsLoggedIn(true);
-      if (userStr) {
-        try {
-          const user = JSON.parse(userStr);
-          setUserRole(normalizeRole(user.role));
-        } catch (e) {
-          console.error('Error parsing user:', e);
-        }
-      }
-    } else {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      Cookies.remove('token', { path: '/' });
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isLoggedIn) fetchAllData();
-  }, [isLoggedIn, fetchAllData]);
-
-  // --- Auth Handler ---
+  // Handle login
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(prev => ({ ...prev, login: true }));
+    
     try {
       const res = await api.post('/auth/login', {
         email: credentials.username,
@@ -177,10 +187,6 @@ const [data, setData] = useState<AdminData>({ laporan: [], posts: [], educations
 
       if (res.data.success) {
         const user = res.data.user || res.data.data?.user || res.data.data || null;
-        // Normalize user object
-        if (user && user.name && !user.fullName) {
-          user.fullName = user.name;
-        }
         const token =
           res.data.token ||
           res.data.data?.token ||
@@ -189,8 +195,11 @@ const [data, setData] = useState<AdminData>({ laporan: [], posts: [], educations
           'session-login';
         const normalizedRole = normalizeRole(user?.role || res.data.role || res.data.data?.role);
 
-        localStorage.setItem('token', token);
-        Cookies.set('token', token, { expires: 1, path: '/', sameSite: 'lax' });
+        if (token && token !== 'undefined' && token !== 'null') {
+          localStorage.setItem('token', token);
+          Cookies.set('token', token, { expires: 1, path: '/', sameSite: 'lax' });
+        }
+        
         if (user) {
           localStorage.setItem('user', JSON.stringify({ ...user, role: normalizedRole }));
         }
@@ -208,6 +217,17 @@ const [data, setData] = useState<AdminData>({ laporan: [], posts: [], educations
     }
   };
 
+  // Handle logout
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    Cookies.remove('token');
+    setIsLoggedIn(false);
+    setUserRole(null);
+    window.location.href = '/login';
+  };
+
+  // Render active content
   const renderActiveContent = () => {
     if (loading.data) {
       return (
@@ -224,9 +244,10 @@ const [data, setData] = useState<AdminData>({ laporan: [], posts: [], educations
       case 'peta-sampah':
         return <PetaSampah />;
       case 'tugas-harian':
-        return <ManagePenugasan taskType="RUTIN" />;
+        // Tugas harian sudah digabung dengan tugas aduan
+        return <ManagePenugasan />;
       case 'tugas-aduan':
-        return <ManagePenugasan taskType="ADUAN" />;
+        return <ManagePenugasan />;
       case 'daftar':
         return <ManageLaporan />;
       case 'data-supir':
@@ -235,21 +256,18 @@ const [data, setData] = useState<AdminData>({ laporan: [], posts: [], educations
         return <ManageTruk />;
       case 'data-wilayah':
         return <ManageWilayah />;
-      case 'akun-masyarakat':
-        return (
-          <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 p-0 min-h-[60vh] overflow-hidden">
-            <ManageAkunMasyarakat />
-          </div>
-        );
-      case 'edukasi':
-        return <ManageEdukasi educations={data.educations} onEdukasiUpdate={fetchAllData} />;
       case 'berita':
         return <ManagePosts posts={data.posts} onPostsUpdate={fetchAllData} />;
+      case 'galeri':
+        return <ManageGalleries galleries={data.galleries || []} onGalleriesUpdate={fetchAllData} />;
+      case 'edukasi':
+        return <ManageEdukasi />;
       default:
         return <Dashboard laporanList={data.laporan} posts={data.posts} />;
     }
   };
 
+    // Show login form if not logged in
   if (!isLoggedIn) {
     return (
       <LoginForm
@@ -261,90 +279,17 @@ const [data, setData] = useState<AdminData>({ laporan: [], posts: [], educations
     );
   }
 
-  const menuWithOwnHeader = ['daftar', 'data-supir', 'data-truk', 'data-wilayah', 'tugas-harian', 'tugas-aduan', 'akun-masyarakat', 'edukasi'];
-
   return (
-    <div className="bg-[#F8FAFB] min-w-0">
-        <>
-        {/* Header */}
-        <div className="mb-8">
-          <div className="bg-gradient-to-r from-[#DDE9E1] to-[#E8F1EB] rounded-[24px] p-8 shadow-sm border border-white/50 flex flex-col lg:flex-row justify-between items-center gap-6">
-            <div className="flex-1">
-              <span className="bg-white/60 text-[#4A6D55] px-4 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase inline-block mb-3">
-                Overview Panel
-              </span>
-              <h1 className="text-3xl font-extrabold text-[#1A2E35] tracking-tight">
-                Selamat Datang, Admin!
-              </h1>
-              <p className="text-[#5B7078] mt-2 font-medium">
-                Sistem Manajemen Kebersihan Terintegrasi
-              </p>
-              {userRole && (
-                <p className="text-xs text-green-700 mt-1 font-semibold">Role: {userRole}</p>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              <div className="bg-white px-5 py-2.5 rounded-2xl flex items-center shadow-sm space-x-3 border border-gray-100">
-                <div className="p-1.5 bg-green-50 rounded-lg">
-                  <Calendar className="text-green-600 w-4 h-4" />
-                </div>
-                <span className="font-bold text-[#344854] text-sm">{formattedDate}</span>
-              </div>
-
-              <div className="flex items-center bg-white/40 p-1.5 rounded-2xl border border-white/60">
-                <button className="p-2.5 text-[#5B7078] hover:bg-white rounded-xl transition-all">
-                  <Bell className="w-5 h-5" />
-                </button>
-                <button className="p-2.5 text-[#5B7078] hover:bg-white rounded-xl transition-all">
-                  <Settings className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="p-2.5 text-red-500 hover:bg-white rounded-xl transition-all"
-                >
-                  <LogOut className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="hidden lg:block h-12 w-[1.5px] bg-[#C5D7CC]/50 mx-2"></div>
-
-              <div className="flex items-center bg-white pl-4 pr-2 py-2 rounded-2xl shadow-sm border border-gray-100">
-                <div className="text-right mr-3">
-                  <p className="text-sm font-bold text-[#1A2E35]">Administrator</p>
-                  <p className="text-[10px] font-bold text-green-600 uppercase">DLH Toba</p>
-                </div>
-                <div className="w-10 h-10 rounded-xl bg-[#2D4A53] flex items-center justify-center text-white shadow-inner">
-                  <User className="w-5 h-5" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className={menuWithOwnHeader.includes(activeMenu) ? "" : "bg-white rounded-[24px] shadow-sm border border-gray-100 p-8 min-h-[60vh]"}>
-          {!menuWithOwnHeader.includes(activeMenu) && (
-            <div className="mb-8 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-[#1A2E35] capitalize">
-                {activeMenu.replace('-', ' ')}
-              </h2>
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Cari data..."
-                  className="pl-10 pr-4 py-2 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-green-100 w-64"
-                />
-              </div>
-            </div>
-          )}
-          {renderActiveContent()}
-        </div>
-      </>
+    <div className="bg-[#F8FAFB] min-w-0 w-full">
+      {/* Render active admin content */}
+      {isLoggedIn ? renderActiveContent() : (
+        <LoginForm
+          credentials={credentials}
+          setCredentials={setCredentials}
+          onLogin={handleLogin}
+          loading={loading.login}
+        />
+      )}
     </div>
   );
 }
-
-// Export API instance untuk digunakan di komponen lain
-export { api };

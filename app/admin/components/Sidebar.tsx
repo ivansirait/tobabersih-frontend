@@ -3,7 +3,7 @@ import {
   Menu, X, Truck, FileText, LogOut, ChevronLeft,
   LayoutDashboard, Database, ChevronDown, ChevronUp,
   Users, Map, Calendar, ClipboardList, AlertCircle,
-  Newspaper, Image as ImageIcon, Settings, Route, GraduationCap
+  Newspaper, Image as ImageIcon, Settings, Route, GraduationCap,UserCog
 } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
@@ -19,10 +19,11 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     'data-operasional': true,
-    'manajemen-tugas': false
+    'manajemen-tugas': false,
+     'manajemen-pengguna': true 
   });
 
-  // Handle auto-close sidebar on resize
+
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 768) setIsMobileOpen(false);
@@ -31,7 +32,7 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Prevent scrolling when mobile menu is open
+
   useEffect(() => {
     if (isMobileOpen) {
       document.body.style.overflow = 'hidden';
@@ -40,70 +41,69 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
     }
   }, [isMobileOpen]);
 
+
+  useEffect(() => {
+    const getGroupIdForMenu = (menuId: string): string | null => {
+      const groupMap: Record<string, string[]> = {
+        'data-operasional': ['data-supir', 'data-truk', 'data-wilayah', 'manajemen-rute', 'akun-masyarakat'],
+        'manajemen-tugas': ['tugas-harian'],
+        'manajemen-konten': ['berita', 'galeri', 'edukasi'],
+      };
+
+      for (const [groupId, items] of Object.entries(groupMap)) {
+        if (items.includes(menuId)) return groupId;
+      }
+      return null;
+    };
+
+    const groupId = getGroupIdForMenu(activeMenu);
+    if (groupId) {
+      setOpenGroups(prev => ({ ...prev, [groupId]: true }));
+    }
+  }, [activeMenu]);
+
   const menuConfig = useMemo(() => [
-    { type: "item", id: 'dashboard',    label: 'Dashboard',         icon: LayoutDashboard, color: 'from-emerald-400 to-green-600',  href: '/admin' },
+    { type: "item", id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, color: 'from-emerald-400 to-green-600', href: '/admin' },
     {
       type: "group",
       id: 'data-operasional',
       group: "Data & Operasional",
       icon: Database,
       items: [
-        { id: 'data-supir',      label: 'Data Supir',       icon: Users,     color: 'from-sky-400 to-indigo-600',   href: '/admin/Supir' },
-        { id: 'data-truk',       label: 'Data Truk',        icon: Truck,     color: 'from-amber-400 to-orange-600', href: '/admin/Truk' },
-        { id: 'data-wilayah',    label: 'Data Wilayah',     icon: Map,       color: 'from-teal-400 to-green-600',   href: '/admin/Wilayah' },
-        { id: 'manajemen-rute',  label: 'Manajemen Rute',   icon: Route,     color: 'from-purple-400 to-pink-600',  href: '/admin/ManajemenRute' },
+        { id: 'manajemen-pengguna', label: 'Data Kepala Bidang', icon: UserCog, color: 'from-emerald-400 to-cyan-600', href: '/admin/KelolaKabid'},
+         { id: 'data-supir', label: 'Data Supir', icon: Users, color: 'from-sky-400 to-indigo-600', href: '/admin/Supir' },
+        { id: 'data-truk', label: 'Data Armada', icon: Truck, color: 'from-amber-400 to-orange-600', href: '/admin/Truk' },
+        { id: 'data-wilayah', label: 'Data Wilayah', icon: Map, color: 'from-teal-400 to-green-600', href: '/admin/Wilayah' },
+        { id: 'manajemen-rute', label: 'Manajemen Rute', icon: Route, color: 'from-purple-400 to-pink-600', href: '/admin/ManajemenRute' },
         { id: 'akun-masyarakat', label: 'Akun Masyarakat', icon: Users, color: 'from-blue-400 to-indigo-600', href: '/admin/AkunMasyarakat' },
       ]
     },
-    { type: "item", id: 'peta-sampah',  label: 'Peta Operasional',   icon: Map,             color: 'from-emerald-500 to-teal-500',   href: '/admin/PetaSampah' },
+    
+    { type: "item", id: 'peta-sampah', label: 'Peta Operasional', icon: Map, color: 'from-emerald-500 to-teal-500', href: '/admin/PetaSampah' },
     {
-      type: "group",
-      id: 'manajemen-tugas',
-      group: "Manajemen Tugas",
-      icon: Calendar,
-      items: [
-        { id: 'tugas-harian', label: 'Tugas Harian', icon: ClipboardList, color: 'from-green-300 to-emerald-500', href: '/admin/Penugasan/tugas-harian' },
-        { id: 'tugas-aduan',  label: 'Tugas Aduan',  icon: AlertCircle,   color: 'from-lime-300 to-green-500',   href: '/admin/Penugasan/tugas-aduan' },
-      ]
-    },
-    { type: "section-header", label: "Analitik & Konten" },
+    type: "item", id: 'tugas-aduan', label: 'Layanan Aduan', icon: AlertCircle, color: 'from-lime-300 to-green-500', href: '/admin/LayananAduan'
+  },
     {
       type: "group",
       id: 'manajemen-konten',
       group: "Manajemen Konten",
       icon: Newspaper,
       items: [
-        { id: 'berita',  label: 'Kelola Berita', icon: Newspaper,    color: 'from-green-500 to-emerald-600', href: '/admin/berita' },
-        { id: 'galeri',  label: 'Galeri',         icon: ImageIcon,    color: 'from-teal-500 to-emerald-600',  href: '/admin/galeri' },
-        { id: 'edukasi', label: 'Edukasi',        icon: GraduationCap, color: 'from-cyan-500 to-blue-600',   href: '/admin/edukasi' },
-      ]
-    },
-    {
-      type: "item",
-      id: 'pengaturan',
-      label: 'Pengaturan',
-      icon: Settings,
-      color: 'from-slate-500 to-gray-600',
-      href: '/admin/pengaturan'
+      { id: 'berita', label: 'Kelola Berita', icon: Newspaper, color: 'from-green-500 to-emerald-600', href: '/admin/berita' },
+      { id: 'galleries', label: 'Galeri', icon: ImageIcon, color: 'from-teal-500 to-emerald-600', href: '/admin/galleries' },
+      { id: 'edukasi', label: 'Edukasi', icon: GraduationCap, color: 'from-cyan-500 to-blue-600', href: '/admin/edukasi' },
+    ]
     }
   ], []);
 
   const NavItem = useCallback(({ item, isSubItem = false }: { item: any, isSubItem?: boolean }) => {
     const isActive = activeMenu === item.id;
 
-    const handleClick = (e: React.MouseEvent) => {
-      e.preventDefault();
-      if (setActiveMenu) setActiveMenu(item.id);
+    const handleClick = () => {
       setIsMobileOpen(false);
-
-      // Handle navigation if href exists and it's not the current active menu
-      if (item.href && item.href !== '/admin' && activeMenu !== item.id) {
-        window.location.href = item.href;
-      }
     };
 
     if (item.href) {
-      // For items with href, use a proper link
       return (
         <Link
           href={item.href}
@@ -126,7 +126,7 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
       );
     }
 
-    // For items without href, use button
+
     return (
       <button
         onClick={handleClick}
@@ -146,7 +146,7 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
         <span className={`${isSubItem ? 'text-sm' : 'text-sm'} font-medium tracking-wide`}>{item.label}</span>
       </button>
     );
-  }, [activeMenu, setActiveMenu, setIsMobileOpen]);
+  }, [activeMenu, setIsMobileOpen]);
 
   const GroupItem = useCallback(({ group }: { group: any }) => {
     const isOpen = openGroups[group.id];
@@ -155,7 +155,7 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
     return (
       <div className={`mb-2 rounded-2xl transition-all duration-300 ${isOpen ? 'bg-black/10 pb-2' : ''}`}>
         <button
-          onClick={() => setOpenGroups(prev => ({...prev, [group.id]: !prev[group.id]}))}
+          onClick={() => setOpenGroups(prev => ({ ...prev, [group.id]: !prev[group.id] }))}
           className={`w-full flex items-center gap-3 px-4 py-3.5 transition-all duration-300 rounded-xl group
             ${hasActiveChild && !isOpen ? 'text-white' : 'text-emerald-100/60 hover:text-white'}`}
         >
@@ -181,7 +181,7 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
 
   return (
     <>
-      {/* Tombol Mobile Toggle */}
+
       <div className="md:hidden fixed top-0 left-0 right-0 p-4 bg-[#064E3B] border-b border-white/5 z-[60] flex items-center justify-between">
         <div className="w-12 h-12 flex-shrink-0 bg-white/10 p-1.5 rounded-xl backdrop-blur-sm">
           <img
@@ -197,20 +197,20 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
         </button>
       </div>
 
-      {/* Backdrop */}
+
       <div
         className={`fixed inset-0 bg-emerald-950/60 backdrop-blur-sm z-40 transition-opacity duration-300 md:hidden
           ${isMobileOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         onClick={() => setIsMobileOpen(false)}
       />
 
-      {/* Sidebar Utama */}
+
       <aside
         style={{ backgroundColor: '#064E3B' }}
         className={`fixed left-0 top-0 h-screen z-50 transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) flex flex-col w-[280px] shadow-[20px_0_50px_rgba(0,0,0,0.3)]
           ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
       >
-        {/* Header Section */}
+
         <div className="p-6">
           <div className="flex items-center gap-4">
             <div className="relative group">
@@ -229,7 +229,7 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
           </div>
         </div>
 
-        {/* Scrollable Navigation */}
+
         <nav className="flex-1 overflow-y-auto px-4 py-2 space-y-1 custom-scrollbar">
           {menuConfig.map((item, idx) => {
             if (item.type === 'section-header') {
@@ -247,7 +247,7 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
           })}
         </nav>
 
-        {/* User / Logout Section */}
+
         <div className="p-4 mt-auto">
           <div className="p-4 bg-black/20 rounded-2xl border border-white/5 space-y-4">
             <div className="flex items-center gap-3">
