@@ -15,7 +15,7 @@ export default function AddPostForm({ refreshData }: { refreshData: () => void }
     e.preventDefault();
     try {
       // Pastikan ID Author diambil dari data login (misal id: 1)
-      await axios.post('http://localhost:5000/api/auth/posts', {
+      await axios.post('/api/auth/posts', {
         ...formData,
         authorId: 1 
       });

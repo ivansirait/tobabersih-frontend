@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 import withPWA from "@ducanh2912/next-pwa";
 
+// Backend URL untuk server-side proxying
+// Gunakan .env.local untuk override default
 const API_PROXY_TARGET = (process.env.API_PROXY_TARGET || "http://localhost:5000").replace(/\/$/, "");
+
+console.log(`📡 Next.js Proxy Target: ${API_PROXY_TARGET}`);
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@prisma.client"],
@@ -20,16 +24,18 @@ const nextConfig: NextConfig = {
   turbopack: {},
 
   async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${API_PROXY_TARGET}/api/:path*`,
-      },
-      {
-        source: '/uploads/:path*',
-        destination: `${API_PROXY_TARGET}/uploads/:path*`,
-      },
-    ];
+    return {
+      beforeFiles: [
+        {
+          source: '/api/:path*',
+          destination: `${API_PROXY_TARGET}/api/:path*`,
+        },
+        {
+          source: '/uploads/:path*',
+          destination: `${API_PROXY_TARGET}/uploads/:path*`,
+        },
+      ],
+    };
   },
 
   reactStrictMode: true,

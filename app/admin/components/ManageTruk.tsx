@@ -2,7 +2,7 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import axios from 'axios';
 import { 
-  Plus, Edit, Trash2, Search, Truck, 
+  Plus, Edit, Edit3, Trash2, Search, Truck, 
   Phone, X, ChevronDown, RefreshCw, 
   CheckCircle2, AlertCircle, LayoutGrid
 } from 'lucide-react';
@@ -61,12 +61,21 @@ export default function ManageTruk() {
   const [successTitle, setSuccessTitle] = useState('');
   const [successDescription, setSuccessDescription] = useState('');
   const [successIcon, setSuccessIcon] = useState<ReactNode>(<CheckCircle2 size={24} />);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [errorTitle, setErrorTitle] = useState('Aksi Gagal');
+  const [errorDescription, setErrorDescription] = useState('Terjadi kesalahan. Silakan coba lagi.');
+
+  const showErrorAlert = (message: string, title = 'Aksi Gagal') => {
+    setErrorTitle(title);
+    setErrorDescription(message || 'Terjadi kesalahan. Silakan coba lagi.');
+    setShowErrorDialog(true);
+  };
 
   const fetchTruk = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const res = await axios.get('http://localhost:5000/api/admin/truks', {
+      const res = await axios.get('/api/admin/truks', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setTrukList(res.data.data || []);
@@ -80,7 +89,7 @@ export default function ManageTruk() {
   const fetchSupir = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('http://localhost:5000/api/admin/supir-list', {
+      const res = await axios.get('/api/admin/supir-list', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const supirData = res.data.data || [];
@@ -132,13 +141,13 @@ export default function ManageTruk() {
       const config = { headers: { Authorization: `Bearer ${token}` } };
 
       if (editingTruk) {
-        await axios.put(`http://localhost:5000/api/admin/truks/${editingTruk.id}`, formData, config);
+        await axios.put(`/api/admin/truks/${editingTruk.id}`, formData, config);
         toast.success('Data berhasil diedit', { icon: '✏️' });
         setSuccessTitle('Data berhasil diedit');
         setSuccessDescription('Perubahan armada berhasil disimpan.');
-        setSuccessIcon(<Edit size={24} />);
+        setSuccessIcon(<Edit3 size={24} />);
       } else {
-        await axios.post('http://localhost:5000/api/admin/truks', formData, config);
+        await axios.post('/api/admin/truks', formData, config);
         toast.success('Data berhasil diperbaharui', { icon: '✅' });
         setSuccessTitle('Data berhasil ditambahkan');
         setSuccessDescription('Unit armada baru berhasil ditambahkan.');
@@ -149,7 +158,7 @@ export default function ManageTruk() {
       setShowSuccessDialog(true);
       fetchTruk();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Gagal menyimpan data');
+      showErrorAlert(error.response?.data?.message || 'Gagal menyimpan data armada.');
     }
   };
 
@@ -163,7 +172,7 @@ export default function ManageTruk() {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/admin/truks/${pendingDeleteId}`, {
+      await axios.delete(`/api/admin/truks/${pendingDeleteId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -176,7 +185,7 @@ export default function ManageTruk() {
 
       fetchTruk();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Gagal menghapus');
+      showErrorAlert(error.response?.data?.message || 'Data armada gagal dihapus.', 'Penghapusan Ditolak');
     } finally {
       setShowConfirmDialog(false);
       setPendingDeleteId(null);
@@ -211,6 +220,43 @@ export default function ManageTruk() {
         icon={successIcon}
         onClose={() => setShowSuccessDialog(false)}
       />
+
+      {showErrorDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm scale-150 rounded-3xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-600">
+                  <AlertCircle size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">{errorTitle}</h3>
+                  <p className="text-sm text-slate-500 mt-1">Operasi tidak dapat dilanjutkan.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowErrorDialog(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="px-6 py-5">
+              <p className="text-sm leading-relaxed text-slate-600">{errorDescription}</p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 px-6 pb-6">
+              <button
+                onClick={() => setShowErrorDialog(false)}
+                className="rounded-full bg-rose-600 px-6 py-2 text-sm font-semibold text-white shadow-lg shadow-rose-600/10 transition hover:bg-rose-700"
+              >
+                Oke
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* HEADER */}
 
         <div className="mb-8">

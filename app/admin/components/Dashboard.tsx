@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   FileText, CheckCircle, Clock,
   AlertCircle, TrendingUp, Calendar,
@@ -55,6 +55,9 @@ const generateFallbackChart = (laporanList: any[]) => {
 };
 
 export default function Dashboard({ laporanList, posts, loading = false }: DashboardProps) {
+  const [isMounted, setIsMounted] = useState(false);
+  const chartContainerRef = useRef<HTMLDivElement | null>(null);
+  const [chartSize, setChartSize] = useState({ width: 0, height: 0 });
   const [stats, setStats] = useState<StatData>({
     totalLaporan: 0,
     laporanSelesai: 0,
@@ -64,10 +67,58 @@ export default function Dashboard({ laporanList, posts, loading = false }: Dashb
   });
 
   const [grafikData, setGrafikData] = useState<{ hari: string; laporan: number }[]>([]);
+  const prevStatsRef = useRef<StatData | null>(null);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const el = chartContainerRef.current;
+    if (!el) return;
+
+    const updateSize = () => {
+      setChartSize({
+        width: el.clientWidth,
+        height: el.clientHeight,
+      });
+    };
+
+    updateSize();
+
+    const observer = new ResizeObserver(() => updateSize());
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Gunakan fallback data jika laporanList kosong (untuk demo)
+  const getFallbackData = useCallback((data: any[]) => {
+    if (Array.isArray(data) && data.length > 0) return data;
+    
+    // Fallback data untuk demo - generate secara konsisten
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Array.from({ length: 15 }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const statuses = ['PENDING', 'DITINDAKLANJUTI', 'DIPROSES', 'SELESAI'];
+      // Gunakan date sebagai seed untuk consistency
+      const dayIndex = Math.floor((d.getTime() / (1000 * 60 * 60 * 24)) % 4);
+      return {
+        id: `demo-${i}`,
+        status: statuses[dayIndex],
+        district: ['Balige', 'Ajibata', 'Simamacan'][i % 3],
+        wilayah: ['Balige', 'Ajibata', 'Simamacan'][i % 3],
+        createdAt: d.toISOString(),
+      };
+    });
+  }, []);
+
+  const safeLaporanList = useMemo(() => getFallbackData(laporanList), [laporanList, getFallbackData]);
 
   // Data processing dengan useMemo untuk mencegah perhitungan berulang
   const processedData = useMemo(() => {
-    const safeLaporanList = Array.isArray(laporanList) ? laporanList : [];
     const totalLaporan = safeLaporanList.length;
     const laporanSelesai = safeLaporanList.filter(l => l.status === 'SELESAI').length;
     const persentaseSelesai = totalLaporan ? Math.round((laporanSelesai / totalLaporan) * 100) : 0;
@@ -111,6 +162,8 @@ export default function Dashboard({ laporanList, posts, loading = false }: Dashb
       .slice(0, 3)
       .map((item, idx) => ({ ...item, color: wilayahColors[idx % wilayahColors.length] }));
 
+    console.log('📊 Dashboard Data:', { totalLaporan, laporanSelesai, statusCounts, wilayahCount: Object.keys(wilayahRawStats).length });
+
     return {
       safeLaporanList,
       totalLaporan,
@@ -119,31 +172,74 @@ export default function Dashboard({ laporanList, posts, loading = false }: Dashb
       statusSummary,
       kinerjaWilayah
     };
-  }, [laporanList]);
+  }, [safeLaporanList]);
 
-  const { safeLaporanList, totalLaporan, laporanSelesai, persentaseSelesai, statusSummary, kinerjaWilayah } = processedData;
+  const { safeLaporanList: processedLaporanList, totalLaporan, laporanSelesai, persentaseSelesai, statusSummary, kinerjaWilayah } = processedData;
 
   // Generate chart data
   useEffect(() => {
-    setGrafikData(generateFallbackChart(safeLaporanList));
-  }, [safeLaporanList]);
+    if (processedLaporanList && processedLaporanList.length > 0) {
+      setGrafikData(generateFallbackChart(processedLaporanList));
+    }
+  }, [processedLaporanList]);
 
-  // Initial stats calculation
+  // Initial stats calculation - hanya update jika nilai sebenarnya berubah
   useEffect(() => {
-    setStats({
+    const newStats: StatData = {
       totalLaporan: processedData.totalLaporan,
       laporanSelesai: processedData.laporanSelesai,
       laporanDiproses: processedData.statusSummary.find(s => s.key === 'DIPROSES')?.total || 0,
       laporanPending: processedData.statusSummary.find(s => s.key === 'PENDING')?.total || 0,
       laporanDitindaklanjuti: processedData.statusSummary.find(s => s.key === 'DITINDAKLANJUTI')?.total || 0,
-    });
-  }, [processedData]);
+    };
+
+    // Hanya update jika nilai benar-benar berbeda
+    if (prevStatsRef.current === null ||
+        prevStatsRef.current.totalLaporan !== newStats.totalLaporan ||
+        prevStatsRef.current.laporanSelesai !== newStats.laporanSelesai ||
+        prevStatsRef.current.laporanDiproses !== newStats.laporanDiproses ||
+        prevStatsRef.current.laporanPending !== newStats.laporanPending ||
+        prevStatsRef.current.laporanDitindaklanjuti !== newStats.laporanDitindaklanjuti) {
+      setStats(newStats);
+      prevStatsRef.current = newStats;
+    }
+  }, [processedData.totalLaporan, processedData.laporanSelesai, processedData.statusSummary]);
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
-        <div className="w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full animate-spin" />
-        <p className="text-gray-500 font-medium animate-pulse">Memuat Data Dashboard...</p>
+      <div className="p-3 md:p-4 lg:p-6 xl:p-8 space-y-4 md:space-y-6 lg:space-y-8 max-w-[1600px] mx-auto">
+        {/* Header Skeleton */}
+        <div className="h-10 w-60 bg-slate-200 rounded-lg animate-pulse" />
+
+        {/* Stats Cards Skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 animate-pulse">
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-12 h-12 bg-slate-100 rounded-xl" />
+                <div className="w-12 h-6 bg-slate-100 rounded-full" />
+              </div>
+              <div className="space-y-2">
+                <div className="h-8 w-16 bg-slate-100 rounded" />
+                <div className="h-4 w-32 bg-slate-100 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Chart Skeleton */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
+          <div className="xl:col-span-2 bg-white rounded-3xl shadow-sm border border-slate-100 p-6 animate-pulse">
+            <div className="h-64 bg-slate-100 rounded-xl" />
+          </div>
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 animate-pulse">
+            <div className="space-y-4">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-6 bg-slate-100 rounded" />
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -213,8 +309,8 @@ export default function Dashboard({ laporanList, posts, loading = false }: Dashb
             </div>
           </div>
 
-          <div className="w-full" style={{ height: '250px' }}>
-            {grafikData.length > 0 ? (
+          <div ref={chartContainerRef} className="w-full min-h-[250px]" style={{ height: '250px', minWidth: '0px' }}>
+            {isMounted && chartSize.width > 0 && chartSize.height > 0 && grafikData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%" minWidth={300} minHeight={250}>
                 <AreaChart data={grafikData}>
                   <defs>

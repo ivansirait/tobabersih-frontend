@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 
@@ -15,21 +16,14 @@ import ManagePenugasan from './components/ManageLayananAduan';
 import ManageLaporan from './components/ManageLaporan';
 import ManageGalleries from './components/ManageGalleries';
 import ManageEdukasi from './components/ManageEdukasi';
+import { getRoleRoute, normalizeRole } from '@/lib/authRole';
 
 // --- API Instance ---
 
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
-  timeout: 15000, // ✅ FIX: tambah timeout global 15 detik
+  baseURL: '/api',
+  timeout: 15000, // Proxy through Next.js
 });
-
-const normalizeRole = (role?: string) => {
-  const safeRole = (role || '').toLowerCase();
-  if (safeRole.includes('admin')) return 'ADMIN';
-  if (safeRole.includes('operator') || safeRole.includes('supir')) return 'OPERATOR';
-  if (safeRole.includes('warga') || safeRole.includes('masyarakat')) return 'WARGA';
-  return role || '';
-};
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
@@ -58,10 +52,12 @@ api.interceptors.response.use(
 );
 
 export default function AdminPage() {
+  const router = useRouter();
   // Auth State
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [credentials, setCredentials] = useState({ username: '', password: '' });
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
   // UI State
   const [activeMenu, setActiveMenu] = useState('dashboard');
@@ -92,17 +88,33 @@ export default function AdminPage() {
   useEffect(() => {
     const token = localStorage.getItem('token');
     const user = localStorage.getItem('user');
-    if (token && user) {
-      try {
-        const userData = JSON.parse(user);
-        setUserRole(userData.role || normalizeRole(userData.role));
-        setIsLoggedIn(true);
-      } catch (e) {
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
-      }
+    const role = localStorage.getItem('role');
+
+    if (!token || !user) {
+      router.replace('/login');
+      return;
     }
-  }, []);
+
+    try {
+      const userData = JSON.parse(user);
+      const normalizedRole = normalizeRole(userData.role || role || '');
+
+      if (normalizedRole !== 'ADMIN') {
+        router.replace('/unauthorized');
+        return;
+      }
+
+      setUserRole(normalizedRole);
+      setIsLoggedIn(true);
+    } catch (e) {
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      localStorage.removeItem('role');
+      router.replace('/login');
+    } finally {
+      setCheckingAuth(false);
+    }
+  }, [router]);
 
   const fetchAllData = async () => {
     const token = localStorage.getItem('token');
@@ -118,7 +130,7 @@ export default function AdminPage() {
     try {
       // Fetch laporan - coba berbagai endpoint
       try {
-        const laporanRes = await axios.get('http://localhost:5000/api/admin/laporan', { headers, timeout: 5000 });
+        const laporanRes = await axios.get('/api/admin/laporan', { headers, timeout: 5000 });
         const laporanData = Array.isArray(laporanRes.data) ? laporanRes.data : (laporanRes.data?.data || []);
         setLaporanList(laporanData);
         setData(prev => ({ ...prev, laporan: laporanData }));
@@ -126,7 +138,7 @@ export default function AdminPage() {
       } catch (err: any) {
         console.warn('⚠️ Fetch laporan admin gagal, coba endpoint umum:', err.message);
         try {
-          const laporanRes = await axios.get('http://localhost:5000/api/laporan', { headers, timeout: 5000 });
+          const laporanRes = await axios.get('/api/laporan', { headers, timeout: 5000 });
           const laporanData = Array.isArray(laporanRes.data) ? laporanRes.data : (laporanRes.data?.data || []);
           setLaporanList(laporanData);
           setData(prev => ({ ...prev, laporan: laporanData }));
@@ -139,7 +151,7 @@ export default function AdminPage() {
 
       // Fetch posts/berita
       try {
-        const postsRes = await axios.get('http://localhost:5000/api/posts', { headers, timeout: 5000 });
+        const postsRes = await axios.get('/api/posts', { headers, timeout: 5000 });
         const postsData = Array.isArray(postsRes.data)
           ? postsRes.data
           : Array.isArray(postsRes.data?.data)
@@ -203,6 +215,7 @@ export default function AdminPage() {
         if (user) {
           localStorage.setItem('user', JSON.stringify({ ...user, role: normalizedRole }));
         }
+        localStorage.setItem('role', normalizedRole);
 
         setUserRole(normalizedRole);
         setIsLoggedIn(true);
@@ -267,16 +280,16 @@ export default function AdminPage() {
     }
   };
 
-    // Show login form if not logged in
-  if (!isLoggedIn) {
+  if (checkingAuth) {
     return (
-      <LoginForm
-        credentials={credentials}
-        setCredentials={setCredentials}
-        onLogin={handleLogin}
-        loading={loading.login}
-      />
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="h-12 w-12 rounded-full border-4 border-green-500 border-t-transparent animate-spin" />
+      </div>
     );
+  }
+
+  if (!isLoggedIn) {
+    return null;
   }
 
   return (

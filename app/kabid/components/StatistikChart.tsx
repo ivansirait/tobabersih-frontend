@@ -1,7 +1,7 @@
 // app/kabid/statistik/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import {
   BarChart3,
@@ -18,14 +18,43 @@ import {
 } from 'recharts';
 import toast from 'react-hot-toast';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+// Gunakan proxy Next.js
+const API_BASE_URL = '/api';
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 export default function StatistikPage() {
+  const [isMounted, setIsMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [statistik, setStatistik] = useState<any>(null);
   const [filterOptions, setFilterOptions] = useState({ kecamatan: [], status: [], jenisSampah: [] });
+  const chartContainerRef = useRef<HTMLDivElement | null>(null);
+  const pieContainerRef = useRef<HTMLDivElement | null>(null);
+  const [chartSize, setChartSize] = useState({ width: 0, height: 0 });
+  const [pieSize, setPieSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const updateFrom = (el: HTMLDivElement | null, setter: (size: { width: number; height: number }) => void) => {
+      if (!el) return null;
+      const update = () => setter({ width: el.clientWidth, height: el.clientHeight });
+      update();
+      const observer = new ResizeObserver(update);
+      observer.observe(el);
+      return observer;
+    };
+
+    const chartObserver = updateFrom(chartContainerRef.current, setChartSize);
+    const pieObserver = updateFrom(pieContainerRef.current, setPieSize);
+
+    return () => {
+      chartObserver?.disconnect();
+      pieObserver?.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -116,8 +145,9 @@ export default function StatistikPage() {
           <BarChart3 className="text-green-600" size={20} />
           <h2 className="text-lg font-bold text-gray-800">Statistik Laporan</h2>
         </div>
-        <div className="h-80">
-          <ResponsiveContainer width="100%" height="100%">
+        <div ref={chartContainerRef} className="h-80 min-w-[300px]">
+          {isMounted && chartSize.width > 0 && chartSize.height > 0 ? (
+          <ResponsiveContainer width="100%" height="100%" minWidth={300} minHeight={250}>
             <BarChart data={statistik?.statistikLaporan?.laporanPerWilayah || []}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="district" angle={-45} textAnchor="end" height={80} />
@@ -127,6 +157,7 @@ export default function StatistikPage() {
               <Bar dataKey="_count.id" name="Jumlah Laporan" fill="#10b981" />
             </BarChart>
           </ResponsiveContainer>
+          ) : null}
         </div>
       </div>
         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
@@ -134,8 +165,9 @@ export default function StatistikPage() {
             <PieChart className="text-green-600" size={20} />
             <h2 className="text-lg font-bold text-gray-800">Kategori Laporan Terbanyak</h2>
           </div>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+          <div ref={pieContainerRef} className="h-64 min-w-[300px]">
+            {isMounted && pieSize.width > 0 && pieSize.height > 0 ? (
+            <ResponsiveContainer width="100%" height="100%" minWidth={300} minHeight={250}>
               <RePieChart>
                 <Pie
                   data={statistik?.statistikLaporan?.kategoriTerbanyak || []}
@@ -153,6 +185,7 @@ export default function StatistikPage() {
                 <Tooltip />
               </RePieChart>
             </ResponsiveContainer>
+            ) : null}
           </div>
         </div>
       </div>

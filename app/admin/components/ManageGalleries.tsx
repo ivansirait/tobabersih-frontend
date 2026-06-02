@@ -1,13 +1,15 @@
 "use client";
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, ReactNode } from 'react';
 import axios from 'axios';
 import {
   Edit, Trash2, Plus, Search, X,
   FolderOpen, Images, ArrowLeft, Image,
   Grid3X3, List, Eye, Upload, Camera,
   AlertTriangle, CheckCircle2,
-  Loader2, FileImage, CloudUpload
+  Loader2, FileImage, CloudUpload, Edit3
 } from 'lucide-react';
+import AlertDialog from './AlertDialog';
+import ConfirmDialog from './ConfirmDialog';
 
 interface GalleryPhoto {
   id: number;
@@ -234,10 +236,19 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [resultModal, setResultModal] = useState<{ variant: ResultVariant; title: string; message: string; onClose: () => void } | null>(null);
 
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [successTitle, setSuccessTitle] = useState('');
+  const [successDescription, setSuccessDescription] = useState('');
+  const [successIcon, setSuccessIcon] = useState<ReactNode>(<CheckCircle2 size={24} />);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+  const [pendingDeleteTitle, setPendingDeleteTitle] = useState('');
+  const [pendingDeleteType, setPendingDeleteType] = useState<'album' | 'photo' | null>(null);
+
   // ─── PERBAIKAN: BASE URL pakai /albums sesuai route baru ───────────────────
   const BASE = process.env.NEXT_PUBLIC_API_URL
     ? `${process.env.NEXT_PUBLIC_API_URL}/api/galleries`
-    : 'http://localhost:5000/api/galleries';
+    : '/api/galleries';
 
   const ALBUMS_URL  = `${BASE}/albums`;          // /api/galleries/albums
   const PHOTOS_URL  = `${BASE}/photos`;          // /api/galleries/photos
@@ -259,7 +270,7 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
     const fd = new FormData();
     fd.append('image', file);
     const res = await axios.post(
-      `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000'}/api/upload`,
+      `/api/upload`,
       fd,
       { headers: { 'Content-Type': 'multipart/form-data', ...(token ? { Authorization: `Bearer ${token}` } : {}) } }
     );
@@ -338,37 +349,50 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
         // PUT /api/galleries/albums/:id
         await axios.put(`${ALBUMS_URL}/${editingAlbum.id}`, data, authHeader);
         setShowAlbumModal(false);
-        showResult('success', 'Album Diperbarui!', `Album "${albumForm.title}" berhasil diperbarui.`, () => { onGalleriesUpdate(); });
+        setSuccessTitle('Album berhasil diperbarui');
+        setSuccessDescription(`Album "${albumForm.title}" telah diperbarui.`);
+        setSuccessIcon(<Edit3 size={24} />);
+        setShowSuccessDialog(true);
+        onGalleriesUpdate();
       } else {
         // POST /api/galleries/albums
         await axios.post(ALBUMS_URL, data, authHeader);
         setShowAlbumModal(false);
-        showResult('success', 'Album Dibuat!', `Album "${albumForm.title}" berhasil dibuat.`, () => { onGalleriesUpdate(); });
+        setSuccessTitle('Album berhasil dibuat');
+        setSuccessDescription(`Album "${albumForm.title}" telah ditambahkan ke galeri.`);
+        setSuccessIcon(<CheckCircle2 size={24} />);
+        setShowSuccessDialog(true);
+        onGalleriesUpdate();
       }
     } catch (err: any) {
       const msg = err?.response?.data?.message || 'Gagal menyimpan album.';
-      showResult('error', 'Gagal Menyimpan', msg, () => {});
+      showToast(msg, 'error');
     }
   };
 
   const deleteAlbum = async (id: number) => {
-    const albumTitle = deleteConfirm?.title || '';
+    const albumTitle = pendingDeleteTitle || '';
     setIsDeleting(true);
     try {
       // DELETE /api/galleries/albums/:id
       await axios.delete(`${ALBUMS_URL}/${id}`, authHeader);
-      setDeleteConfirm(null);
       setIsDeleting(false);
-      showResult('success', 'Album Dihapus!', `Album "${albumTitle}" berhasil dihapus.`, () => {
-        setView('albums');
-        onGalleriesUpdate();
-      });
+      setSuccessTitle('Album berhasil dihapus');
+      setSuccessDescription(`Album "${albumTitle}" telah dihapus secara permanen.`);
+      setSuccessIcon(<Trash2 size={24} />);
+      setShowSuccessDialog(true);
+      setView('albums');
+      onGalleriesUpdate();
     } catch (err: any) {
       setIsDeleting(false);
-      setDeleteConfirm(null);
-      showResult('error', 'Gagal Menghapus', err.response?.data?.message || 'Terjadi kesalahan.', () => {});
+      showToast(err.response?.data?.message || 'Terjadi kesalahan.', 'error');
+    } finally {
+      setShowConfirmDialog(false);
+      setPendingDeleteId(null);
+      setPendingDeleteTitle('');
+      setPendingDeleteType(null);
     }
-  };
+  }
 
   const savePhotos = async () => {
     const readyFiles = photoFiles.filter(p => p.done && p.url);
@@ -385,17 +409,21 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
       );
       setPhotoFiles([]);
       setSavingPhotos(false);
-      showResult('success', 'Foto Ditambahkan!', `${readyFiles.length} foto berhasil ditambahkan.`, async () => {
+      setSuccessTitle('Foto berhasil ditambahkan');
+      setSuccessDescription(`${readyFiles.length} foto baru telah ditambahkan ke album.`);
+      setSuccessIcon(<CheckCircle2 size={24} />);
+      setShowSuccessDialog(true);
+      (async () => {
         try {
           const res = await axios.get(`${ALBUMS_URL}/${albumId}`, authHeader);
           setSelectedAlbum(res.data);
         } catch (err) { console.error('Error refreshing album:', err); }
         setView('album-detail');
         onGalleriesUpdate();
-      });
+      })();
     } catch (err: any) {
       setSavingPhotos(false);
-      showResult('error', 'Gagal Upload Foto', err.response?.data?.message || 'Gagal menyimpan foto.', () => {});
+      showToast(err.response?.data?.message || 'Gagal menyimpan foto.', 'error');
     }
   };
 
@@ -405,21 +433,28 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
     try {
       // DELETE /api/galleries/photos/:photoId
       await axios.delete(`${PHOTOS_URL}/${photoId}`, authHeader);
-      setDeleteConfirm(null);
       setIsDeleting(false);
-      showResult('success', 'Foto Dihapus!', 'Foto berhasil dihapus dari album.', async () => {
+      setSuccessTitle('Foto berhasil dihapus');
+      setSuccessDescription('Foto telah dihapus dari album.');
+      setSuccessIcon(<Trash2 size={24} />);
+      setShowSuccessDialog(true);
+      (async () => {
         try {
           const res = await axios.get(`${ALBUMS_URL}/${albumId}`, authHeader);
           setSelectedAlbum(res.data);
         } catch (err) { console.error('Error refreshing album:', err); }
         onGalleriesUpdate();
-      });
+      })();
     } catch (err: any) {
       setIsDeleting(false);
-      setDeleteConfirm(null);
-      showResult('error', 'Gagal Menghapus Foto', err.response?.data?.message || 'Gagal menghapus foto.', () => {});
+      showToast(err.response?.data?.message || 'Gagal menghapus foto.', 'error');
+    } finally {
+      setShowConfirmDialog(false);
+      setPendingDeleteId(null);
+      setPendingDeleteTitle('');
+      setPendingDeleteType(null);
     }
-  };
+  }
 
   const openAlbumDetail = async (album: Album) => {
     try {
@@ -588,7 +623,12 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
                   <img src={photo.imageUrl} alt={photo.caption || ''} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onClick={() => setLightboxImg(photo.imageUrl)} onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/200x200?text=Error'; }} />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-200 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
                     <button onClick={() => setLightboxImg(photo.imageUrl)} className="w-8 h-8 bg-white/90 rounded-full flex items-center justify-center text-gray-700 hover:bg-white transition-colors shadow-md"><Eye size={14} /></button>
-                    <button onClick={() => setDeleteConfirm({ type: 'photo', id: photo.id })} className="w-8 h-8 bg-red-500/90 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition-colors shadow-md"><Trash2 size={14} /></button>
+                    <button onClick={() => {
+                      setPendingDeleteId(photo.id);
+                      setPendingDeleteTitle(photo.caption || 'Foto');
+                      setPendingDeleteType('photo');
+                      setShowConfirmDialog(true);
+                    }} className="w-8 h-8 bg-red-500/90 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition-colors shadow-md"><Trash2 size={14} /></button>
                   </div>
                 </div>
               ))}
@@ -679,7 +719,12 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
                 <div className="w-px bg-gray-100" />
                 <button onClick={() => openAlbumModal(album)} className="px-4 flex items-center justify-center text-blue-500 hover:bg-blue-50 transition-colors"><Edit size={15} /></button>
                 <div className="w-px bg-gray-100" />
-                <button onClick={() => setDeleteConfirm({ type: 'album', id: album.id, title: album.title })} className="px-4 flex items-center justify-center text-red-400 hover:bg-red-50 transition-colors"><Trash2 size={15} /></button>
+                <button onClick={() => {
+                  setPendingDeleteId(album.id);
+                  setPendingDeleteTitle(album.title);
+                  setPendingDeleteType('album');
+                  setShowConfirmDialog(true);
+                }} className="px-4 flex items-center justify-center text-red-400 hover:bg-red-50 transition-colors"><Trash2 size={15} /></button>
               </div>
             </div>
           ))}
@@ -696,12 +741,17 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
               <div className="flex-1 min-w-0 overflow-hidden">
                 <h3 className="font-semibold text-gray-900 truncate max-w-full">{album.title}</h3>
                 {album.description && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2 break-words leading-relaxed">{album.description}</p>}
-                <p className="text-xedits text-gray-400 mt-1">{album.photos?.length || 0} foto · {new Date(album.createdAt).toLocaleDateString('id-ID')}</p>
+                <p className="text-xs text-gray-400 mt-1">{album.photos?.length || 0} foto · {new Date(album.createdAt).toLocaleDateString('id-ID')}</p>
               </div>
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => e.stopPropagation()}>
                 <button onClick={() => openAlbumModal(album)} className="p-2.5 text-blue-500 hover:bg-blue-50 rounded-xl transition-colors"><Edit size={16} /></button>
                 <button onClick={() => openAlbumDetail(album)} className="p-2.5 text-[#0B4D33] hover:bg-green-50 rounded-xl transition-colors"><FolderOpen size={16} /></button>
-                <button onClick={() => setDeleteConfirm({ type: 'album', id: album.id, title: album.title })} className="p-2.5 text-red-400 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={16} /></button>
+                <button onClick={() => {
+                  setPendingDeleteId(album.id);
+                  setPendingDeleteTitle(album.title);
+                  setPendingDeleteType('album');
+                  setShowConfirmDialog(true);
+                }} className="p-2.5 text-red-400 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={16} /></button>
               </div>
             </div>
           ))}
@@ -713,6 +763,43 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
       {deleteConfirm && (
         <DeleteModal deleteConfirm={deleteConfirm} isDeleting={isDeleting} onCancel={() => setDeleteConfirm(null)} onConfirm={() => { const s = deleteConfirm; if (s.type === 'album') deleteAlbum(s.id); else deletePhoto(s.id); }} />
       )}
+
+      <ConfirmDialog
+        open={showConfirmDialog}
+        title={`Hapus "${pendingDeleteTitle}"?`}
+        description={pendingDeleteType === 'album' 
+          ? 'Album dan semua foto di dalamnya akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.' 
+          : 'Foto akan dihapus secara permanen dari album. Tindakan ini tidak dapat dibatalkan.'}
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        onConfirm={() => {
+          if (pendingDeleteType === 'album' && pendingDeleteId !== null) {
+            deleteAlbum(pendingDeleteId);
+          } else if (pendingDeleteType === 'photo' && pendingDeleteId !== null) {
+            deletePhoto(pendingDeleteId);
+          }
+        }}
+        onCancel={() => {
+          setShowConfirmDialog(false);
+          setPendingDeleteId(null);
+          setPendingDeleteTitle('');
+          setPendingDeleteType(null);
+        }}
+      />
+
+      <AlertDialog
+        open={showSuccessDialog}
+        title={successTitle}
+        description={successDescription}
+        buttonText="Lanjut"
+        icon={successIcon}
+        onClose={() => {
+          setShowSuccessDialog(false);
+          setSuccessTitle('');
+          setSuccessDescription('');
+          setSuccessIcon(<CheckCircle2 size={24} />);
+        }}
+      />
     </div>
   );
 }

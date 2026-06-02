@@ -22,7 +22,7 @@ export default function PredictionWidget() {
   const fetchPrediction = async () => {
     try {
       setLoading(true);
-      const res = await axios.get('http://localhost:5000/ai/predict-waste');
+      const res = await axios.get('/api/ai/predict-waste');
 
       if (res.data.success) {
         setPrediction(res.data.data.prediction);

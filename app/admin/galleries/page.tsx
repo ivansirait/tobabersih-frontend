@@ -27,7 +27,7 @@ export default function GalleriesPage() {
     try {
       setLoading(true);
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
-      const res = await axios.get('http://localhost:5000/api/galleries/albums', {
+      const res = await axios.get('/api/galleries/albums', {
         headers: { Authorization: `Bearer ${token}` },
       });
 

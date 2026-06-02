@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import axios from 'axios';
+import { useRouter } from 'next/navigation';
 import {
   FileText, CheckCircle, Clock,
   AlertCircle, TrendingUp, Calendar,
@@ -13,8 +14,10 @@ import {
   Tooltip, AreaChart, Area, ResponsiveContainer
 } from 'recharts';
 import toast from 'react-hot-toast';
+import { normalizeRole } from '@/lib/authRole';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+// Gunakan proxy Next.js
+const API_BASE_URL = '/api';
 
 interface Laporan {
   id?: string;
@@ -26,7 +29,12 @@ interface Laporan {
 }
 
 export default function KabidDashboard() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const chartContainerRef = useRef<HTMLDivElement | null>(null);
+  const [chartSize, setChartSize] = useState({ width: 0, height: 0 });
   const [laporanList, setLaporanList] = useState<Laporan[]>([]);
   const [stats, setStats] = useState({
     totalLaporan: 0,
@@ -39,6 +47,58 @@ export default function KabidDashboard() {
   const [grafikData, setGrafikData] = useState<{ hari: string; laporan: number }[]>([]);
   const [wilayahAduanTertinggi, setWilayahAduanTertinggi] = useState<{ nama: string; total: number }[]>([]);
   const [statusSummary, setStatusSummary] = useState<any[]>([]);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const el = chartContainerRef.current;
+    if (!el) return;
+
+    const updateSize = () => {
+      setChartSize({
+        width: el.clientWidth,
+        height: el.clientHeight,
+      });
+    };
+
+    updateSize();
+
+    const observer = new ResizeObserver(() => updateSize());
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user');
+    const roleFromStorage = localStorage.getItem('role') || '';
+
+    if (!token || !userStr) {
+      router.replace('/login');
+      return;
+    }
+
+    try {
+      const user = JSON.parse(userStr);
+      const role = normalizeRole(user?.role || roleFromStorage);
+
+      if (role !== 'KABID' && role !== 'ADMIN') {
+        router.replace('/unauthorized');
+        return;
+      }
+    } catch {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('role');
+      router.replace('/login');
+      return;
+    } finally {
+      setCheckingAuth(false);
+    }
+  }, [router]);
 
   const fetchData = async () => {
     try {
@@ -122,7 +182,7 @@ export default function KabidDashboard() {
       
       // 6. Ambil data armada aktif (opsional)
       try {
-        const armadaRes = await axios.get(`${API_BASE_URL}/admin/tracking/truk-aktif`, {
+        const armadaRes = await axios.get(`${API_BASE_URL}/tracking/truk-aktif`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         const armadaAktif = armadaRes.data.data?.length || 0;
@@ -194,6 +254,14 @@ export default function KabidDashboard() {
     );
   }
 
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="h-12 w-12 rounded-full border-4 border-green-500 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="p-3 md:p-4 lg:p-6 xl:p-8 space-y-4 md:space-y-6 lg:space-y-8 max-w-[1600px] mx-auto animate-in fade-in duration-700">
       {/* Header */}
@@ -259,8 +327,8 @@ export default function KabidDashboard() {
             </div>
           </div>
 
-          <div className="w-full" style={{ height: '250px', minWidth: '0px' }}>
-            {grafikData.length > 0 && grafikData.some(d => d.laporan > 0) ? (
+          <div ref={chartContainerRef} className="w-full min-h-[250px]" style={{ height: '250px', minWidth: '0px' }}>
+            {isMounted && chartSize.width > 0 && chartSize.height > 0 && grafikData.length > 0 && grafikData.some(d => d.laporan > 0) ? (
               <ResponsiveContainer width="100%" height="100%" minWidth={300} minHeight={250}>
                 <AreaChart data={grafikData}>
                   <defs>

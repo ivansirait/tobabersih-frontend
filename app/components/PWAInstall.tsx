@@ -14,6 +14,16 @@ export default function PWAInstall() {
       return;
     }
 
+    // ✅ PERBAIKAN: Unregister semua service worker lama untuk clear cache
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((reg) => {
+          reg.unregister();
+          console.log('🗑️ Service worker lama dihapus');
+        });
+      });
+    }
+
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);

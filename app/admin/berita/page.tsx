@@ -13,7 +13,7 @@ export default function BeritaPage() {
     try {
       const token = localStorage.getItem("token");
 
-      const res = await axios.get("http://localhost:5000/api/posts", {
+      const res = await axios.get("/api/posts", {
         headers: {
           Authorization: `Bearer ${token}`,
         },

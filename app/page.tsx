@@ -51,13 +51,13 @@ export default function HomePage() {
     setLoading(true);
 
     // Coba berbagai kemungkinan BASE URL
-    const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+    const BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
     console.log('[fetchData] BASE URL:', BASE);
 
     // ── EDUKASI ──
     try {
-      console.log('[edukasi] fetching:', `${BASE}/api/edukasi`);
-      const res = await axios.get(`${BASE}/api/edukasi`);
+      console.log('[edukasi] fetching:', `${BASE}/edukasi`);
+      const res = await axios.get(`${BASE}/edukasi`);
       const raw = res.data;
       console.log('[edukasi] raw response:', raw);
 
@@ -88,7 +88,7 @@ export default function HomePage() {
 
     // ── POSTS ──
     try {
-      const res = await axios.get(`${BASE}/api/posts`);
+      const res = await axios.get(`${BASE}/posts`);
       const raw = res.data;
       const list: Post[] = Array.isArray(raw) ? raw : (raw?.data ?? []);
       setPosts(list.slice(0, 3));
@@ -100,7 +100,7 @@ export default function HomePage() {
 
     // ── ALBUMS ──
     try {
-      const res = await axios.get(`${BASE}/api/galleries/albums`);
+      const res = await axios.get(`${BASE}/galleries/albums`);
       setAlbums(res.data ?? []);
     } catch (err) {
       console.error('[albums] FETCH ERROR:', err);

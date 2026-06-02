@@ -29,6 +29,7 @@ interface FormData {
   email: string;
   phoneNumber: string;
   region: string;
+  isActive: boolean;
   password?: string;
   role?: string;
 }
@@ -53,9 +54,9 @@ interface ExportData {
 }
 
 
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL = "/api";
 const DEFAULT_PASS = "Warga123!";
-const INITIAL_FORM: FormData = { fullName: "", email: "", phoneNumber: "", region: "" };
+const INITIAL_FORM: FormData = { fullName: "", email: "", phoneNumber: "", region: "", isActive: true };
 
 
 function ExportModal({ onClose }: { onClose: () => void }) {
@@ -604,6 +605,7 @@ export default function ManageAkunMasyarakat() {
         email: formData.email,
         phoneNumber: formData.phoneNumber || null,
         region: formData.region || null,
+        isActive: formData.isActive,
       };
 
       let res;
@@ -688,7 +690,14 @@ export default function ManageAkunMasyarakat() {
 
   const openEditModal = (akun: AkunMasyarakat) => {
     setEditingAkun(akun);
-    setFormData({ fullName: akun.fullName, email: akun.email, phoneNumber: akun.phoneNumber || "", region: akun.region || "", password: "" });
+    setFormData({
+      fullName: akun.fullName,
+      email: akun.email,
+      phoneNumber: akun.phoneNumber || "",
+      region: akun.region || "",
+      isActive: akun.isActive,
+      password: ""
+    });
     setShowModal(true);
   };
 
@@ -1000,6 +1009,18 @@ export default function ManageAkunMasyarakat() {
                   placeholder={editingAkun ? "Kosongkan jika tidak ingin mengubah" : `Default: ${DEFAULT_PASS}`}
                   className="w-full px-4 py-3 rounded-[24px] border border-gray-200 focus:border-green-500 outline-none transition text-black"
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-medium uppercase tracking-wider text-gray-400 ml-1">Status Akun</label>
+                <select
+                  value={formData.isActive ? 'ACTIVE' : 'INACTIVE'}
+                  onChange={(e) => setFormData({ ...formData, isActive: e.target.value === 'ACTIVE' })}
+                  className="w-full px-4 py-3 rounded-[24px] border border-gray-200 focus:border-green-500 outline-none transition text-black bg-white"
+                >
+                  <option value="ACTIVE">Aktif</option>
+                  <option value="INACTIVE">Nonaktif</option>
+                </select>
               </div>
 
               <div className="pt-4 flex gap-3">
