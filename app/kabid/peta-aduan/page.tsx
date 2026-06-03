@@ -12,8 +12,7 @@ import {
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
-// Gunakan proxy Next.js
-const API_BASE_URL = '/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 // Dynamic import untuk peta (hindari SSR issues)
 const PetaAduanMap = dynamic(() => import('../components/PetaAduanMap'), { ssr: false });

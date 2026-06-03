@@ -25,6 +25,7 @@ export default function LoginPage() {
 
     try {
       const res = await axios.post(`${API_BASE_URL}/login`, { email, password });
+      console.log('[LOGIN DEBUG] Response:', res.data);
 
       if (res.data?.success) {
         const user = res.data.user || res.data.data?.user || res.data.data || null;
@@ -34,7 +35,14 @@ export default function LoginPage() {
           res.data.accessToken ||
           res.data.data?.accessToken ||
           'session-login';
-        const role = normalizeRole(res.data.role || user?.role || res.data.data?.role);
+        
+        // IMPROVED: Role extraction with better fallback
+        let rawRole = res.data.role || user?.role || res.data.data?.role;
+        const role = normalizeRole(rawRole);
+        
+        console.log('[LOGIN DEBUG] User:', user);
+        console.log('[LOGIN DEBUG] Raw role:', rawRole);
+        console.log('[LOGIN DEBUG] Normalized role:', role);
 
         if (user) {
           localStorage.setItem('user', JSON.stringify({ ...user, role }));
@@ -44,12 +52,16 @@ export default function LoginPage() {
         localStorage.setItem('role', role);
         Cookies.set('token', token, { expires: 1, path: '/', sameSite: 'lax' });
 
-        router.push(getRoleRoute(role));
+        const redirectPath = getRoleRoute(role);
+        console.log('[LOGIN DEBUG] Redirecting to:', redirectPath);
+        
+        router.push(redirectPath);
       } else {
         setError(res.data?.message || 'Login gagal.');
       }
     } catch (err: any) {
       // Menangkap pesan error dari backend
+      console.error('[LOGIN ERROR]', err.response?.data || err.message);
       setError(err.response?.data?.message || "Login gagal.");
     } finally {
       setLoading(false);

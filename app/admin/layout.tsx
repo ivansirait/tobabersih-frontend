@@ -46,22 +46,38 @@ export default function AdminLayout({
     const token = localStorage.getItem("token");
     const userStr = localStorage.getItem("user");
 
+    console.log('[ADMIN LAYOUT DEBUG] Token exists:', !!token);
+    console.log('[ADMIN LAYOUT DEBUG] User string:', userStr);
+
     if (!token || !userStr) {
+      console.log('[ADMIN LAYOUT] Redirecting to /login - no token or user');
       router.replace("/login");
       return;
     }
 
     try {
       const user = JSON.parse(userStr);
-      const role = normalizeRole(user?.role || localStorage.getItem("role") || "");
+      const storedRole = localStorage.getItem("role");
+      const extractedRole = user?.role;
+      
+      console.log('[ADMIN LAYOUT DEBUG] Parsed user:', user);
+      console.log('[ADMIN LAYOUT DEBUG] User role field:', extractedRole);
+      console.log('[ADMIN LAYOUT DEBUG] Stored role in localStorage:', storedRole);
+      
+      const role = normalizeRole(extractedRole || storedRole || "");
+      
+      console.log('[ADMIN LAYOUT DEBUG] Normalized role:', role);
 
       if (role !== "ADMIN") {
+        console.log('[ADMIN LAYOUT] Redirecting to /unauthorized - role is', role);
         router.replace("/unauthorized");
         return;
       }
 
+      console.log('[ADMIN LAYOUT] Authorization successful');
       setIsAuthorized(true);
     } catch (error) {
+      console.error('[ADMIN LAYOUT] Parse error:', error);
       router.replace("/login");
     }
   }, [router]);
