@@ -252,7 +252,7 @@ export default function ManageTruk() {
       <div className="flex justify-end mt-4">
         <button
           onClick={openCreateModal}
-          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-[#064E3B] text-white text-sm font-bold transition-all duration-200 shadow-lg shadow-slate-200 hover:bg-[#053f30] active:scale-95"
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-[#4A6D55] text-white text-sm font-bold transition-all duration-200 shadow-lg shadow-slate-200 hover:bg-[#053f30] active:scale-95"
         >
           <Plus size={18} /> Tambah Unit Baru
         </button>
@@ -352,7 +352,7 @@ export default function ManageTruk() {
         open={showConfirmDialog}
         title="Yakin Hapus Armada?"
         description="Aksi ini akan menghapus data armada secara permanen."
-        confirmText="Ya, Hapus"
+        confirmText="Hapus"
         cancelText="Batal"
         onConfirm={handleDelete}
         onCancel={() => {
@@ -472,7 +472,7 @@ export default function ManageTruk() {
 
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-6 py-3 rounded-xl text-gray-600 font-bold hover:bg-gray-100 transition-all">Batal</button>
-                <button type="submit" className="flex-1 bg-green-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-200 transition-all active:scale-95">
+                <button type="submit" className="flex-1 bg-[#4A6D55] text-white px-6 py-3 rounded-xl font-bold transition-all duration-200 shadow-lg shadow-slate-200 hover:bg-[#053f30] active:scale-95">
                   {editingTruk ? 'Simpan Perubahan' : 'Daftarkan Truk'}
                 </button>
               </div>

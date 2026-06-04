@@ -8,6 +8,8 @@ import {
   Eye, EyeOff, User, Calendar, Power, PowerOff, ShieldCheck, Hash
 } from "lucide-react";
 import ConfirmDialog from './ConfirmDialog';
+import AlertModal from '../../components/AlertModal';
+import { useConfirm } from '../../components/ConfirmProvider';
 import AlertDialog from './AlertDialog';
 import toast, { Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -51,7 +53,7 @@ export default function ManageSupir() {
   const [viewingSupir, setViewingSupir] = useState<Supir | null>(null);
   const [editingSupir, setEditingSupir] = useState<Supir | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const confirm = useConfirm();
   
   // AlertDialog state
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
@@ -143,9 +145,22 @@ export default function ManageSupir() {
     } catch (error: any) {
       toast.error("Gagal menghapus supir");
     } finally {
-      setShowConfirmDialog(false);
       setPendingDeleteId(null);
     }
+  };
+
+  const openDeleteConfirm = async (id: string) => {
+    const ok = await confirm({
+      title: 'Hapus Supir?',
+      description: 'Aksi ini akan menghapus unit supir secara permanen dari sistem.',
+      confirmText: 'Hapus',
+      cancelText: 'Batal',
+    });
+
+    if (!ok) return;
+
+    setPendingDeleteId(id);
+    await handleDelete();
   };
 
   const toggleStatus = async (supir: Supir): Promise<void> => {
@@ -338,7 +353,7 @@ export default function ManageSupir() {
                     <button onClick={() => openEditModal(supir)} className="p-2 bg-yellow-400 text-white rounded-lg hover:bg-yellow-500 transition-colors inline-flex shadow-sm" title="Edit Data">
                       <Edit3 size={14} />
                     </button>
-                    <button onClick={() => { setPendingDeleteId(supir.id); setShowConfirmDialog(true); }} className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors inline-flex shadow-sm" title="Hapus Akun">
+                    <button onClick={() => openDeleteConfirm(supir.id)} className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors inline-flex shadow-sm" title="Hapus Akun">
                       <Trash2 size={14} />
                     </button>
                   </td>
@@ -537,16 +552,7 @@ export default function ManageSupir() {
         )}
       </AnimatePresence>
 
-      {/* --- CONFIRM DIALOGS --- */}
-      <ConfirmDialog
-        open={showConfirmDialog}
-        title="Hapus Data Supir?"
-        description="Aksi ini akan menghapus akun supir secara permanen dari sistem."
-        confirmText="Ya, Hapus"
-        cancelText="Batal"
-        onConfirm={handleDelete}
-        onCancel={() => { setShowConfirmDialog(false); setPendingDeleteId(null); }}
-      />
+      {/* Confirm handled via global ConfirmProvider */}
 
       <ConfirmDialog
         open={showToggleConfirm}

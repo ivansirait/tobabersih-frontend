@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import axios from 'axios';
 import { Mail, Lock, User, Phone, LogIn, ArrowLeft } from 'lucide-react';
+import { validatePhone, validateEmail } from '@/app/lib/validation';
+import toast, { Toaster } from 'react-hot-toast';
 
 export default function RegisterWargaPage() {
   const router = useRouter();
@@ -24,6 +26,21 @@ export default function RegisterWargaPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // Validasi email dan telepon
+    const emailCheck = validateEmail(formData.email);
+    if (!emailCheck.valid) {
+      setError(emailCheck.message || 'Email tidak valid');
+      toast.error(emailCheck.message || 'Email tidak valid');
+      return;
+    }
+
+    const phoneCheck = validatePhone(formData.phoneNumber);
+    if (!phoneCheck.valid) {
+      setError(phoneCheck.message || 'Nomor telepon tidak valid');
+      toast.error(phoneCheck.message || 'Nomor telepon tidak valid');
+      return;
+    }
 
     // Validasi password
     if (formData.password !== formData.confirmPassword) {
@@ -64,6 +81,7 @@ export default function RegisterWargaPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center p-4 py-10">
       <div className="bg-white rounded-3xl shadow-xl max-w-md w-full p-8">
+        <Toaster position="top-right" />
         {/* Tombol Kembali */}
         <button 
           onClick={() => router.back()}

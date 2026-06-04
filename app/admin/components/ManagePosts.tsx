@@ -554,20 +554,20 @@ export default function ManagePosts({ posts = [], onPostsUpdate }: ManagePostsPr
       {/* --- DELETE CONFIRMATION MODAL --- */}
       <AnimatePresence>
         {deleteModal.show && (
-          <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-white rounded-[24px] shadow-2xl w-full max-w-sm overflow-hidden border border-white/20">
-              <div className="p-8 flex flex-col items-center text-center">
-                <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center text-red-500 mb-5 border-8 border-red-50/50">
-                  <Trash2 size={36} strokeWidth={2.5} />
+          <div className="fixed inset-0 z-[160] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-white rounded-[24px] shadow-2xl w-full max-w-lg overflow-hidden border border-white/20">
+              <div className="p-10 flex flex-col items-center text-center">
+                <div className="w-24 h-24 rounded-full bg-red-50 flex items-center justify-center text-red-500 mb-6 border-8 border-red-50/50">
+                  <Trash2 size={40} strokeWidth={2.5} />
                 </div>
-                <h3 className="font-black text-2xl text-gray-900 mb-2">Hapus Konten?</h3>
-                <p className="text-gray-500 leading-relaxed font-medium mb-8">
+                <h3 className="font-black text-3xl text-gray-900 mb-3">Hapus Konten?</h3>
+                <p className="text-gray-500 leading-relaxed font-medium mb-10">
                   Konten ini akan dihapus secara permanen dan tidak dapat dikembalikan dari sistem.
                 </p>
-                <div className="flex w-full gap-3">
-                  <button onClick={() => setDeleteModal({ show: false, id: null })} className="flex-1 py-3.5 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all">Batal</button>
-                  <button onClick={handleDeleteConfirm} disabled={loading} className="flex-1 py-3.5 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50">
-                    {loading ? <Loader2 className="animate-spin" size={18} /> : 'Ya, Hapus'}
+                <div className="flex w-full gap-4">
+                  <button onClick={() => setDeleteModal({ show: false, id: null })} className="flex-1 py-4 bg-gray-100 text-gray-700 rounded-2xl font-bold hover:bg-gray-200 transition-all">Batal</button>
+                  <button onClick={handleDeleteConfirm} disabled={loading} className="flex-1 py-4 bg-red-500 text-white rounded-2xl font-bold hover:bg-red-600 transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50">
+                    {loading ? <Loader2 className="animate-spin" size={18} /> : 'Hapus'}
                   </button>
                 </div>
               </div>

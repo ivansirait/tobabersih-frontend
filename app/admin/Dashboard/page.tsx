@@ -8,7 +8,7 @@ export default function DashboardPage() {
   const [laporanList, setLaporanList] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState(false);L
   const fetchAttemptedRef = useRef(false);
 
   const fetchData = async () => {

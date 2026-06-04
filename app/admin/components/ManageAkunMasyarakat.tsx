@@ -11,6 +11,7 @@ import {
 import ConfirmDialog from './ConfirmDialog';
 import AlertDialog from './AlertDialog';
 import toast, { Toaster } from "react-hot-toast";
+import { validatePhone, validateEmail } from '@/app/lib/validation';
 
 
 interface AkunMasyarakat {
@@ -250,11 +251,14 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
 
   const handleImport = async () => {
     setImporting(true);
-    const validated: ImportRow[] = rows.map((r) =>
-      !r.fullName || !r.email
-        ? { ...r, status: "error", errorMsg: "Nama & Email wajib diisi" }
-        : r
-    );
+    const validated: ImportRow[] = rows.map((r) => {
+      if (!r.fullName || !r.email) return { ...r, status: 'error', errorMsg: 'Nama & Email wajib diisi' };
+      const emailCheck = validateEmail(r.email);
+      if (!emailCheck.valid) return { ...r, status: 'error', errorMsg: emailCheck.message };
+      const phoneCheck = validatePhone(r.phone || '');
+      if (!phoneCheck.valid) return { ...r, status: 'error', errorMsg: phoneCheck.message };
+      return r;
+    });
     const valid = validated.filter((r) => r.status !== "error");
     const invalid = validated.filter((r) => r.status === "error");
     setRows([...validated]);
@@ -596,6 +600,19 @@ export default function ManageAkunMasyarakat() {
   const handleSubmit = async (e: any) => {
     e.preventDefault();
     setSubmitting(true);
+    // Validasi email dan nomor telepon sebelum submit
+    const emailCheck = validateEmail(formData.email);
+    if (!emailCheck.valid) {
+      toast.error(emailCheck.message || 'Email tidak valid');
+      setSubmitting(false);
+      return;
+    }
+    const phoneCheck = validatePhone(formData.phoneNumber || '');
+    if (!phoneCheck.valid) {
+      toast.error(phoneCheck.message || 'Nomor telepon tidak valid');
+      setSubmitting(false);
+      return;
+    }
     try {
       const token = localStorage.getItem("token");
       const config = { headers: { Authorization: `Bearer ${token}` } };
@@ -759,7 +776,7 @@ export default function ManageAkunMasyarakat() {
         </button>
         <button
           onClick={openCreateModal}
-          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-[24px] bg-[#064E3B] text-white text-sm font-medium transition-all duration-200 shadow-lg shadow-slate-200 hover:bg-[#053f30] active:scale-95"
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-[24px] bg-[#4A6D55] text-white text-sm font-medium transition-all duration-200 shadow-lg shadow-slate-200 hover:bg-[#053f30] active:scale-95"
         >
           <Plus size={18} /> Tambah Akun Baru
         </button>
@@ -1011,7 +1028,7 @@ export default function ManageAkunMasyarakat() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 bg-[#064E3B] text-white px-6 py-3 rounded-[24px] font-medium hover:bg-[#053f30] shadow-lg shadow-green-900/20 transition-all active:scale-95 disabled:opacity-50"
+                  className="flex-1 bg-[#4A6D55] text-white px-6 py-3 rounded-[24px] font-medium hover:bg-[#053f30] shadow-lg shadow-slate-200 transition-all duration-200 active:scale-95 disabled:opacity-50"
                 >
                   {submitting ? 'Memproses...' : (editingAkun ? 'Simpan Perubahan' : 'Daftarkan Akun')}
                 </button>
@@ -1026,7 +1043,7 @@ export default function ManageAkunMasyarakat() {
         open={showConfirmDialog}
         title="Hapus Akun Masyarakat?"
         description="Aksi ini akan menghapus akun masyarakat secara permanen dari sistem."
-        confirmText={deleting ? "Menghapus..." : "Ya, Hapus"}
+        confirmText={deleting ? "Menghapus..." : "Hapus"}
         cancelText="Batal"
         onConfirm={handleDelete}
         onCancel={() => { setShowConfirmDialog(false); setPendingDeleteId(null); }}

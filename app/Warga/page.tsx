@@ -4,6 +4,7 @@ import axios from 'axios';
 import { Trash2 } from 'lucide-react';
 import LaporanForm from '@/app/Warga/components/LaporanForm';
 import LaporanList from '@/app/Warga/components/LaporanList';
+import Link from 'next/link';
 
 // Gunakan proxy Next.js
 const BASE_URL_API = '/api';
@@ -20,6 +21,9 @@ export default function Home() {
     title: string;
     message: string;
   } | null>(null);
+  const [edukasiList, setEdukasiList] = useState<any[]>([]);
+  const [postsList, setPostsList] = useState<any[]>([]);
+  const [albumsList, setAlbumsList] = useState<any[]>([]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -27,7 +31,47 @@ export default function Home() {
   useEffect(() => {
     ambilLokasiOtomatis();
     fetchLaporan();
+    fetchEdukasi();
+    fetchPosts();
+    fetchGalleries();
   }, []);
+
+  const parseApiArray = (raw: any) => {
+    if (raw && raw.success && Array.isArray(raw.data)) return raw.data;
+    if (Array.isArray(raw)) return raw;
+    return [];
+  };
+
+  const fetchEdukasi = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL_API}/edukasi`);
+      setEdukasiList(parseApiArray(res.data));
+    } catch (err) {
+      console.warn('Gagal ambil edukasi', err);
+      setEdukasiList([]);
+    }
+  };
+
+  const fetchPosts = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL_API}/posts`);
+      setPostsList(parseApiArray(res.data));
+    } catch (err) {
+      console.warn('Gagal ambil posts', err);
+      setPostsList([]);
+    }
+  };
+
+  const fetchGalleries = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL_API}/galleries`);
+      // some APIs return { data: albums } or array
+      setAlbumsList(parseApiArray(res.data));
+    } catch (err) {
+      console.warn('Gagal ambil galleries', err);
+      setAlbumsList([]);
+    }
+  };
 
   const ambilLokasiOtomatis = () => {
     if (navigator.geolocation) {
@@ -206,6 +250,80 @@ const handleSubmit = async (e: React.FormEvent) => {
           handleSubmit={handleSubmit}
           handleDeteksiLokasi={handleDeteksiLokasi} // ✅ Sekarang fungsi ini ada
         />
+      </div>
+
+      {/* EDUKASI, BERITA, GALERI UNTUK WARGA */}
+      <div className="max-w-3xl mx-auto mt-10 space-y-12">
+        {/* EDUKASI */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-extrabold text-slate-800">Edukasi</h2>
+            <Link href="/edukasi" className="text-sm text-green-600 font-semibold">Lihat Semua</Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {edukasiList.length === 0 ? (
+              <div className="text-gray-500">Belum ada edukasi tersedia.</div>
+            ) : (
+              edukasiList.slice(0,4).map((it:any) => (
+                <div key={it.id || it._id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                  <h3 className="font-bold text-sm text-gray-900 line-clamp-2">{it.judul || it.title}</h3>
+                  <p className="text-xs text-gray-500 mt-2 line-clamp-3">{it.deskripsi?.slice(0,120) || it.excerpt || ''}</p>
+                  <div className="mt-3 text-right">
+                    <Link href={`/edukasi/${it.id || it._id || ''}`} className="text-sm text-green-600 font-semibold">Baca</Link>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        {/* BERITA */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-extrabold text-slate-800">Berita</h2>
+            <Link href="/berita" className="text-sm text-green-600 font-semibold">Lihat Semua</Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {postsList.length === 0 ? (
+              <div className="text-gray-500">Belum ada berita tersedia.</div>
+            ) : (
+              postsList.slice(0,4).map((p:any) => (
+                <div key={p.id || p._id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                  <h3 className="font-bold text-sm text-gray-900 line-clamp-2">{p.title}</h3>
+                  <p className="text-xs text-gray-500 mt-2 line-clamp-3">{p.excerpt || p.content?.slice(0,120) || ''}</p>
+                  <div className="mt-3 text-right">
+                    <Link href={`/berita/${p.id || p._id || ''}`} className="text-sm text-green-600 font-semibold">Baca</Link>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        {/* GALERI */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-extrabold text-slate-800">Galeri</h2>
+            <Link href="/galeri" className="text-sm text-green-600 font-semibold">Lihat Semua</Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {albumsList.length === 0 ? (
+              <div className="text-gray-500">Belum ada album.</div>
+            ) : (
+              albumsList.slice(0,6).map((a:any) => (
+                <Link key={a.id || a._id} href={`/galeri/${a.id || a._id || ''}`} className="group block bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+                  <div className="w-full h-40 bg-gray-50 overflow-hidden">
+                    <img src={a.coverUrl || a.cover || '/api/placeholder'} className="w-full h-full object-cover group-hover:scale-105 transition-transform" alt={a.title || a.nama} />
+                  </div>
+                  <div className="p-3">
+                    <h3 className="font-bold text-sm text-gray-900 line-clamp-1">{a.title || a.nama}</h3>
+                    <p className="text-[10px] text-gray-400 mt-1">{(a.photos && a.photos.length) ? `${a.photos.length} Foto` : (a.count ? `${a.count} Foto` : '')}</p>
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        </section>
       </div>
 
       {uiAlert && (

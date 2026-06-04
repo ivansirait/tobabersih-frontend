@@ -50,9 +50,11 @@ export default function HomePage() {
   const fetchData = async () => {
     setLoading(true);
 
-    // Coba berbagai kemungkinan BASE URL
-    const BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
-    console.log('[fetchData] BASE URL:', BASE);
+    // Normalisasi BASE URL: jika NEXT_PUBLIC_API_URL di-set tanpa suffix '/api',
+    // tambahkan '/api' agar request mengarah ke route API backend.
+    const rawBase = process.env.NEXT_PUBLIC_API_URL || '';
+    const BASE = rawBase ? rawBase.replace(/\/$/, '') + '/api' : '/api';
+    console.log('[fetchData] Normalized BASE URL:', BASE);
 
     // ── EDUKASI ──
     try {
@@ -91,7 +93,8 @@ export default function HomePage() {
       const res = await axios.get(`${BASE}/posts`);
       const raw = res.data;
       const list: Post[] = Array.isArray(raw) ? raw : (raw?.data ?? []);
-      setPosts(list.slice(0, 3));
+      // Simpan seluruh daftar post — homepage akan memilih subset untuk tampilan utama dan sidebar
+      setPosts(list);
       setDebugInfo(prev => ({ ...prev, postsStatus: 'ok', postsCount: list.length }));
     } catch (err: any) {
       console.error('[posts] FETCH ERROR:', err?.message);
@@ -131,6 +134,15 @@ export default function HomePage() {
     window.addEventListener('keydown', fn);
     return () => window.removeEventListener('keydown', fn);
   }, [lightboxPhoto, selectedAlbum]);
+
+  // Derivasi subset posts untuk tampilan Berita: main (kiri) dan recent (sidebar kanan)
+  const mainPosts = posts.slice(0, 3);
+  const recentPosts = posts.slice(0, 6);
+
+  const fmtDate = (v?: string) => {
+    if (!v) return '';
+    try { return new Date(v).toLocaleDateString(); } catch { return v; }
+  };
 
   const scrollCarousel = (dir: 'left' | 'right') => {
     if (!carouselRef.current) return;
@@ -291,12 +303,15 @@ export default function HomePage() {
           </div>
           {/* Nav links — selalu render, bukan conditional */}
           <div className="hidden lg:flex gap-8 font-semibold text-white/90">
-            {NAV_LINKS.map(item => (
-              <Link key={item} href={`#${item.toLowerCase()}`} className="hover:text-green-300 transition-colors relative group">
-                {item}
-                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-green-400 transition-all group-hover:w-full" />
-              </Link>
-            ))}
+            {NAV_LINKS.map(item => {
+              const href = item.toLowerCase() === 'berita' ? '/berita' : `#${item.toLowerCase()}`;
+              return (
+                <Link key={item} href={href} className="hover:text-green-300 transition-colors relative group">
+                  {item}
+                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-green-400 transition-all group-hover:w-full" />
+                </Link>
+              );
+            })}
           </div>
           <div className="flex items-center gap-3">
             <Link href="/login" className="hidden sm:block text-white hover:text-green-400 font-bold px-4 transition-colors">Login</Link>
@@ -356,7 +371,7 @@ export default function HomePage() {
               <span className="text-green-600 font-bold tracking-widest text-sm">PEMBELAJARAN</span>
               <h2 className="text-4xl font-bold text-slate-800 mt-2">Edukasi <span className="text-green-600">Lingkungan</span></h2>
             </div>
-            <Link href="/education" className="absolute right-0 flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-bold text-sm transition-all active:scale-95 group">
+            <Link href="/edukasi" className="absolute right-0 flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-bold text-sm transition-all active:scale-95 group">
               Lihat Semua <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
@@ -388,7 +403,7 @@ export default function HomePage() {
                       <span className="text-xs font-bold text-green-600 uppercase tracking-widest">EDUKASI</span>
                       <h3 className="text-xl font-bold text-slate-800 mt-2 mb-3 line-clamp-2">{title}</h3>
                       <p className="text-slate-500 text-sm line-clamp-3 mb-4">{desc}</p>
-                      <Link href={`/education/${edu.id}`} className="flex items-center gap-2 text-green-600 font-bold text-sm hover:gap-3 transition-all">
+                      <Link href={`/edukasi/${edu.id}`} className="flex items-center gap-2 text-green-600 font-bold text-sm hover:gap-3 transition-all">
                         Baca Selengkapnya <ArrowRight size={16} />
                       </Link>
                     </div>
@@ -418,32 +433,86 @@ export default function HomePage() {
               Lihat Semua <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
+
           <div className="grid md:grid-cols-3 gap-8">
-            {loading ? (
-              [1, 2, 3].map(i => (
-                <div key={i} className="rounded-3xl overflow-hidden border border-slate-100 animate-pulse">
-                  <div className="h-48 bg-slate-200" /><div className="p-6 space-y-3"><div className="h-4 bg-slate-200 rounded w-20" /><div className="h-6 bg-slate-200 rounded" /></div>
-                </div>
-              ))
-            ) : posts.length > 0 ? (
-              posts.map(post => (
-                <div key={post.id} className="group bg-white rounded-3xl overflow-hidden border border-slate-100 hover:shadow-2xl transition-all">
-                  <div className="h-48 bg-slate-200 overflow-hidden">
-                    <img src={post.imageUrl || 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=500'} alt={post.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+            {/* Left: main article list (two columns wide) */}
+            <div className="md:col-span-2 space-y-6">
+              {loading ? (
+                [1, 2, 3].map(i => (
+                  <div key={i} className="rounded-2xl overflow-hidden border border-slate-100 animate-pulse p-4">
+                    <div className="flex gap-4">
+                      <div className="w-40 h-28 bg-slate-200 rounded-lg" />
+                      <div className="flex-1 space-y-3">
+                        <div className="h-4 bg-slate-200 rounded w-32" />
+                        <div className="h-4 bg-slate-200 rounded" />
+                        <div className="h-4 bg-slate-200 rounded w-1/2" />
+                      </div>
+                    </div>
                   </div>
-                  <div className="p-6">
-                    <span className="text-xs font-bold text-green-600 uppercase tracking-widest">{post.category || 'BERITA'}</span>
-                    <h3 className="text-xl font-bold text-slate-800 mt-2 mb-3 line-clamp-2">{post.title}</h3>
-                    <p className="text-slate-500 text-sm line-clamp-3 mb-4">{post.content}</p>
-                    <Link href={`/berita/${post.slug || post.id}`} className="flex items-center gap-2 text-green-600 font-bold text-sm hover:gap-3 transition-all">
-                      Baca Selengkapnya <ArrowRight size={16} />
+                ))
+              ) : mainPosts.length > 0 ? (
+                mainPosts.map(post => (
+                  <article key={post.id} className="bg-white rounded-2xl overflow-hidden border border-slate-100 hover:shadow-md transition-all p-4">
+                    <div className="flex gap-6 items-start">
+                      <div className="w-44 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100">
+                        <img src={post.imageUrl || 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=500'} alt={post.title}
+                          className="w-full h-32 object-cover" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2 text-xs text-slate-500">
+                          <span className="text-xs font-bold text-green-600 uppercase tracking-widest">{post.category || 'BERITA'}</span>
+                          <span className="text-xs">•</span>
+                          <span className="flex items-center gap-2"><Clock size={14} className="text-slate-400" />{fmtDate((post as any).createdAt || (post as any).date)}</span>
+                        </div>
+                        <h3 className="text-lg font-bold text-slate-800 mb-2 line-clamp-2">{post.title}</h3>
+                        <p className="text-sm text-slate-600 line-clamp-3 mb-3">{post.content}</p>
+                        <Link href={`/berita/${post.slug || post.id}`} className="text-sm font-bold text-orange-500 hover:underline">Lihat Selengkapnya »</Link>
+                      </div>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="text-slate-500">Belum ada berita tersedia</div>
+              )}
+            </div>
+
+            {/* Right: Berita Terkini sidebar */}
+            <aside className="md:col-span-1">
+              <div className="mb-6 flex items-center justify-between">
+                <h4 className="text-lg font-bold text-slate-800">Berita Terkini</h4>
+                <div className="h-[1px] bg-slate-200 flex-1 ml-4" />
+              </div>
+              <div className="space-y-4">
+                {loading ? (
+                  [1,2,3,4].map(i => (
+                    <div key={i} className="flex items-start gap-3 p-2 rounded-lg animate-pulse">
+                      <div className="w-20 h-14 bg-slate-200 rounded" />
+                      <div className="flex-1">
+                        <div className="h-3 bg-slate-200 rounded w-3/4 mb-2" />
+                        <div className="h-3 bg-slate-200 rounded w-1/2" />
+                      </div>
+                    </div>
+                  ))
+                ) : recentPosts.length > 0 ? (
+                  recentPosts.map(post => (
+                    <Link key={post.id} href={`/berita/${post.slug || post.id}`} className="flex items-start gap-3 p-2 rounded-lg hover:bg-white transition-all border border-transparent hover:border-slate-100">
+                      <div className="w-28 h-16 bg-slate-100 rounded overflow-hidden flex-shrink-0">
+                        <img src={post.imageUrl || 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=500'} alt={post.title} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1">
+                        <h5 className="text-sm font-semibold text-slate-800 line-clamp-2">{post.title}</h5>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
+                          <Clock size={12} />
+                          <span>{fmtDate((post as any).createdAt || (post as any).date)}</span>
+                        </div>
+                      </div>
                     </Link>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="col-span-3 text-center py-12 text-slate-500">Belum ada berita tersedia</div>
-            )}
+                  ))
+                ) : (
+                  <div className="text-slate-500">Belum ada berita</div>
+                )}
+              </div>
+            </aside>
           </div>
         </div>
       </section>
@@ -515,7 +584,7 @@ export default function HomePage() {
             </div>
             <div>
               <h3 className="font-bold text-lg mb-6 relative inline-block">Sumber Daya<span className="absolute -bottom-1.5 left-0 w-8 h-1 bg-green-500 rounded-full"/></h3>
-              <ul className="space-y-3">{[{name:'Perda Lingkungan',path:'/perda'},{name:'Jadwal Angkut',path:'/jadwal'},{name:'Laporan Tahunan',path:'/laporan'},{name:'Edukasi',path:'/education'}].map(l=><li key={l.name}><Link href={l.path} className="text-slate-400 hover:text-green-400 text-sm flex items-center gap-2 group"><ChevronRight size={14} className="group-hover:translate-x-1 transition-transform"/>{l.name}</Link></li>)}</ul>
+              <ul className="space-y-3">{[{name:'Perda Lingkungan',path:'/perda'},{name:'Jadwal Angkut',path:'/jadwal'},{name:'Laporan Tahunan',path:'/laporan'},{name:'Edukasi',path:'/edukasi'}].map(l=><li key={l.name}><Link href={l.path} className="text-slate-400 hover:text-green-400 text-sm flex items-center gap-2 group"><ChevronRight size={14} className="group-hover:translate-x-1 transition-transform"/>{l.name}</Link></li>)}</ul>
             </div>
             <div>
               <h3 className="font-bold text-lg mb-6 relative inline-block">Hubungi Kami<span className="absolute -bottom-1.5 left-0 w-8 h-1 bg-green-500 rounded-full"/></h3>

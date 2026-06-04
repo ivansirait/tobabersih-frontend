@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast, { Toaster } from 'react-hot-toast';
+import { useConfirm } from '../../components/ConfirmProvider';
 
 const WilayahMap = dynamic(() => import('../../components/WilayahMap'), {
   ssr: false,
@@ -38,6 +39,7 @@ export default function ManageWilayah() {
   const [showModal, setShowModal] = useState(false);
   const [editingWilayah, setEditingWilayah] = useState<Wilayah | null>(null);
   const [viewingWilayah, setViewingWilayah] = useState<Wilayah | null>(null);
+  const confirm = useConfirm();
   const [submitting, setSubmitting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -182,7 +184,14 @@ export default function ManageWilayah() {
   };
 
   const handleDelete = async (wilayah: Wilayah) => {
-    if (!confirm(`Hapus wilayah "${wilayah.name}"?`)) return;
+    const ok = await confirm({
+      title: `Hapus Wilayah "${wilayah.name}"?`,
+      description: `Aksi ini akan menghapus wilayah "${wilayah.name}" secara permanen.`,
+      confirmText: 'Hapus',
+      cancelText: 'Batal'
+    });
+    if (!ok) return;
+
     try {
       const token = localStorage.getItem('token');
       await axios.delete(`${API_BASE_URL}/wilayah/${wilayah.id}`, {
@@ -194,6 +203,8 @@ export default function ManageWilayah() {
       toast.error('Gagal menghapus');
     }
   };
+
+  
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -369,6 +380,8 @@ export default function ManageWilayah() {
         </table>
       </div>
 
+      {/* Delete confirmation handled by ConfirmProvider */}
+
       {/* Modal Form */}
       <AnimatePresence>
         {showModal && (
@@ -413,7 +426,7 @@ export default function ManageWilayah() {
                   </div>
                 </div>
 
-                <button disabled={submitting} className="w-full py-4 bg-green-700 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 hover:bg-green-800 transition-all">
+                <button disabled={submitting} className="w-full py-4 bg-[#4A6D55] text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-slate-200 disabled:opacity-50 hover:bg-[#053f30] transition-all duration-200 active:scale-95">
                   {submitting ? <Loader2 className="animate-spin" /> : 'Simpan Konfigurasi Wilayah'}
                 </button>
               </form>

@@ -22,8 +22,8 @@ import {
 import toast, { Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import PenugasanDetail from "./PenugasanDetail";
-import ConfirmDialog from './ConfirmDialog';
 import AlertDialog from './AlertDialog';
+import { useConfirm } from '../../components/ConfirmProvider';
 
 const API_BASE_URL =
   "/api";
@@ -115,16 +115,12 @@ export default function ManagePenugasan() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemList, setItemList] = useState<Item[]>([]);
   const [trukList, setTrukList] = useState<Truk[]>([]);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [showConfirmTolakDialog, setShowConfirmTolakDialog] = useState(false);
+  const confirm = useConfirm();
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [successTitle, setSuccessTitle] = useState('');
   const [successDescription, setSuccessDescription] = useState('');
   const [successIcon, setSuccessIcon] = useState<ReactNode>(<CheckCircle2 size={24} />);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [pendingDeleteName, setPendingDeleteName] = useState<string>('');
-  const [pendingTolakId, setPendingTolakId] = useState<string | null>(null);
-  const [pendingTolakName, setPendingTolakName] = useState<string>('');
+  
 
   const [filter, setFilter] = useState({
     status: "",
@@ -371,11 +367,11 @@ const openTugaskanModal = (item: Item) => {
   // =========================
   // DELETE
   // =========================
-  const handleDelete = async () => {
-    if (!pendingDeleteId) return;
+  const handleDelete = async (id?: string) => {
+    if (!id) return;
 
     try {
-      await api.delete(`/penugasan/${pendingDeleteId}`);
+      await api.delete(`/penugasan/${id}`);
       setSuccessTitle('Penugasan berhasil dihapus');
       setSuccessDescription('Penugasan telah dihapus secara permanen.');
       setSuccessIcon(<Trash2 size={24} />);
@@ -383,21 +379,17 @@ const openTugaskanModal = (item: Item) => {
       fetchData();
     } catch (error) {
       toast.error("Gagal menghapus");
-    } finally {
-      setShowConfirmDialog(false);
-      setPendingDeleteId(null);
-      setPendingDeleteName('');
     }
   };
 
   // =========================
   // TOLAK
   // =========================
-  const handleTolak = async () => {
-    if (!pendingTolakId) return;
+  const handleTolak = async (id?: string) => {
+    if (!id) return;
 
     try {
-      await api.put(`/laporan/${pendingTolakId}/tolak`);
+      await api.put(`/laporan/${id}/tolak`);
       setSuccessTitle('Laporan berhasil ditolak');
       setSuccessDescription('Status laporan telah diubah menjadi ditolak.');
       setSuccessIcon(<Edit3 size={24} />);
@@ -405,10 +397,6 @@ const openTugaskanModal = (item: Item) => {
       fetchData();
     } catch (error) {
       toast.error("Gagal menolak laporan");
-    } finally {
-      setShowConfirmTolakDialog(false);
-      setPendingTolakId(null);
-      setPendingTolakName('');
     }
   };
 
@@ -692,10 +680,15 @@ const openTugaskanModal = (item: Item) => {
                             Tugaskan
                           </button>
                           <button
-                            onClick={() => {
-                              setPendingTolakId(item.id);
-                              setPendingTolakName(item.location || 'Laporan');
-                              setShowConfirmTolakDialog(true);
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: 'Tolak Laporan?',
+                                description: `Aksi ini akan menolak laporan "${item.location || 'Laporan'}" secara permanen.`,
+                                confirmText: 'Ya, Tolak',
+                                cancelText: 'Batal'
+                              });
+                              if (!ok) return;
+                              handleTolak(item.id);
                             }}
                             className="px-4 py-2 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-all shadow-sm"
                           >
@@ -724,10 +717,15 @@ const openTugaskanModal = (item: Item) => {
                           )}
 
                           <button
-                            onClick={() => {
-                              setPendingDeleteId(item.id);
-                              setPendingDeleteName(item.location || 'Penugasan');
-                              setShowConfirmDialog(true);
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: 'Hapus Data Penugasan?',
+                                description: `Aksi ini akan menghapus penugasan "${item.location || 'Penugasan'}" secara permanen dari sistem.`,
+                                confirmText: 'Hapus',
+                                cancelText: 'Batal'
+                              });
+                              if (!ok) return;
+                              handleDelete(item.id);
                             }}
                             className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors inline-flex shadow-sm"
                           >
@@ -943,33 +941,7 @@ const openTugaskanModal = (item: Item) => {
         onClose={() => setShowSuccessDialog(false)}
       />
 
-      <ConfirmDialog
-        open={showConfirmDialog}
-        title="Hapus Data Penugasan?"
-        description={`Aksi ini akan menghapus penugasan "${pendingDeleteName}" secara permanen dari sistem.`}
-        confirmText="Ya, Hapus"
-        cancelText="Batal"
-        onConfirm={handleDelete}
-        onCancel={() => { 
-          setShowConfirmDialog(false); 
-          setPendingDeleteId(null);
-          setPendingDeleteName('');
-        }}
-      />
-
-      <ConfirmDialog
-        open={showConfirmTolakDialog}
-        title="Tolak Laporan?"
-        description={`Aksi ini akan menolak laporan "${pendingTolakName}" secara permanen.`}
-        confirmText="Ya, Tolak"
-        cancelText="Batal"
-        onConfirm={handleTolak}
-        onCancel={() => { 
-          setShowConfirmTolakDialog(false); 
-          setPendingTolakId(null);
-          setPendingTolakName('');
-        }}
-      />
+      {/* Delete/Reject handled via ConfirmProvider */}
     </div>
   );
 }

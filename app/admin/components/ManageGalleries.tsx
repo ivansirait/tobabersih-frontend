@@ -10,6 +10,7 @@ import {
   Loader2, FileImage, CloudUpload, AlignLeft
 } from 'lucide-react';
 import toast, { Toaster } from "react-hot-toast";
+import { useConfirm } from '../../components/ConfirmProvider';
 import { motion, AnimatePresence } from "framer-motion";
 
 // Types
@@ -62,7 +63,7 @@ function ResultModal({ variant, title, message, onClose }: ResultModalProps) {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
+        className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden"
       >
         <div className={`px-6 pt-8 pb-6 text-center relative overflow-hidden ${isSuccess ? 'bg-gradient-to-br from-[#DDE9E1] to-[#E8F1EB]' : 'bg-gradient-to-br from-red-50 to-rose-100'}`}>
           <div className="absolute -top-6 -right-6 w-24 h-24 bg-white/40 rounded-full blur-xl" />
@@ -100,23 +101,23 @@ function DeleteModal({ deleteConfirm, onCancel, onConfirm, isDeleting }: DeleteM
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
+        className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden"
       >
-        <div className="px-6 py-5 border-b flex justify-between items-center bg-gray-50">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-100 text-red-600 rounded-lg"><Trash2 size={20} /></div>
+        <div className="px-10 py-7 border-b flex justify-between items-center bg-gray-50">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-red-100 text-red-600 rounded-lg"><Trash2 size={24} /></div>
             <h3 className="font-extrabold text-lg text-gray-800">{isAlbum ? 'Hapus Album?' : 'Hapus Foto?'}</h3>
           </div>
           <button onClick={onCancel} className="p-2 text-gray-400 hover:bg-gray-200 rounded-full transition-colors"><X size={20} /></button>
         </div>
-        <div className="p-6 text-center">
+        <div className="p-10 text-center">
           <p className="text-sm font-medium text-gray-500 mb-6 leading-relaxed">
             {isAlbum ? <><span className="font-bold text-gray-800">"{deleteConfirm.title}"</span> beserta semua fotonya akan dihapus secara permanen dari sistem.</> : 'Foto ini akan dihapus secara permanen dari album.'}
           </p>
-          <div className="flex gap-3">
-            <button onClick={onCancel} disabled={isDeleting} className="flex-1 px-4 py-3.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors disabled:opacity-50">Batal</button>
-            <button onClick={onConfirm} disabled={isDeleting} className="flex-1 px-4 py-3.5 bg-red-500 text-white rounded-xl text-sm font-bold hover:bg-red-600 transition-colors shadow-lg disabled:opacity-60 flex items-center justify-center gap-2">
-              {isDeleting ? <><Loader2 size={16} className="animate-spin" /> Menghapus</> : 'Ya, Hapus'}
+          <div className="flex gap-4">
+            <button onClick={onCancel} disabled={isDeleting} className="flex-1 px-5 py-4 bg-gray-100 text-gray-700 rounded-2xl text-sm font-bold hover:bg-gray-200 transition-colors disabled:opacity-50">Batal</button>
+            <button onClick={onConfirm} disabled={isDeleting} className="flex-1 px-5 py-4 bg-red-500 text-white rounded-2xl text-sm font-bold hover:bg-red-600 transition-colors shadow-lg disabled:opacity-60 flex items-center justify-center gap-2">
+              {isDeleting ? <><Loader2 size={18} className="animate-spin" /> Menghapus</> : 'Hapus'}
             </button>
           </div>
         </div>
@@ -260,6 +261,8 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
       toast.error(err?.response?.data?.message || 'Gagal menyimpan album.');
     }
   };
+
+  const confirm = useConfirm();
 
   const deleteAlbum = async (id: number) => {
     const albumTitle = deleteConfirm?.title || '';
@@ -564,13 +567,7 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
         <Toaster position="top-right" />
         {resultModal && <ResultModal {...resultModal} />}
         {renderAlbumModal()}
-        <AnimatePresence>
-          {deleteConfirm && (
-            <DeleteModal deleteConfirm={deleteConfirm} isDeleting={isDeleting} onCancel={() => setDeleteConfirm(null)} onConfirm={() => {
-              if (deleteConfirm.type === 'album') deleteAlbum(deleteConfirm.id); else deletePhoto(deleteConfirm.id);
-            }} />
-          )}
-        </AnimatePresence>
+        {/* Delete handled via ConfirmProvider */}
 
         <div className="bg-white rounded-[24px] shadow-sm overflow-hidden border border-gray-100">
           <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
@@ -630,7 +627,16 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
                     <img src={photo.imageUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onClick={() => setLightboxImg(photo.imageUrl)} onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/200x200?text=Error'; }} />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all duration-300 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 backdrop-blur-[2px]">
                       <button onClick={() => setLightboxImg(photo.imageUrl)} className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-gray-800 hover:scale-110 transition-transform shadow-lg"><Eye size={18} /></button>
-                      <button onClick={() => setDeleteConfirm({ type: 'photo', id: photo.id })} className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center text-white hover:scale-110 transition-transform shadow-lg"><Trash2 size={18} /></button>
+                      <button onClick={async () => {
+                        const ok = await confirm({
+                          title: 'Hapus Foto?',
+                          description: 'Foto ini akan dihapus secara permanen dari album.',
+                          confirmText: 'Hapus',
+                          cancelText: 'Batal'
+                        });
+                        if (!ok) return;
+                        deletePhoto(photo.id);
+                      }} className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center text-white hover:scale-110 transition-transform shadow-lg"><Trash2 size={18} /></button>
                     </div>
                   </div>
                 ))}
@@ -662,13 +668,7 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
       <Toaster position="top-right" />
       {resultModal && <ResultModal {...resultModal} />}
       {renderAlbumModal()}
-      <AnimatePresence>
-        {deleteConfirm && (
-          <DeleteModal deleteConfirm={deleteConfirm} isDeleting={isDeleting} onCancel={() => setDeleteConfirm(null)} onConfirm={() => {
-            if (deleteConfirm.type === 'album') deleteAlbum(deleteConfirm.id); else deletePhoto(deleteConfirm.id);
-          }} />
-        )}
-      </AnimatePresence>
+      {/* Delete handled via ConfirmProvider */}
 
       {/* --- HEADER SECTION --- */}
       <div className="bg-gradient-to-r from-[#DDE9E1] to-[#E8F1EB] rounded-[24px] p-8 shadow-sm border border-white/50 relative overflow-hidden">
@@ -770,7 +770,16 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
                 <div className="w-px bg-gray-100" />
                 <button onClick={() => openAlbumModal(album)} className="px-5 flex items-center justify-center text-yellow-500 hover:bg-yellow-50 transition-colors"><Edit size={18} /></button>
                 <div className="w-px bg-gray-100" />
-                <button onClick={() => setDeleteConfirm({ type: 'album', id: album.id, title: album.title })} className="px-5 flex items-center justify-center text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={18} /></button>
+                <button onClick={async () => {
+                  const ok = await confirm({
+                    title: `Hapus Album "${album.title}"?`,
+                    description: `"${album.title}" beserta semua fotonya akan dihapus secara permanen dari sistem.`,
+                    confirmText: 'Hapus',
+                    cancelText: 'Batal'
+                  });
+                  if (!ok) return;
+                  deleteAlbum(album.id);
+                }} className="px-5 flex items-center justify-center text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={18} /></button>
               </div>
             </div>
           ))}
@@ -794,7 +803,16 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 pr-2" onClick={(e) => e.stopPropagation()}>
                   <button onClick={() => openAlbumModal(album)} className="p-3 text-yellow-500 hover:bg-yellow-50 rounded-xl transition-colors shadow-sm bg-white border border-gray-100"><Edit size={16} /></button>
                   <button onClick={() => openAlbumDetail(album)} className="p-3 text-[#4A6D55] hover:bg-[#DDE9E1]/50 rounded-xl transition-colors shadow-sm bg-white border border-gray-100"><FolderOpen size={16} /></button>
-                  <button onClick={() => setDeleteConfirm({ type: 'album', id: album.id, title: album.title })} className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition-colors shadow-sm bg-white border border-gray-100"><Trash2 size={16} /></button>
+                  <button onClick={async () => {
+                    const ok = await confirm({
+                      title: `Hapus Album "${album.title}"?`,
+                      description: `"${album.title}" beserta semua fotonya akan dihapus secara permanen dari sistem.`,
+                      confirmText: 'Hapus',
+                      cancelText: 'Batal'
+                    });
+                    if (!ok) return;
+                    deleteAlbum(album.id);
+                  }} className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition-colors shadow-sm bg-white border border-gray-100"><Trash2 size={16} /></button>
                 </div>
               </div>
             ))}

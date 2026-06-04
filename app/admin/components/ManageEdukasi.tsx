@@ -26,6 +26,7 @@ import {
   Calendar,
   User
 } from 'lucide-react';
+import { useConfirm } from '../../components/ConfirmProvider';
 
 type MediaType = 'IMAGE' | 'VIDEO';
 type ViewMode = 'GRID' | 'LIST';
@@ -63,7 +64,7 @@ export default function ManageEdukasi() {
   
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState<EdukasiItem | null>(null);
-  const [deleteModal, setDeleteModal] = useState<{ show: boolean; item: EdukasiItem | null }>({ show: false, item: null });
+  const confirm = useConfirm();
   
   // Detail Modal State
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -214,13 +215,13 @@ export default function ManageEdukasi() {
     }
   };
 
-  const remove = async () => {
-    if (!deleteModal.item) return;
+  const remove = async (item?: EdukasiItem) => {
+    const target = item;
+    if (!target) return;
     setLoading(true);
     try {
-      await axios.delete(`${API_BASE_URL}/${deleteModal.item.id}`, authHeader);
+      await axios.delete(`${API_BASE_URL}/${target.id}`, authHeader);
       showNotification('Edukasi berhasil dihapus!', 'success');
-      setDeleteModal({ show: false, item: null });
       refresh();
     } catch (err: any) {
       showNotification(err?.response?.data?.message || 'Gagal menghapus edukasi.', 'error');
@@ -365,7 +366,16 @@ export default function ManageEdukasi() {
                       <Eye size={14}/> Detail
                     </button>
                     <button onClick={() => openModal(item)} className="p-2.5 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100"><Edit size={16}/></button>
-                    <button onClick={() => setDeleteModal({ show: true, item })} className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100"><Trash2 size={16}/></button>
+                    <button onClick={async () => {
+                      const ok = await confirm({
+                        title: `Hapus Edukasi "${item.judul}"?`,
+                        description: 'Konten ini akan dihapus secara permanen dan tidak dapat dikembalikan dari sistem.',
+                        confirmText: 'Hapus',
+                        cancelText: 'Batal'
+                      });
+                      if (!ok) return;
+                      remove(item);
+                    }} className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100"><Trash2 size={16}/></button>
                   </div>
                 </div>
               </motion.div>
@@ -529,7 +539,17 @@ export default function ManageEdukasi() {
                   <button onClick={() => { setShowDetailModal(false); openModal(viewingItem); }} className="flex-1 py-4 bg-amber-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-amber-600 transition-all flex items-center justify-center gap-2">
                     <Edit size={16} /> Edit
                   </button>
-                  <button onClick={() => { setShowDetailModal(false); setDeleteModal({ show: true, item: viewingItem }); }} className="flex-1 py-4 bg-red-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-600 transition-all flex items-center justify-center gap-2">
+                  <button onClick={async () => {
+                    const ok = await confirm({
+                      title: `Hapus Edukasi "${viewingItem?.judul}"?`,
+                      description: 'Konten ini akan dihapus secara permanen dan tidak dapat dikembalikan dari sistem.',
+                      confirmText: 'Hapus',
+                      cancelText: 'Batal'
+                    });
+                    if (!ok) return;
+                    setShowDetailModal(false);
+                    if (viewingItem) remove(viewingItem);
+                  }} className="flex-1 py-4 bg-red-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-600 transition-all flex items-center justify-center gap-2">
                     <Trash2 size={16} /> Hapus
                   </button>
                 </div>
@@ -539,39 +559,7 @@ export default function ManageEdukasi() {
         )}
       </AnimatePresence>
 
-      {/* --- DELETE CONFIRMATION MODAL --- */}
-      <AnimatePresence>
-        {deleteModal.show && deleteModal.item && (
-          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-[32px] shadow-2xl w-full max-w-md overflow-hidden border border-white/20">
-              <div className="px-8 py-6 border-b flex justify-between items-center bg-red-50/50">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-red-500 flex items-center justify-center text-white">
-                    <AlertTriangle size={24} />
-                  </div>
-                  <div>
-                    <h3 className="font-black text-xl uppercase text-red-700">Konfirmasi Hapus</h3>
-                    <p className="text-xs font-bold text-red-500">Tindakan ini tidak dapat dibatalkan.</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-8 space-y-6">
-                <p className="text-gray-600 text-sm leading-relaxed">
-                  Apakah Anda yakin ingin menghapus edukasi <span className="font-bold text-gray-900">"{deleteModal.item.judul}"</span>? Semua media terkait akan hilang secara permanen.
-                </p>
-
-                <div className="flex gap-4">
-                  <button onClick={() => setDeleteModal({ show: false, item: null })} className="flex-1 py-4 bg-gray-100 text-gray-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-200 transition-all">Batal</button>
-                  <button onClick={remove} disabled={loading} className="flex-1 py-4 bg-red-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-600 transition-all flex items-center justify-center gap-2">
-                    {loading ? <Loader2 className="animate-spin" /> : 'Hapus'}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* Delete handled via ConfirmProvider */}
       
     </div>
   );

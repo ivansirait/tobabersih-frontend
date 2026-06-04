@@ -210,7 +210,7 @@ export default function KelolaKabid() {
       <div className="flex justify-end">
         <button
           onClick={openCreateModal}
-          className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[#4A6D55] text-white font-bold shadow-lg hover:bg-[#3a5643] transition-all flex items-center justify-center gap-2"
+          className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[#4A6D55] text-white font-bold shadow-lg shadow-slate-200 hover:bg-[#053f30] transition-all duration-200 active:scale-95 flex items-center justify-center gap-2"
         >
           <UserPlus size={18} /> Tambah Kepala Bidang
         </button>
@@ -485,7 +485,7 @@ export default function KelolaKabid() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="w-full py-4 bg-green-700 text-white rounded-2xl font-bold shadow-lg hover:bg-green-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="w-full py-4 bg-[#4A6D55] text-white rounded-2xl font-bold shadow-lg hover:bg-[#053f30] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {submitting ? <Loader2 size={18} className="animate-spin" /> : (editingKabid ? 'Simpan Perubahan' : 'Simpan Akun Baru')}
                   </button>
