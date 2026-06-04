@@ -17,12 +17,16 @@ interface EducationPost {
   media_url?: string; media_type?: string;
   mediaUrl?: string; mediaType?: string;
 }
-interface Post { id: number; title: string; content: string; imageUrl?: string | null; category?: string; slug?: string; }
+interface Post { id: number; title: string; content: string; imageUrl?: string | null; category?: string; slug?: string; createdAt?: string; date?: string; }
 
 const getEduTitle    = (e: EducationPost) => e.judul     || e.title    || '(Tanpa Judul)';
 const getEduDesc     = (e: EducationPost) => e.deskripsi || e.content  || '';
 const getEduMediaUrl = (e: EducationPost) => e.mediaUrl  || e.media_url || '';
 const getEduMediaType= (e: EducationPost) => (e.mediaType || e.media_type || 'IMAGE').toUpperCase();
+
+// Semua variasi penulisan kategori pengumuman
+const PENGUMUMAN_CATEGORIES = ['pengumuman', 'PENGUMUMAN', 'Pengumuman'];
+const isPengumuman = (cat?: string) => PENGUMUMAN_CATEGORIES.includes(cat || '');
 
 export default function HomePage() {
   const [posts, setPosts]           = useState<Post[]>([]);
@@ -30,7 +34,6 @@ export default function HomePage() {
   const [educations, setEducations] = useState<EducationPost[]>([]);
   const [loading, setLoading]       = useState(true);
 
-  // Debug state — VISIBLE sekarang, bukan collapsed
   const [debugInfo, setDebugInfo] = useState<{
     eduStatus: string;
     eduRaw: string;
@@ -46,68 +49,36 @@ export default function HomePage() {
   const [isScrolled, setIsScrolled]       = useState(false);
   const carouselRef = useRef<HTMLDivElement>(null);
 
-  // ── FETCH ─────────────────────────────────────────────────────────
   const fetchData = async () => {
     setLoading(true);
-
-    // Normalisasi BASE URL: jika NEXT_PUBLIC_API_URL di-set tanpa suffix '/api',
-    // tambahkan '/api' agar request mengarah ke route API backend.
     const rawBase = process.env.NEXT_PUBLIC_API_URL || '';
     const BASE = rawBase ? rawBase.replace(/\/$/, '') + '/api' : '/api';
-    console.log('[fetchData] Normalized BASE URL:', BASE);
 
-    // ── EDUKASI ──
     try {
-      console.log('[edukasi] fetching:', `${BASE}/edukasi`);
       const res = await axios.get(`${BASE}/edukasi`);
       const raw = res.data;
-      console.log('[edukasi] raw response:', raw);
-
       const list: EducationPost[] = Array.isArray(raw) ? raw : (raw?.data ?? []);
-      console.log('[edukasi] parsed list length:', list.length);
-      console.log('[edukasi] first item:', list[0]);
-
       setEducations(list.slice(0, 3));
-      setDebugInfo(prev => ({
-        ...prev,
-        eduStatus: 'ok',
-        eduRaw: JSON.stringify(raw, null, 2),
-        eduCount: list.length,
-        eduError: '',
-      }));
+      setDebugInfo(prev => ({ ...prev, eduStatus: 'ok', eduRaw: JSON.stringify(raw, null, 2), eduCount: list.length, eduError: '' }));
     } catch (err: any) {
-      const msg = err?.response?.data
-        ? JSON.stringify(err.response.data)
-        : err?.message || String(err);
-      console.error('[edukasi] FETCH ERROR:', msg);
-      setDebugInfo(prev => ({
-        ...prev,
-        eduStatus: 'error',
-        eduError: `${err?.response?.status || ''} ${msg}`,
-        eduRaw: '',
-      }));
+      const msg = err?.response?.data ? JSON.stringify(err.response.data) : err?.message || String(err);
+      setDebugInfo(prev => ({ ...prev, eduStatus: 'error', eduError: `${err?.response?.status || ''} ${msg}`, eduRaw: '' }));
     }
 
-    // ── POSTS ──
     try {
       const res = await axios.get(`${BASE}/posts`);
       const raw = res.data;
       const list: Post[] = Array.isArray(raw) ? raw : (raw?.data ?? []);
-      // Simpan seluruh daftar post — homepage akan memilih subset untuk tampilan utama dan sidebar
       setPosts(list);
       setDebugInfo(prev => ({ ...prev, postsStatus: 'ok', postsCount: list.length }));
     } catch (err: any) {
-      console.error('[posts] FETCH ERROR:', err?.message);
       setDebugInfo(prev => ({ ...prev, postsStatus: 'error' }));
     }
 
-    // ── ALBUMS ──
     try {
       const res = await axios.get(`${BASE}/galleries/albums`);
       setAlbums(res.data ?? []);
-    } catch (err) {
-      console.error('[albums] FETCH ERROR:', err);
-    }
+    } catch (err) {}
 
     setLoading(false);
   };
@@ -135,14 +106,16 @@ export default function HomePage() {
     return () => window.removeEventListener('keydown', fn);
   }, [lightboxPhoto, selectedAlbum]);
 
-  // Derivasi subset posts untuk tampilan Berita: main (kiri) dan recent (sidebar kanan)
-  const mainPosts = posts.slice(0, 3);
-  const recentPosts = posts.slice(0, 6);
+  // ── FILTER: berita bukan pengumuman, pengumuman khusus kategori pengumuman
+  const beritaPosts     = posts.filter(p => !isPengumuman(p.category)).slice(0, 3);
+  const pengumumanPosts = posts.filter(p =>  isPengumuman(p.category)).slice(0, 4);
 
   const fmtDate = (v?: string) => {
     if (!v) return '';
-    try { return new Date(v).toLocaleDateString(); } catch { return v; }
+    try { return new Date(v).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }); } catch { return v; }
   };
+
+  const stripHtml = (html?: string) => html?.replace(/<[^>]+>/g, '') ?? '';
 
   const scrollCarousel = (dir: 'left' | 'right') => {
     if (!carouselRef.current) return;
@@ -150,7 +123,6 @@ export default function HomePage() {
     carouselRef.current.scrollBy({ left: dir === 'left' ? -w : w, behavior: 'smooth' });
   };
 
-  // ── ALBUM CARD ────────────────────────────────────────────────────
   const AlbumCard = ({ album }: { album: Album }) => (
     <div onClick={() => setSelectedAlbum(album)} className="group w-full h-[380px] cursor-pointer">
       <div className="relative h-full rounded-3xl overflow-hidden shadow-xl transition-all duration-500 group-hover:scale-[1.03] group-hover:shadow-[0_0_60px_-15px_rgba(34,197,94,0.55)]">
@@ -170,15 +142,12 @@ export default function HomePage() {
     </div>
   );
 
-  // ── DEBUG PANEL COMPONENT ─────────────────────────────────────────
   const DebugPanel = () => (
     <div className="col-span-3 my-4 border-2 border-orange-400 rounded-2xl overflow-hidden text-left font-mono text-xs">
       <div className="bg-orange-500 text-white px-4 py-2 font-bold flex items-center justify-between">
         <span>🔍 DEBUG PANEL — hapus setelah edukasi berhasil tampil</span>
         <button onClick={fetchData} className="bg-white text-orange-600 px-3 py-1 rounded-lg font-bold hover:bg-orange-50">↺ Retry</button>
       </div>
-
-      {/* Status baris */}
       <div className="grid grid-cols-2 divide-x divide-orange-200 bg-orange-50">
         <div className="p-3">
           <p className="font-bold text-orange-800 mb-1">Edukasi API</p>
@@ -196,16 +165,12 @@ export default function HomePage() {
           {debugInfo.postsStatus === 'ok' && <p className="text-green-700">Items diterima: {debugInfo.postsCount}</p>}
         </div>
       </div>
-
-      {/* Raw response */}
       {debugInfo.eduRaw && (
         <div className="bg-gray-900 text-green-400 p-4 overflow-auto max-h-64">
           <p className="text-gray-500 mb-2">Raw response dari /api/edukasi:</p>
           <pre className="whitespace-pre-wrap break-all">{debugInfo.eduRaw}</pre>
         </div>
       )}
-
-      {/* Petunjuk jika error */}
       {debugInfo.eduStatus === 'error' && (
         <div className="bg-red-50 p-4 text-red-800">
           <p className="font-bold mb-2">Kemungkinan penyebab:</p>
@@ -215,11 +180,8 @@ export default function HomePage() {
             <li>Route <code>/api/edukasi</code> belum terdaftar di Express</li>
             <li>Perlu set <code>NEXT_PUBLIC_API_URL</code> di .env.local</li>
           </ul>
-          <p className="mt-3 font-bold">Cek di browser DevTools → Network tab → cari request ke /api/edukasi</p>
         </div>
       )}
-
-      {/* Jika data dapat tapi array kosong */}
       {debugInfo.eduStatus === 'ok' && debugInfo.eduCount === 0 && (
         <div className="bg-yellow-50 p-4 text-yellow-800">
           <p className="font-bold">API berhasil dipanggil tapi response kosong []</p>
@@ -229,7 +191,6 @@ export default function HomePage() {
     </div>
   );
 
-  // ── DETAIL ALBUM ──────────────────────────────────────────────────
   if (selectedAlbum) {
     const photos = selectedAlbum.photos || [];
     return (
@@ -285,6 +246,14 @@ export default function HomePage() {
   }
 
   const NAV_LINKS = ['Tentang', 'Edukasi', 'Berita', 'Galeri'];
+  const navHref = (item: string) => {
+    const key = item.toLowerCase();
+    if (key === 'berita') return '/berita';
+    if (key === 'edukasi') return '/edukasi';
+    return `#${key}`;
+  };
+
+  const FALLBACK_IMG = 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=500';
 
   return (
     <div className="min-h-screen bg-white">
@@ -301,17 +270,13 @@ export default function HomePage() {
               <p className="text-[10px] md:text-xs font-bold tracking-widest uppercase text-green-400">Kabupaten Toba</p>
             </div>
           </div>
-          {/* Nav links — selalu render, bukan conditional */}
           <div className="hidden lg:flex gap-8 font-semibold text-white/90">
-            {NAV_LINKS.map(item => {
-              const href = item.toLowerCase() === 'berita' ? '/berita' : `#${item.toLowerCase()}`;
-              return (
-                <Link key={item} href={href} className="hover:text-green-300 transition-colors relative group">
-                  {item}
-                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-green-400 transition-all group-hover:w-full" />
-                </Link>
-              );
-            })}
+            {NAV_LINKS.map(item => (
+              <Link key={item} href={navHref(item)} className="hover:text-green-300 transition-colors relative group">
+                {item}
+                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-green-400 transition-all group-hover:w-full" />
+              </Link>
+            ))}
           </div>
           <div className="flex items-center gap-3">
             <Link href="/login" className="hidden sm:block text-white hover:text-green-400 font-bold px-4 transition-colors">Login</Link>
@@ -366,14 +331,9 @@ export default function HomePage() {
       {/* EDUKASI */}
       <section id="edukasi" className="py-20 px-6 bg-white">
         <div className="max-w-7xl mx-auto">
-          <div className="relative flex items-center justify-center mb-12">
-            <div className="text-center">
-              <span className="text-green-600 font-bold tracking-widest text-sm">PEMBELAJARAN</span>
-              <h2 className="text-4xl font-bold text-slate-800 mt-2">Edukasi <span className="text-green-600">Lingkungan</span></h2>
-            </div>
-            <Link href="/edukasi" className="absolute right-0 flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-bold text-sm transition-all active:scale-95 group">
-              Lihat Semua <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-            </Link>
+          <div className="text-center mb-12">
+            <span className="text-green-600 font-bold tracking-widest text-sm">PEMBELAJARAN</span>
+            <h2 className="text-4xl font-bold text-slate-800 mt-2">Edukasi <span className="text-green-600">Lingkungan</span></h2>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
@@ -394,9 +354,9 @@ export default function HomePage() {
                     <div className="h-48 bg-slate-200 overflow-hidden">
                       {mediaType === 'VIDEO'
                         ? <video src={mediaUrl} className="w-full h-full object-cover" controls />
-                        : <img src={mediaUrl || 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=500'} alt={title}
+                        : <img src={mediaUrl || FALLBACK_IMG} alt={title}
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform"
-                            onError={e => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=500'; }} />
+                            onError={e => { (e.target as HTMLImageElement).src = FALLBACK_IMG; }} />
                       }
                     </div>
                     <div className="p-6">
@@ -413,106 +373,200 @@ export default function HomePage() {
             ) : (
               <>
                 <div className="col-span-3 text-center py-4 text-slate-500">Belum ada edukasi tersedia</div>
-                {/* ─── DEBUG PANEL — selalu visible ─── */}
                 <DebugPanel />
               </>
             )}
           </div>
+
+          {/* Tombol Lihat Semua Edukasi */}
+          {!loading && (
+            <div className="flex justify-center mt-10">
+              <Link href="/edukasi" className="flex items-center gap-2 px-8 py-3 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-bold text-sm transition-all active:scale-95 group">
+                Lihat Semua Edukasi <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </div>
+          )}
         </div>
       </section>
 
-      {/* BERITA */}
+      {/* BERITA & PENGUMUMAN */}
       <section id="berita" className="py-20 px-6 bg-slate-50">
         <div className="max-w-7xl mx-auto">
-          <div className="relative flex items-center justify-center mb-12">
-            <div className="text-center">
-              <span className="text-green-600 font-bold tracking-widest text-sm">INFORMASI TERKINI</span>
-              <h2 className="text-4xl font-bold text-slate-800 mt-2">Berita <span className="text-green-600">Terbaru</span></h2>
-            </div>
-            <Link href="/berita" className="absolute right-0 flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-bold text-sm transition-all active:scale-95 group">
-              Lihat Semua <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-            </Link>
+
+          <div className="text-center mb-12">
+            <span className="text-green-600 font-bold tracking-widest text-sm">INFORMASI TERKINI</span>
+            <h2 className="text-4xl font-bold text-slate-800 mt-2">Berita <span className="text-green-600">&amp; Pengumuman</span></h2>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {/* Left: main article list (two columns wide) */}
-            <div className="md:col-span-2 space-y-6">
+          <div className="grid md:grid-cols-2 gap-10">
+
+            {/* ── KOLOM KIRI: Berita Portal ── */}
+            <div>
+              <div className="flex items-center gap-3 mb-6 pb-3 border-b-2 border-slate-200">
+                <span className="w-1 h-6 bg-green-600 rounded-full inline-block flex-shrink-0" />
+                <h3 className="text-xl font-bold text-slate-800">Berita Portal</h3>
+              </div>
+
               {loading ? (
-                [1, 2, 3].map(i => (
-                  <div key={i} className="rounded-2xl overflow-hidden border border-slate-100 animate-pulse p-4">
-                    <div className="flex gap-4">
-                      <div className="w-40 h-28 bg-slate-200 rounded-lg" />
-                      <div className="flex-1 space-y-3">
-                        <div className="h-4 bg-slate-200 rounded w-32" />
-                        <div className="h-4 bg-slate-200 rounded" />
-                        <div className="h-4 bg-slate-200 rounded w-1/2" />
-                      </div>
+                <div className="space-y-4">
+                  {[1, 2].map(i => (
+                    <div key={i} className="animate-pulse">
+                      <div className="h-48 bg-slate-200 rounded-xl mb-3" />
+                      <div className="h-4 bg-slate-200 rounded w-3/4 mb-2" />
+                      <div className="h-3 bg-slate-200 rounded w-1/2" />
                     </div>
-                  </div>
-                ))
-              ) : mainPosts.length > 0 ? (
-                mainPosts.map(post => (
-                  <article key={post.id} className="bg-white rounded-2xl overflow-hidden border border-slate-100 hover:shadow-md transition-all p-4">
-                    <div className="flex gap-6 items-start">
-                      <div className="w-44 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100">
-                        <img src={post.imageUrl || 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=500'} alt={post.title}
-                          className="w-full h-32 object-cover" />
+                  ))}
+                </div>
+              ) : beritaPosts.length > 0 ? (
+                <>
+                  {/* Featured berita */}
+                  <article className="mb-5 group">
+                    <Link href={`/berita/${beritaPosts[0].slug || beritaPosts[0].id}`}>
+                      <div className="overflow-hidden rounded-xl mb-3 bg-slate-100">
+                        <img
+                          src={beritaPosts[0].imageUrl || FALLBACK_IMG}
+                          alt={beritaPosts[0].title}
+                          className="w-full h-52 object-cover group-hover:scale-105 transition-transform duration-500"
+                          onError={e => { (e.target as HTMLImageElement).src = FALLBACK_IMG; }}
+                        />
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2 text-xs text-slate-500">
-                          <span className="text-xs font-bold text-green-600 uppercase tracking-widest">{post.category || 'BERITA'}</span>
-                          <span className="text-xs">•</span>
-                          <span className="flex items-center gap-2"><Clock size={14} className="text-slate-400" />{fmtDate((post as any).createdAt || (post as any).date)}</span>
-                        </div>
-                        <h3 className="text-lg font-bold text-slate-800 mb-2 line-clamp-2">{post.title}</h3>
-                        <p className="text-sm text-slate-600 line-clamp-3 mb-3">{post.content}</p>
-                        <Link href={`/berita/${post.slug || post.id}`} className="text-sm font-bold text-orange-500 hover:underline">Lihat Selengkapnya »</Link>
-                      </div>
-                    </div>
+                      <span className="inline-block text-[10px] font-bold uppercase tracking-widest bg-green-100 text-green-700 px-2.5 py-1 rounded-full mb-2">
+                        {beritaPosts[0].category || 'Berita'}
+                      </span>
+                      <h4 className="text-base font-bold text-slate-800 mb-1 line-clamp-2 group-hover:text-green-700 transition-colors leading-snug">
+                        {beritaPosts[0].title}
+                      </h4>
+                      <p className="text-xs text-green-600 font-semibold flex items-center gap-1 mb-2">
+                        <Clock size={11} /> {fmtDate(beritaPosts[0].createdAt || beritaPosts[0].date)}
+                      </p>
+                      <p className="text-sm text-slate-500 line-clamp-3 leading-relaxed">
+                        {stripHtml(beritaPosts[0].content)}
+                      </p>
+                    </Link>
                   </article>
-                ))
+
+                  {/* Sub berita */}
+                  <div className="space-y-4 border-t border-slate-200 pt-4">
+                    {beritaPosts.slice(1).map(post => (
+                      <Link
+                        key={post.id}
+                        href={`/berita/${post.slug || post.id}`}
+                        className="flex gap-4 items-start group pb-4 border-b border-slate-100 last:border-0 last:pb-0"
+                      >
+                        <div className="w-[110px] h-[78px] flex-shrink-0 rounded-xl overflow-hidden bg-slate-100">
+                          <img
+                            src={post.imageUrl || FALLBACK_IMG}
+                            alt={post.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            onError={e => { (e.target as HTMLImageElement).src = FALLBACK_IMG; }}
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h5 className="text-sm font-bold text-slate-800 line-clamp-2 group-hover:text-green-700 transition-colors leading-snug mb-1">
+                            {post.title}
+                          </h5>
+                          <p className="text-xs text-slate-500 line-clamp-2 mb-1">{stripHtml(post.content)}</p>
+                          <p className="text-xs text-green-600 font-semibold flex items-center gap-1">
+                            <Clock size={11} /> {fmtDate(post.createdAt || post.date)}
+                          </p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </>
               ) : (
-                <div className="text-slate-500">Belum ada berita tersedia</div>
+                <p className="text-slate-500 text-sm py-8 text-center">Belum ada berita tersedia.</p>
+              )}
+
+              {/* Tombol Lihat Semua Berita */}
+              {!loading && beritaPosts.length > 0 && (
+                <div className="mt-6">
+                  <Link href="/berita" className="flex items-center justify-center gap-2 w-[220px] py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold text-sm transition-all active:scale-95 group">
+                    Lihat Semua Berita <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                </div>
               )}
             </div>
 
-            {/* Right: Berita Terkini sidebar */}
-            <aside className="md:col-span-1">
-              <div className="mb-6 flex items-center justify-between">
-                <h4 className="text-lg font-bold text-slate-800">Berita Terkini</h4>
-                <div className="h-[1px] bg-slate-200 flex-1 ml-4" />
+            {/* ── KOLOM KANAN: Pengumuman Resmi ── */}
+            <div>
+              <div className="flex items-center gap-3 mb-6 pb-3 border-b-2 border-slate-200">
+                <span className="w-1 h-6 bg-orange-500 rounded-full inline-block flex-shrink-0" />
+                <h3 className="text-xl font-bold text-slate-800">Pengumuman Resmi</h3>
               </div>
-              <div className="space-y-4">
-                {loading ? (
-                  [1,2,3,4].map(i => (
-                    <div key={i} className="flex items-start gap-3 p-2 rounded-lg animate-pulse">
-                      <div className="w-20 h-14 bg-slate-200 rounded" />
-                      <div className="flex-1">
-                        <div className="h-3 bg-slate-200 rounded w-3/4 mb-2" />
-                        <div className="h-3 bg-slate-200 rounded w-1/2" />
-                      </div>
+
+              {loading ? (
+                <div className="space-y-4">
+                  {[1, 2].map(i => (
+                    <div key={i} className="animate-pulse">
+                      <div className="h-48 bg-slate-200 rounded-xl mb-3" />
+                      <div className="h-4 bg-slate-200 rounded w-3/4 mb-2" />
+                      <div className="h-3 bg-slate-200 rounded w-1/2" />
                     </div>
-                  ))
-                ) : recentPosts.length > 0 ? (
-                  recentPosts.map(post => (
-                    <Link key={post.id} href={`/berita/${post.slug || post.id}`} className="flex items-start gap-3 p-2 rounded-lg hover:bg-white transition-all border border-transparent hover:border-slate-100">
-                      <div className="w-28 h-16 bg-slate-100 rounded overflow-hidden flex-shrink-0">
-                        <img src={post.imageUrl || 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=500'} alt={post.title} className="w-full h-full object-cover" />
+                  ))}
+                </div>
+              ) : pengumumanPosts.length > 0 ? (
+                <>
+                  {/* Featured pengumuman */}
+                  <article className="mb-5 group">
+                    <Link href={`/berita/${pengumumanPosts[0].slug || pengumumanPosts[0].id}`}>
+                      <div className="overflow-hidden rounded-xl mb-3 bg-slate-100">
+                        <img
+                          src={pengumumanPosts[0].imageUrl || FALLBACK_IMG}
+                          alt={pengumumanPosts[0].title}
+                          className="w-full h-52 object-cover group-hover:scale-105 transition-transform duration-500"
+                          onError={e => { (e.target as HTMLImageElement).src = FALLBACK_IMG; }}
+                        />
                       </div>
-                      <div className="flex-1">
-                        <h5 className="text-sm font-semibold text-slate-800 line-clamp-2">{post.title}</h5>
-                        <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
-                          <Clock size={12} />
-                          <span>{fmtDate((post as any).createdAt || (post as any).date)}</span>
-                        </div>
-                      </div>
+                      <span className="inline-block text-[10px] font-bold uppercase tracking-widest bg-orange-100 text-orange-700 px-2.5 py-1 rounded-full mb-2">
+                        {pengumumanPosts[0].category || 'Pengumuman'}
+                      </span>
+                      <h4 className="text-base font-bold text-slate-800 mb-1 line-clamp-2 group-hover:text-orange-600 transition-colors leading-snug">
+                        {pengumumanPosts[0].title}
+                      </h4>
+                      <p className="text-xs text-orange-500 font-semibold flex items-center gap-1 mb-2">
+                        <Clock size={11} /> {fmtDate(pengumumanPosts[0].createdAt || pengumumanPosts[0].date)}
+                      </p>
+                      <p className="text-sm text-slate-500 line-clamp-3 leading-relaxed">
+                        {stripHtml(pengumumanPosts[0].content)}
+                      </p>
                     </Link>
-                  ))
-                ) : (
-                  <div className="text-slate-500">Belum ada berita</div>
-                )}
-              </div>
-            </aside>
+                  </article>
+
+                  {/* Sub pengumuman */}
+                  <div className="space-y-4 border-t border-slate-200 pt-4">
+                    {pengumumanPosts.slice(1).map(post => (
+                      <Link
+                        key={post.id}
+                        href={`/berita/${post.slug || post.id}`}
+                        className="flex gap-4 items-start group pb-4 border-b border-slate-100 last:border-0 last:pb-0"
+                      >
+                        <div className="w-[110px] h-[78px] flex-shrink-0 rounded-xl overflow-hidden bg-slate-100">
+                          <img
+                            src={post.imageUrl || FALLBACK_IMG}
+                            alt={post.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            onError={e => { (e.target as HTMLImageElement).src = FALLBACK_IMG; }}
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h5 className="text-sm font-bold text-slate-800 line-clamp-2 group-hover:text-orange-600 transition-colors leading-snug mb-1">
+                            {post.title}
+                          </h5>
+                          <p className="text-xs text-slate-500 line-clamp-2 mb-1">{stripHtml(post.content)}</p>
+                          <p className="text-xs text-orange-500 font-semibold flex items-center gap-1">
+                            <Clock size={11} /> {fmtDate(post.createdAt || post.date)}
+                          </p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-slate-500 text-sm py-8 text-center">Belum ada pengumuman tersedia.</p>
+              )}
+            </div>
+
           </div>
         </div>
       </section>
@@ -580,7 +634,7 @@ export default function HomePage() {
             </div>
             <div>
               <h3 className="font-bold text-lg mb-6 relative inline-block">Tautan Cepat<span className="absolute -bottom-1.5 left-0 w-8 h-1 bg-green-500 rounded-full"/></h3>
-              <ul className="space-y-3">{NAV_LINKS.map(i=><li key={i}><Link href={`#${i.toLowerCase()}`} className="text-slate-400 hover:text-green-400 text-sm flex items-center gap-2 group"><ChevronRight size={14} className="group-hover:translate-x-1 transition-transform"/>{i}</Link></li>)}</ul>
+              <ul className="space-y-3">{NAV_LINKS.map(i=><li key={i}><Link href={navHref(i)} className="text-slate-400 hover:text-green-400 text-sm flex items-center gap-2 group"><ChevronRight size={14} className="group-hover:translate-x-1 transition-transform"/>{i}</Link></li>)}</ul>
             </div>
             <div>
               <h3 className="font-bold text-lg mb-6 relative inline-block">Sumber Daya<span className="absolute -bottom-1.5 left-0 w-8 h-1 bg-green-500 rounded-full"/></h3>
