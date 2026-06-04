@@ -504,14 +504,18 @@ return (
             )}
 
             {/* Back */}
-            <div className="mt-10">
-              <Link
-                href="/berita"
-                className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-green-700 transition-colors group"
-              >
-                <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
-                Kembali ke Semua Berita
-              </Link>
+                    <div className="mt-10">
+        <div className="flex justify-end mt-8">
+        <div className="flex justify-end mt-8">
+        <Link
+            href="/berita"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold text-sm transition-all active:scale-95 group"
+        >
+            <ArrowLeft size={16} />
+            Kembali ke semua berita
+        </Link>
+        </div>
+        </div>
             </div>
           </article>
 

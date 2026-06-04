@@ -178,13 +178,14 @@ export default function EdukasiDetailPage() {
               )}
             </div>
 
-            <div className="mt-6">
-              <Link
-                href="/edukasi"
-                className="inline-flex items-center gap-2 text-sm font-bold text-teal-600 hover:text-teal-700 transition-colors"
-              >
-                <ArrowLeft size={15} /> Kembali ke Daftar Edukasi
-              </Link>
+            <div className="mt-6 flex justify-end">
+        <Link
+        href="/#edukasi"
+        className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold text-sm transition-all active:scale-95 group"
+        >
+        <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
+        Kembali ke Beranda
+        </Link>
             </div>
           </article>
 
@@ -237,9 +238,9 @@ export default function EdukasiDetailPage() {
               <div className="mt-5 pt-4 border-t border-slate-100">
                 <Link
                   href="/edukasi"
-                  className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-teal-600 text-white font-semibold text-sm hover:bg-teal-700 transition-all"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold text-sm transition-all active:scale-95 group"
                 >
-                  Lihat Semua Materi
+                  Lihat Semua Edukasi
                   <ChevronRight size={15} />
                 </Link>
               </div>
