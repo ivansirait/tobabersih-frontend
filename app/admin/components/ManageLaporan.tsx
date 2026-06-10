@@ -277,7 +277,7 @@ export default function ManageLaporan() {
           { label: 'Sudah Diterima', val: laporanList.filter(l => l.status === 'DITERIMA').length, color: 'text-green-600', bg: 'bg-green-50', icon: CheckCircle2 },
           { label: 'Ditugaskan', val: Object.keys(assignmentByReportId).length, color: 'text-blue-600', bg: 'bg-blue-50', icon: Truck },
         ].map((stat, i) => (
-          <div key={i} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
+          <div key={`laporan-stat-${i}`} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
             <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
               <stat.icon size={24} />
             </div>

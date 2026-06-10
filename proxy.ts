@@ -2,13 +2,6 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
 
-/**
- * ============================================================================
- * JWT Token Validation Helper
- * ============================================================================
- * Decode dan validate JWT token dari cookie
- * Gunakan library `jose` untuk Next.js edge runtime compatibility
- */
 const JWT_SECRET = process.env.JWT_SECRET
 const SECRET = JWT_SECRET ? new TextEncoder().encode(JWT_SECRET) : null
 

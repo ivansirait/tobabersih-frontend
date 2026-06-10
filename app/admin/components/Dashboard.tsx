@@ -8,7 +8,7 @@ import {
   XAxis, YAxis, CartesianGrid,
   Tooltip, AreaChart, Area, ResponsiveContainer
 } from 'recharts';
-import PredictionWidget from './PredictionWidget';
+import PredictionWidget from './Gakguna/PredictionWidget';
 
 interface Laporan {
   id?: string;
@@ -309,7 +309,7 @@ export default function Dashboard({ laporanList, posts, loading = false }: Dashb
             </div>
           </div>
 
-          <div ref={chartContainerRef} className="w-full min-h-[250px]" style={{ height: '250px', minWidth: '0px' }}>
+          <div ref={chartContainerRef} className="w-full" style={{ minHeight: '250px', minWidth: '300px' }}>
             {isMounted && chartSize.width > 0 && chartSize.height > 0 && grafikData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%" minWidth={300} minHeight={250}>
                 <AreaChart data={grafikData}>

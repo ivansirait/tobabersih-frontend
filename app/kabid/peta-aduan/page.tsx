@@ -12,8 +12,8 @@ import {
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-
+const rawBase = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE_URL = rawBase ? rawBase.replace(/\/$/, '') + '/api' : 'http://localhost:5000/api';
 // Dynamic import untuk peta (hindari SSR issues)
 const PetaAduanMap = dynamic(() => import('../components/PetaAduanMap'), { ssr: false });
 

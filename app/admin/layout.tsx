@@ -112,11 +112,10 @@ export default function AdminLayout({
 
       {/* 2. KONTEN UTAMA: Area ini yang akan berubah isinya */}
       <main className="flex-1 transition-all duration-300 min-w-0 ml-0 md:ml-[280px] lg:ml-[280px] xl:ml-[280xl]">
-        <div className={`p-3 md:p-4 lg:p-6 xl:p-8 max-w-7xl mx-auto pt-16 md:pt-0 ${
-          isMobile ? 'px-3 py-4' : ''
-        }`}>
+    <div className={`p-3 md:p-4 lg:p-6 xl:p-8 max-w-7xl mx-auto pt-16 md:pt-0 text-[16px] md:text-[18px] ${
+      isMobile ? 'px-3 py-4' : ''
+    }`}>
           {children}
-          {/* 'children' di sini adalah isi dari page.tsx folder yang kamu buat */}
         </div>
       </main>
     </div>

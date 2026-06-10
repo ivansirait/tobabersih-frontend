@@ -89,6 +89,7 @@ export default function EdukasiListPage() {
             ))}
           </div>
           <div className="flex items-center gap-3">
+            <Link href="/login" className="hidden sm:block text-white hover:text-green-400 font-bold px-4 transition-colors">Login</Link>
             <Link href="/Warga" className="bg-green-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-green-700 transition-all active:scale-95">Lapor!</Link>
           </div>
         </div>
@@ -98,7 +99,7 @@ export default function EdukasiListPage() {
       <div className="relative pt-20 bg-slate-900 overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-green-600/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-72 h-72 bg-teal-500/10 rounded-full blur-2xl translate-y-1/2 -translate-x-1/3 pointer-events-none" />
-        <div className="max-w-7xl mx-auto px-6 py-16 relative z-10">
+         <div className="max-w-[1440px] mx-auto px-6 md:px-10 py-20 relative z-10">
           <div className="flex items-center gap-2 text-sm text-white/50 mb-6">
             <Link href="/" className="hover:text-green-400 transition-colors">Beranda</Link>
             <ChevronRight size={14} />

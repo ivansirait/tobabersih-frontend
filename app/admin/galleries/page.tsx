@@ -31,8 +31,6 @@ export default function GalleriesPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      // Normalize: response bisa { data: [...] } atau langsung array
-      // API ini seharusnya return array: [Album]
       const data = Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
       setGalleries(Array.isArray(data) ? data : []);
 

@@ -6,8 +6,8 @@ import dynamic from 'next/dynamic';
 import { Truck, MapPin, RefreshCw, Activity, Gauge, TrendingUp, Compass, User, AlertCircle, X } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-
+const rawBase = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE_URL = rawBase ? rawBase.replace(/\/$/, '') + '/api' : 'http://localhost:5000/api';
 // Dynamic import untuk peta (Leaflet) agar terhindar dari issue SSR Next.js
 const MonitoringMap = dynamic(() => import('../components/MonitoringMap'), { ssr: false });
 

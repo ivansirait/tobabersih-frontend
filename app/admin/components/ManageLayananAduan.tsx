@@ -9,24 +9,32 @@ import {
   RefreshCw,
   Repeat,
   ClipboardList,
+  // ✅ [PERUBAHAN 1] Tambah ChevronsLeft & ChevronsRight — sebelumnya tidak ada di import
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   X,
   Eye,
   Clock,
   CheckCircle2,
   FileText,
   Edit3,
+  MapPin,
+  Calendar,
+  Truck
 } from "lucide-react";
 
 import toast, { Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import PenugasanDetail from "./PenugasanDetail";
+import ConfirmDialog from './ConfirmDialog';
 import AlertDialog from './AlertDialog';
-import { useConfirm } from '../../components/ConfirmProvider';
 
-const API_BASE_URL =
-  "/api";
+const API_BASE_URL = "/api";
+
+// ✅ [PERUBAHAN 2] Konstanta ITEMS_PER_PAGE — dipindah ke level modul agar konsisten dengan ManageSupir
+const ITEMS_PER_PAGE = 12;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -80,8 +88,6 @@ interface Item extends Penugasan {
   isLaporanBaru?: boolean;
 }
 
-// 🔥 Interface Truk yang benar sesuai ManageTruk
-// Field driver ada di "operator" bukan "driver"
 interface Truk {
   id: string;
   plateNumber: string;
@@ -95,7 +101,6 @@ interface Truk {
     email?: string;
     phoneNumber?: string | null;
   } | null;
-  // Alias: beberapa endpoint mengembalikan field "driver" langsung
   driver?: {
     id: string;
     fullName: string;
@@ -103,7 +108,6 @@ interface Truk {
   status: string;
 }
 
-const ITEMS_PER_PAGE = 12;
 const MIN_SCHEDULE_DAYS = 3;
 
 export default function ManagePenugasan() {
@@ -115,12 +119,16 @@ export default function ManagePenugasan() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemList, setItemList] = useState<Item[]>([]);
   const [trukList, setTrukList] = useState<Truk[]>([]);
-  const confirm = useConfirm();
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showConfirmTolakDialog, setShowConfirmTolakDialog] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [successTitle, setSuccessTitle] = useState('');
   const [successDescription, setSuccessDescription] = useState('');
   const [successIcon, setSuccessIcon] = useState<ReactNode>(<CheckCircle2 size={24} />);
-  
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [pendingDeleteName, setPendingDeleteName] = useState<string>('');
+  const [pendingTolakId, setPendingTolakId] = useState<string | null>(null);
+  const [pendingTolakName, setPendingTolakName] = useState<string>('');
 
   const [filter, setFilter] = useState({
     status: "",
@@ -152,16 +160,10 @@ export default function ManagePenugasan() {
 
   const minScheduleValue = toDateTimeLocalValue(getMinimumScheduleDate());
 
-  // =========================
-  // HELPER: ambil driver dari truk
-  // Menangani dua kemungkinan struktur: operator atau driver
-  // =========================
   const getDriverFromTruck = (truk: Truk) => {
-    // Prioritaskan field "operator" (sesuai ManageTruk & endpoint /admin/truks)
     if (truk.operator) {
       return { id: truk.operator.id, fullName: truk.operator.fullName };
     }
-    // Fallback ke field "driver" jika endpoint lain mengembalikannya
     if (truk.driver) {
       return { id: truk.driver.id, fullName: truk.driver.fullName };
     }
@@ -178,9 +180,6 @@ export default function ManagePenugasan() {
     return driver ? driver.id : "";
   };
 
-  // =========================
-  // FETCH DATA
-  // =========================
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -193,31 +192,45 @@ export default function ManagePenugasan() {
 
       const penugasanData = penugasanRes.data.data || [];
 
-const laporanBaru = (laporanRes.data.data || [])
-  .filter(
-    (item: any) =>
-      item.status === "LAPORAN_BARU" || item.status === "PENDING"
-  )
-  .map((item: any) => ({
-    id: item.id,
-    status: "LAPORAN_BARU",
-    isLaporanBaru: true,
-    taskNumber: null,
-    location: typeof item.location === "string" 
-      ? item.location 
-      : item.location?.name || item.description || "Lokasi tidak tersedia",  // ✅ YANG BENAR
-    district: item.jenisSampah,
-    description: item.description,
-    pelapor: item.pelapor,
-    report: {
-      id: item.id,
-      description: item.description,
-      jenisSampah: item.jenisSampah,
-      pelapor: item.pelapor,
-    },
-  }));
+      const laporanYangSudahDitugaskan = new Set(
+        penugasanData
+          .map((p: any) => p.report?.id)
+          .filter(Boolean)
+      );
 
-      setItemList([...laporanBaru, ...penugasanData]);
+      const laporanBaru = (laporanRes.data.data || [])
+        .filter((item: any) =>
+          (item.status === "LAPORAN_BARU" || item.status === "PENDING") &&
+          !laporanYangSudahDitugaskan.has(item.id)
+        )
+        .map((item: any) => ({
+          id: item.id,
+          status: "LAPORAN_BARU",
+          isLaporanBaru: true,
+          taskNumber: null,
+          location: typeof item.location === "string"
+            ? item.location
+            : item.location?.name || item.description || "Lokasi tidak tersedia",
+          district: item.jenisSampah,
+          description: item.description,
+          pelapor: item.pelapor,
+          report: {
+            id: item.id,
+            description: item.description,
+            jenisSampah: item.jenisSampah,
+            pelapor: item.pelapor,
+          },
+        }));
+
+      const combined = [...laporanBaru, ...penugasanData];
+      const seen = new Set<string>();
+      const deduplicated = combined.filter((item: any) => {
+        if (seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      });
+
+      setItemList(deduplicated);
       setTrukList(trukRes.data.data || []);
       setCurrentPage(1);
     } catch (error) {
@@ -232,9 +245,11 @@ const laporanBaru = (laporanRes.data.data || [])
     fetchData();
   }, []);
 
-  // =========================
-  // FILTER
-  // =========================
+  // ✅ [PERUBAHAN 3] useEffect reset halaman ke 1 setiap search atau filter berubah — diambil dari pola ManageSupir
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filter]);
+
   const filteredItems = useMemo(() => {
     return itemList.filter((item) => {
       const search = searchTerm.toLowerCase();
@@ -253,19 +268,25 @@ const laporanBaru = (laporanRes.data.data || [])
     });
   }, [itemList, searchTerm, filter]);
 
-  // =========================
-  // PAGINATION
-  // =========================
-  const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / ITEMS_PER_PAGE));
 
   const paginatedItems = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     return filteredItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [filteredItems, currentPage]);
 
-  // =========================
-  // RESET FORM
-  // =========================
+  // ✅ [PERUBAHAN 4] Computed pageNumbers dengan ellipsis — identik dengan ManageSupir, sebelumnya tidak ada
+  const penugasanPageNumbers = useMemo(() => {
+    const delta = 2;
+    const range: number[] = [];
+    const start = Math.max(1, currentPage - delta);
+    const end = Math.min(totalPages, currentPage + delta);
+    for (let i = start; i <= end; i++) range.push(i);
+    if (start > 1) range.unshift(-1, 1);       // -1 = ellipsis kiri
+    if (end < totalPages) range.push(-2, totalPages); // -2 = ellipsis kanan
+    return range;
+  }, [currentPage, totalPages]);
+
   const resetForm = () => {
     setFormData({
       reportId: "",
@@ -276,35 +297,28 @@ const laporanBaru = (laporanRes.data.data || [])
     });
   };
 
-  // =========================
-  // OPEN MODAL
-  // =========================
-const openTugaskanModal = (item: Item) => {
-  setSelectedItem(item);
-  
-  // ✅ Ambil lokasi dengan benar
-  let locationString = "";
-  if (typeof item.location === "string") {
-    locationString = item.location;
-  } else if (item.location && typeof item.location === "object") {
-    locationString = (item.location as any)?.name || (item.location as any)?.address || "";
-  } else {
-    locationString = item.description || "";
-  }
-  
-  setFormData({
-    reportId: item.report?.id || item.id,
-    truckId: "",
-    driverId: "",
-    scheduledAt: "",
-    location: locationString,  // ✅ YANG BENAR
-  });
-  setShowModal(true);
-};
+  const openTugaskanModal = (item: Item) => {
+    setSelectedItem(item);
 
-  // =========================
-  // INPUT CHANGE
-  // =========================
+    let locationString = "";
+    if (typeof item.location === "string") {
+      locationString = item.location;
+    } else if (item.location && typeof item.location === "object") {
+      locationString = (item.location as any)?.name || (item.location as any)?.address || "";
+    } else {
+      locationString = item.description || "";
+    }
+
+    setFormData({
+      reportId: item.report?.id || item.id,
+      truckId: "",
+      driverId: "",
+      scheduledAt: "",
+      location: locationString,
+    });
+    setShowModal(true);
+  };
+
   const handleInputChange = (e: any) => {
     setFormData({
       ...formData,
@@ -312,9 +326,6 @@ const openTugaskanModal = (item: Item) => {
     });
   };
 
-  // =========================
-  // SUBMIT
-  // =========================
   const handleSubmit = async (e: any) => {
     e.preventDefault();
 
@@ -364,14 +375,11 @@ const openTugaskanModal = (item: Item) => {
     }
   };
 
-  // =========================
-  // DELETE
-  // =========================
-  const handleDelete = async (id?: string) => {
-    if (!id) return;
+  const handleDelete = async () => {
+    if (!pendingDeleteId) return;
 
     try {
-      await api.delete(`/penugasan/${id}`);
+      await api.delete(`/penugasan/${pendingDeleteId}`);
       setSuccessTitle('Penugasan berhasil dihapus');
       setSuccessDescription('Penugasan telah dihapus secara permanen.');
       setSuccessIcon(<Trash2 size={24} />);
@@ -379,17 +387,18 @@ const openTugaskanModal = (item: Item) => {
       fetchData();
     } catch (error) {
       toast.error("Gagal menghapus");
+    } finally {
+      setShowConfirmDialog(false);
+      setPendingDeleteId(null);
+      setPendingDeleteName('');
     }
   };
 
-  // =========================
-  // TOLAK
-  // =========================
-  const handleTolak = async (id?: string) => {
-    if (!id) return;
+  const handleTolak = async () => {
+    if (!pendingTolakId) return;
 
     try {
-      await api.put(`/laporan/${id}/tolak`);
+      await api.put(`/laporan/${pendingTolakId}/tolak`);
       setSuccessTitle('Laporan berhasil ditolak');
       setSuccessDescription('Status laporan telah diubah menjadi ditolak.');
       setSuccessIcon(<Edit3 size={24} />);
@@ -397,12 +406,13 @@ const openTugaskanModal = (item: Item) => {
       fetchData();
     } catch (error) {
       toast.error("Gagal menolak laporan");
+    } finally {
+      setShowConfirmTolakDialog(false);
+      setPendingTolakId(null);
+      setPendingTolakName('');
     }
   };
 
-  // =========================
-  // STATS
-  // =========================
   const stats = {
     total: itemList.length,
     laporan_baru: itemList.filter((i) => i.status === "LAPORAN_BARU").length,
@@ -417,32 +427,24 @@ const openTugaskanModal = (item: Item) => {
     ).size,
   };
 
-  // =========================
-  // STATUS BADGE
-  // =========================
-  const StatusBadge = ({ status }: any) => {
-    const styles: any = {
-      LAPORAN_BARU: "bg-red-100 text-red-700 border-red-200",
-      DITUGASKAN: "bg-blue-100 text-blue-700 border-blue-200",
-      BEKERJA: "bg-amber-100 text-amber-700 border-amber-200",
-      SELESAI: "bg-emerald-100 text-emerald-700 border-emerald-200",
-      DITOLAK: "bg-slate-200 text-slate-700 border-slate-300",
+  const StatusBadge = ({ status }: { status: string }) => {
+    const styles: Record<string, { bg: string, text: string, ring: string }> = {
+      LAPORAN_BARU: { bg: "bg-red-50", text: "text-red-700", ring: "ring-red-600/10" },
+      DITUGASKAN: { bg: "bg-blue-50", text: "text-blue-700", ring: "ring-blue-600/10" },
+      BEKERJA: { bg: "bg-amber-50", text: "text-amber-700", ring: "ring-amber-600/10" },
+      SELESAI: { bg: "bg-emerald-50", text: "text-emerald-700", ring: "ring-emerald-600/10" },
+      DITOLAK: { bg: "bg-slate-50", text: "text-slate-700", ring: "ring-slate-600/10" },
     };
+    const style = styles[status] || styles.DITUGASKAN;
 
     return (
-      <span
-        className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-wide border shadow-sm ${
-          styles[status] || styles.DITUGASKAN
-        }`}
-      >
+      <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] md:text-[11px] font-bold ring-1 ring-inset ${style.bg} ${style.text} ${style.ring}`}>
+        <span className={`w-1.5 h-1.5 rounded-full mr-2 ${style.text.replace('text', 'bg')}`}></span>
         {status.replace(/_/g, " ")}
       </span>
     );
   };
 
-  // =========================
-  // TRUK YANG DIPILIH (untuk tampilkan info driver di modal)
-  // =========================
   const selectedTruck = trukList.find((t) => t.id === formData.truckId);
   const selectedDriverName = selectedTruck ? getDriverName(selectedTruck) : "";
   const hasDriver = selectedTruck ? !!getDriverId(selectedTruck) : false;
@@ -460,7 +462,7 @@ const openTugaskanModal = (item: Item) => {
                 Operasional & Monitoring
               </span>
               <h1 className="text-3xl font-extrabold text-[#1A2E35] tracking-tight uppercase">
-                Penugasan Aduan
+                Penugasan Aduan Masyarakat
               </h1>
               <p className="text-[#5B7078] mt-2 font-medium">
                 Monitoring laporan warga dan distribusi armada operasional.
@@ -473,68 +475,28 @@ const openTugaskanModal = (item: Item) => {
       {/* STATS */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
         {[
-          {
-            label: "Total Tugas",
-            value: stats.total,
-            icon: ClipboardList,
-            color: "text-gray-600",
-            bg: "bg-gray-50",
-          },
-          {
-            label: "Laporan Baru",
-            value: stats.laporan_baru,
-            icon: FileText,
-            color: "text-red-600",
-            bg: "bg-red-50",
-          },
-          {
-            label: "Dalam Proses",
-            value: stats.dalam_proses,
-            icon: Clock,
-            color: "text-blue-600",
-            bg: "bg-blue-50",
-          },
-          {
-            label: "Selesai",
-            value: stats.selesai,
-            icon: CheckCircle2,
-            color: "text-green-600",
-            bg: "bg-green-50",
-          },
-          {
-            label: "Driver Aktif",
-            value: stats.driver_aktif,
-            icon: User,
-            color: "text-purple-600",
-            bg: "bg-purple-50",
-          },
+          { label: "Total Tugas", value: stats.total, icon: ClipboardList, color: "text-gray-600", bg: "bg-gray-50" },
+          { label: "Laporan Baru", value: stats.laporan_baru, icon: FileText, color: "text-red-600", bg: "bg-red-50" },
+          { label: "Dalam Proses", value: stats.dalam_proses, icon: Clock, color: "text-blue-600", bg: "bg-blue-50" },
+          { label: "Selesai", value: stats.selesai, icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50" },
+          { label: "Driver Aktif", value: stats.driver_aktif, icon: User, color: "text-purple-600", bg: "bg-purple-50" },
         ].map((s, i) => (
-          <div
-            key={i}
-            className="bg-white p-4 md:p-5 rounded-2xl border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-3 shadow-sm hover:shadow-md transition-shadow"
-          >
+          <div key={`penugasan-stat-${i}`} className="bg-white p-4 md:p-5 rounded-2xl border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
             <div className={`p-3 rounded-xl ${s.bg} ${s.color}`}>
               <s.icon size={24} />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] md:text-xs font-medium text-gray-500 uppercase tracking-wider">
-                {s.label}
-              </p>
-              <p className="text-sm md:text-xl font-black truncate">
-                {s.value}
-              </p>
+              <p className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider">{s.label}</p>
+              <p className="text-sm md:text-xl font-black truncate">{s.value}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* SEARCH */}
+      {/* SEARCH & FILTER */}
       <div className="bg-white rounded-2xl border-none shadow-sm p-3 md:p-4 flex flex-col lg:flex-row gap-4 justify-between items-stretch lg:items-center">
         <div className="relative flex-1">
-          <Search
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-            size={18}
-          />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input
             type="text"
             placeholder="Cari lokasi, driver, pelapor, atau nomor tugas..."
@@ -546,7 +508,7 @@ const openTugaskanModal = (item: Item) => {
 
         <select
           onChange={(e) => setFilter({ status: e.target.value })}
-          className="px-4 py-3 rounded-xl bg-gray-50 border-none outline-none text-sm"
+          className="px-4 py-3 rounded-xl bg-gray-50 border-none outline-none text-sm focus:ring-2 focus:ring-green-500/20"
         >
           <option value="">Semua Status</option>
           <option value="LAPORAN_BARU">Laporan Baru</option>
@@ -557,18 +519,17 @@ const openTugaskanModal = (item: Item) => {
 
         <button
           onClick={fetchData}
-          className="px-5 py-3 rounded-2xl bg-white text-[#4A6D55] font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+          className="px-5 py-3 rounded-xl bg-gray-50 text-gray-500 font-bold hover:bg-gray-200 transition-all flex items-center gap-2 justify-center"
         >
           <RefreshCw size={18} />
         </button>
       </div>
 
       {/* TABLE */}
-      <div className="bg-white rounded-2xl overflow-hidden shadow-sm overflow-x-auto border-none">
+      <div className="bg-white rounded-2xl overflow-hidden shadow-sm border-none overflow-x-auto">
         <table className="w-full text-left border-spacing-0 min-w-[1100px]">
           <thead>
-            <tr className="bg-gray-50 text-gray-400 text-[10px] font-bold uppercase tracking-widest">
-              <th className="px-6 py-4">Tugas</th>
+            <tr className="bg-gray-50 text-gray-400 text-[10px] font-bold uppercase tracking-widest border-b border-gray-100">
               <th className="px-6 py-4">Pelapor</th>
               <th className="px-6 py-4">Lokasi</th>
               <th className="px-6 py-4">Driver & Armada</th>
@@ -578,119 +539,95 @@ const openTugaskanModal = (item: Item) => {
             </tr>
           </thead>
 
-          <tbody>
+          <tbody className="divide-y divide-gray-50">
             {loading ? (
               <tr>
-                <td colSpan={7} className="text-center py-20">
-                  Loading...
-                </td>
+                <td colSpan={7} className="text-center py-20 text-gray-400 italic">Memuat data penugasan...</td>
               </tr>
             ) : paginatedItems.length === 0 ? (
               <tr>
-                <td colSpan={7} className="text-center py-20">
-                  Tidak ada data
-                </td>
+                <td colSpan={7} className="text-center py-20 text-gray-400 italic">Tidak ada data ditemukan.</td>
               </tr>
             ) : (
               paginatedItems.map((item) => (
-                <tr
-                  key={item.id}
-                  className="border-t hover:bg-slate-50 transition-colors"
-                >
-                  {/* TASK */}
-                  <td className="px-6 py-5">
-                    <div className="flex flex-col">
-                      <span className="font-bold">
-                        {item.taskNumber
-                          ? `#${item.taskNumber}`
-                          : "Laporan Baru"}
-                      </span>
-                    </div>
-                  </td>
-
+                <tr key={item.id} className="hover:bg-gray-50/80 transition-colors group">
                   {/* PELAPOR */}
                   <td className="px-6 py-5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                        <User size={14} className="text-gray-500" />
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-green-100 group-hover:text-green-600 transition-colors">
+                        <User size={14} />
                       </div>
                       <span className="text-sm font-semibold text-gray-700">
-                        {item.pelapor || item.report?.pelapor || "-"}
+                        {item.pelapor || item.report?.pelapor || "Anonim"}
                       </span>
                     </div>
                   </td>
 
+                  {/* LOKASI */}
                   <td className="px-6 py-5">
-                    <div>
-                      <p className="font-semibold text-sm text-gray-800">
-                        {item.location}
-                      </p>
-                      <p className="text-xs text-gray-400">{item.district}</p>
-                    </div>
+                    <p className="font-bold text-sm text-gray-900">{item.location}</p>
+                    <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
+                      <MapPin size={10} /> {item.district || "Area tidak terdeteksi"}
+                    </p>
                   </td>
 
+                  {/* DRIVER & ARMADA */}
                   <td className="px-6 py-5">
                     {item.status === "LAPORAN_BARU" ? (
-                      <span className="text-gray-400 text-sm">
-                        Belum Ditugaskan
-                      </span>
+                      <span className="text-xs italic text-gray-400">Belum Ditugaskan</span>
                     ) : (
                       <div>
-                        <p className="font-bold text-sm">
-                          {item.driver?.fullName}
-                        </p>
-                        <p className="text-xs text-blue-600 font-bold">
-                          {item.truck?.plateNumber}
+                        <p className="text-sm font-semibold text-gray-700">{item.driver?.fullName || "Tanpa Driver"}</p>
+                        <p className="text-[10px] font-mono mt-1">
+                          <span className="bg-gray-100 px-1.5 py-0.5 rounded-md text-gray-600 flex items-center gap-1 w-fit">
+                            <Truck size={10} /> {item.truck?.plateNumber || "-"}
+                          </span>
                         </p>
                       </div>
                     )}
                   </td>
 
+                  {/* JADWAL */}
                   <td className="px-6 py-5">
                     {item.scheduledAt ? (
                       <div>
-                        <p className="font-bold text-sm">
-                          {new Date(item.scheduledAt).toLocaleDateString(
-                            "id-ID"
-                          )}
+                        <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                          <Calendar size={12} className="text-gray-400" />
+                          {new Date(item.scheduledAt).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' })}
                         </p>
-                        <p className="text-xs text-gray-400">
-                          {new Date(item.scheduledAt).toLocaleTimeString(
-                            "id-ID"
-                          )}
+                        <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1.5">
+                          <Clock size={12} className="text-gray-400" />
+                          {new Date(item.scheduledAt).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' })} WIB
                         </p>
                       </div>
                     ) : (
-                      <span className="text-gray-400 text-sm">-</span>
+                      <span className="text-xs italic text-gray-400">-</span>
                     )}
                   </td>
 
+                  {/* STATUS */}
                   <td className="px-6 py-5 text-center">
                     <StatusBadge status={item.status} />
                   </td>
 
-                  <td className="px-6 py-5">
+                  {/* AKSI */}
+                  <td className="px-6 py-5 text-right">
                     <div className="flex justify-end gap-2">
                       {item.status === "LAPORAN_BARU" ? (
                         <>
                           <button
                             onClick={() => openTugaskanModal(item)}
-                            className="px-4 py-2 rounded-xl bg-[#4A6D55] text-white text-sm font-bold hover:bg-[#3a5643] transition-all shadow-sm"
+                            className="px-4 py-2 rounded-xl bg-[#4A6D55] text-white text-xs font-bold hover:bg-[#3a5643] transition-all shadow-sm"
                           >
                             Tugaskan
                           </button>
                           <button
-                            onClick={async () => {
-                              const ok = await confirm({
-                                title: 'Tolak Laporan?',
-                                description: `Aksi ini akan menolak laporan "${item.location || 'Laporan'}" secara permanen.`,
-                                confirmText: 'Ya, Tolak',
-                                cancelText: 'Batal'
-                              });
-                              if (!ok) return;
-                              handleTolak(item.id);
+                            onClick={() => {
+                              setPendingTolakId(item.id);
+                              setPendingTolakName(item.location || 'Laporan');
+                              setShowConfirmTolakDialog(true);
                             }}
-                            className="px-4 py-2 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-all shadow-sm"
+                            className="px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 text-xs font-bold transition-all shadow-sm"
                           >
                             Tolak
                           </button>
@@ -702,7 +639,7 @@ const openTugaskanModal = (item: Item) => {
                               setSelectedItem(item);
                               setShowDetailModal(true);
                             }}
-                            className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors inline-flex"
+                            className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors inline-flex"
                           >
                             <Eye size={16} />
                           </button>
@@ -710,24 +647,19 @@ const openTugaskanModal = (item: Item) => {
                           {item.status !== "SELESAI" && (
                             <button
                               onClick={() => openTugaskanModal(item)}
-                              className="p-2 bg-yellow-400 text-white rounded-lg hover:bg-yellow-500 transition-colors inline-flex shadow-sm"
+                              className="p-2 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100 transition-colors inline-flex"
                             >
                               <Repeat size={16} />
                             </button>
                           )}
 
                           <button
-                            onClick={async () => {
-                              const ok = await confirm({
-                                title: 'Hapus Data Penugasan?',
-                                description: `Aksi ini akan menghapus penugasan "${item.location || 'Penugasan'}" secara permanen dari sistem.`,
-                                confirmText: 'Hapus',
-                                cancelText: 'Batal'
-                              });
-                              if (!ok) return;
-                              handleDelete(item.id);
+                            onClick={() => {
+                              setPendingDeleteId(item.id);
+                              setPendingDeleteName(item.location || 'Penugasan');
+                              setShowConfirmDialog(true);
                             }}
-                            className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors inline-flex shadow-sm"
+                            className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors inline-flex"
                           >
                             <Trash2 size={16} />
                           </button>
@@ -741,50 +673,104 @@ const openTugaskanModal = (item: Item) => {
           </tbody>
         </table>
 
-        {/* PAGINATION */}
+        {/* ✅ [PERUBAHAN 5] Blok pagination — diubah total dari versi lama (hanya ChevronLeft/Right + nomor halaman sederhana)
+            menjadi versi baru identik dengan ManageSupir:
+            - Tambah ChevronsLeft (ke halaman pertama) dan ChevronsRight (ke halaman terakhir)
+            - Tambah info teks "Menampilkan X–Y dari Z penugasan"
+            - Gunakan penugasanPageNumbers dengan ellipsis (…) untuk banyak halaman
+            - Tombol nomor halaman aktif pakai warna brand #4A6D55 */}
         {!loading && filteredItems.length > 0 && (
-          <div className="bg-white border-t border-gray-100 px-6 py-4 flex items-center justify-between">
-            <p className="text-sm text-gray-500 font-medium">
-              Halaman {currentPage} dari {totalPages}
+          <div className="px-6 py-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+            {/* Info range data */}
+            <p className="text-xs text-gray-400 font-medium">
+              Menampilkan{" "}
+              <span className="font-bold text-gray-600">
+                {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
+                {Math.min(currentPage * ITEMS_PER_PAGE, filteredItems.length)}
+              </span>{" "}
+              dari{" "}
+              <span className="font-bold text-gray-600">{filteredItems.length}</span>{" "}
+              penugasan
             </p>
-            <div className="flex gap-2">
+
+            {/* Navigasi halaman */}
+            <div className="flex items-center gap-1">
+              {/* Ke halaman pertama */}
               <button
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                type="button"
+                onClick={() => setCurrentPage(1)}
                 disabled={currentPage === 1}
-                className="p-2 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                title="Halaman pertama"
               >
-                <ChevronLeft size={18} />
+                <ChevronsLeft size={16} />
               </button>
 
-              {Array.from({ length: totalPages }).map((_, i) => (
-                <button
-                  key={i + 1}
-                  onClick={() => setCurrentPage(i + 1)}
-                  className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                    currentPage === i + 1
-                      ? "bg-black text-white"
-                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                  }`}
-                >
-                  {i + 1}
-                </button>
-              ))}
-
+              {/* Halaman sebelumnya */}
               <button
-                onClick={() =>
-                  setCurrentPage(Math.min(totalPages, currentPage + 1))
-                }
-                disabled={currentPage === totalPages}
-                className="p-2 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                title="Halaman sebelumnya"
               >
-                <ChevronRight size={18} />
+                <ChevronLeft size={16} />
+              </button>
+
+              {/* Nomor halaman dengan ellipsis */}
+              <div className="flex items-center gap-1 mx-1">
+                {penugasanPageNumbers.map((page, i) =>
+                  page < 0 ? (
+                    <span
+                      key={`penugasan-ellipsis-${i}`}
+                      className="px-1 text-gray-400 text-xs font-bold select-none"
+                    >
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => setCurrentPage(page)}
+                      className={`min-w-[34px] h-[34px] rounded-lg text-xs font-bold transition-all ${
+                        currentPage === page
+                          ? "bg-[#4A6D55] text-white shadow-sm"
+                          : "text-gray-500 hover:bg-gray-100"
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )
+                )}
+              </div>
+
+              {/* Halaman berikutnya */}
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                title="Halaman berikutnya"
+              >
+                <ChevronRight size={16} />
+              </button>
+
+              {/* Ke halaman terakhir */}
+              <button
+                type="button"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                title="Halaman terakhir"
+              >
+                <ChevronsRight size={16} />
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* MODAL */}
+      {/* MODAL PENUGASAN */}
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
@@ -792,12 +778,12 @@ const openTugaskanModal = (item: Item) => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-none sm:rounded-3xl shadow-2xl w-full max-w-2xl min-h-screen sm:min-h-0 overflow-hidden my-auto"
+              className="bg-white rounded-none sm:rounded-3xl shadow-2xl w-full max-w-lg min-h-screen sm:min-h-0 overflow-hidden my-auto"
             >
               <div className="px-6 py-5 border-b flex justify-between items-center bg-gray-50">
                 <div>
-                  <h2 className="font-bold text-lg">Buat Penugasan</h2>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <h2 className="font-bold text-lg text-gray-900">Buat Penugasan</h2>
+                  <p className="text-[11px] text-gray-500 mt-0.5 uppercase tracking-wider font-bold">
                     Tentukan armada dan jadwal operasional
                   </p>
                 </div>
@@ -807,16 +793,15 @@ const openTugaskanModal = (item: Item) => {
                     resetForm();
                     setSelectedItem(null);
                   }}
-                  className="p-2 text-gray-400 hover:bg-gray-100 rounded-full transition-colors"
+                  className="p-2 text-gray-400 hover:bg-gray-200 rounded-full transition-colors"
                 >
-                  <X />
+                  <X size={18} />
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                {/* 🔥 DROPDOWN ARMADA - sekarang menampilkan nama driver dengan benar */}
+              <form onSubmit={handleSubmit} className="p-6 space-y-5">
                 <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block ml-1">
                     Armada / Truk
                   </label>
                   <select
@@ -827,7 +812,6 @@ const openTugaskanModal = (item: Item) => {
                       const selectedTruck = trukList.find(
                         (t) => t.id === e.target.value
                       );
-                      // 🔥 Ambil driverId dari operator atau driver
                       const driverId = selectedTruck
                         ? getDriverId(selectedTruck)
                         : "";
@@ -838,7 +822,7 @@ const openTugaskanModal = (item: Item) => {
                         driverId,
                       });
                     }}
-                    className="w-full p-3 bg-gray-50 border-none rounded-xl outline-none text-sm focus:ring-1 focus:ring-green-500"
+                    className="w-full p-3.5 bg-gray-50 border border-gray-100 rounded-xl outline-none text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all font-medium"
                   >
                     <option value="">-- Pilih Armada --</option>
                     {trukList.map((t) => {
@@ -856,41 +840,26 @@ const openTugaskanModal = (item: Item) => {
                   </select>
                 </div>
 
-                {/* 🔥 INFO DRIVER - tampil setelah armada dipilih */}
                 {formData.truckId && (
-                  <div
-                    className={`border rounded-2xl p-4 ${
-                      hasDriver
-                        ? "bg-green-50 border-green-100"
-                        : "bg-amber-50 border-amber-100"
-                    }`}
-                  >
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`border rounded-2xl p-4 ${hasDriver ? "bg-green-50 border-green-100" : "bg-amber-50 border-amber-100"}`}>
                     {hasDriver ? (
                       <>
-                        <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider">
-                          Driver Terpilih
+                        <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider flex items-center gap-1.5">
+                          <CheckCircle2 size={12} /> Driver Terpilih
                         </p>
-                        <p className="text-lg font-black text-green-900 mt-1">
-                          {selectedDriverName}
-                        </p>
+                        <p className="text-lg font-black text-green-900 mt-1">{selectedDriverName}</p>
                       </>
                     ) : (
                       <>
-                        <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">
-                          ⚠️ Armada Tanpa Driver
-                        </p>
-                        <p className="text-sm text-amber-700 mt-1">
-                          Armada ini belum memiliki driver. Silakan assign
-                          driver terlebih dahulu di menu Manajemen Armada.
-                        </p>
+                        <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">⚠️ Armada Tanpa Driver</p>
+                        <p className="text-xs text-amber-700 mt-1 font-medium leading-relaxed">Armada ini belum memiliki driver. Silakan assign driver terlebih dahulu di menu Manajemen Armada.</p>
                       </>
                     )}
-                  </div>
+                  </motion.div>
                 )}
 
-                {/* JADWAL */}
                 <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block ml-1">
                     Jadwal Pelaksanaan
                   </label>
                   <input
@@ -900,27 +869,40 @@ const openTugaskanModal = (item: Item) => {
                     value={formData.scheduledAt}
                     onChange={handleInputChange}
                     min={minScheduleValue}
-                    className="w-full p-3 bg-gray-50 border-none rounded-xl outline-none text-sm focus:ring-1 focus:ring-green-500"
+                    className="w-full p-3.5 bg-gray-50 border border-gray-100 rounded-xl outline-none text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all font-medium"
                   />
-                  <p className="mt-1 text-[11px] text-gray-500">
+                  <p className="mt-1 text-[11px] text-gray-500 ml-1">
                     Minimal jadwal {MIN_SCHEDULE_DAYS} hari dari waktu saat ini.
                   </p>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={!hasDriver && !!formData.truckId}
-                  className="w-full py-4 bg-[#4A6D55] text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg hover:bg-[#3a5643] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Konfirmasi Penugasan
-                </button>
+                <div className="pt-4 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowModal(false);
+                      resetForm();
+                      setSelectedItem(null);
+                    }}
+                    className="flex-1 px-6 py-4 rounded-xl text-gray-600 font-bold hover:bg-gray-100 transition-all"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!hasDriver && !!formData.truckId}
+                    className="flex-[2] py-4 bg-[#4A6D55] text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-green-900/20 hover:bg-[#3a5643] transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                  >
+                    Konfirmasi Penugasan
+                  </button>
+                </div>
               </form>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
-      {/* DETAIL */}
+      {/* DETAIL MODAL */}
       {showDetailModal && selectedItem && (
         <PenugasanDetail
           penugasan={selectedItem}
@@ -940,8 +922,33 @@ const openTugaskanModal = (item: Item) => {
         icon={successIcon}
         onClose={() => setShowSuccessDialog(false)}
       />
+      <ConfirmDialog
+        open={showConfirmDialog}
+        title="Hapus Data Penugasan?"
+        description={`Aksi ini akan menghapus penugasan "${pendingDeleteName}" secara permanen dari sistem.`}
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        onConfirm={handleDelete}
+        onCancel={() => {
+          setShowConfirmDialog(false);
+          setPendingDeleteId(null);
+          setPendingDeleteName('');
+        }}
+      />
 
-      {/* Delete/Reject handled via ConfirmProvider */}
+      <ConfirmDialog
+        open={showConfirmTolakDialog}
+        title="Tolak Laporan?"
+        description={`Aksi ini akan menolak laporan "${pendingTolakName}" secara permanen.`}
+        confirmText="Ya, Tolak"
+        cancelText="Batal"
+        onConfirm={handleTolak}
+        onCancel={() => {
+          setShowConfirmTolakDialog(false);
+          setPendingTolakId(null);
+          setPendingTolakName('');
+        }}
+      />
     </div>
   );
 }
