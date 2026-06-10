@@ -300,15 +300,14 @@ export default function KelolaKabid() {
     <div className="max-w-7xl mx-auto space-y-8 p-4">
       <Toaster position="top-right" />
       
-      {/* Success Dialog */}
-      <AlertDialog
-        open={showSuccessDialog}
-        title={successTitle}
-        description={successDescription}
-        buttonText="OK"
-        icon={successIcon}
-        onClose={() => setShowSuccessDialog(false)}
-      />
+        <AlertDialog
+          open={showSuccessDialog}
+          title={successTitle}
+          description={successDescription}
+          buttonText="OK"
+          type="success"
+          onClose={() => setShowSuccessDialog(false)}
+        />
 
       {/* Error Dialog */}
       {showErrorDialog && (

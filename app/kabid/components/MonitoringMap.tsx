@@ -1,13 +1,7 @@
 // app/kabid/components/MonitoringMap.tsx
-// PERBAIKAN UTAMA:
-//   1. toF() sekarang lebih robust — handle null, undefined, string, number
-//   2. Kondisi skip truk diubah: hanya skip jika KEDUANYA null/undefined (bukan jika 0,0)
-//   3. Marker existing di-update zIndexOffset saat selectedTruck berubah
-//   4. useEffect markers tidak bergantung pada referensi fungsi onSelectTruck (pakai ref)
-//   5. Cleanup marker saat unmount agar tidak memory leak
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
@@ -30,9 +24,6 @@ const createTruckIcon = (isBusy: boolean, isSelected: boolean): L.DivIcon => {
     ? `drop-shadow(0 0 6px ${color})`
     : 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))';
 
-  // ============================================================
-  // LOGO TRUK SEDERHANA (seperti emoji 🚛)
-  // ============================================================
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 48 48">
   ${isSelected ? `
@@ -40,13 +31,13 @@ const createTruckIcon = (isBusy: boolean, isSelected: boolean): L.DivIcon => {
     <animate attributeName="r" values="20;24;20" dur="1.6s" repeatCount="indefinite"/>
     <animate attributeName="opacity" values="0.6;0.1;0.6" dur="1.6s" repeatCount="indefinite"/>
   </circle>` : ''}
-  
+
   <!-- Lingkaran latar belakang -->
   <circle cx="24" cy="24" r="${isSelected ? 19 : 17}" fill="${color}" stroke="white" stroke-width="2.5"
     style="filter:${shadow}"/>
-  
+
   <!-- Emoji Truk 🚛 -->
-  <text x="24" y="24" text-anchor="middle" dominant-baseline="central" 
+  <text x="24" y="24" text-anchor="middle" dominant-baseline="central"
     font-size="${isSelected ? 22 : 18}" fill="white">🚛</text>
 </svg>`;
 
@@ -56,6 +47,31 @@ const createTruckIcon = (isBusy: boolean, isSelected: boolean): L.DivIcon => {
     iconSize:    [size, size],
     iconAnchor:  [half, half],
     popupAnchor: [0, -(half + 4)],
+  });
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IKON WAYPOINT BERNOMOR
+// ─────────────────────────────────────────────────────────────────────────────
+const createWaypointIcon = (idx: number, total: number): L.DivIcon => {
+  const isFirst = idx === 0;
+  const isLast  = idx === total - 1;
+  const bg      = isFirst ? '#16a34a' : isLast ? '#dc2626' : '#2563eb';
+  const label   = isFirst ? '▶' : isLast ? '■' : String(idx + 1);
+
+  return L.divIcon({
+    html: `
+<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+  <circle cx="14" cy="14" r="12" fill="${bg}" stroke="white" stroke-width="2.5"
+    style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.35))"/>
+  <text x="14" y="14" text-anchor="middle" dominant-baseline="central"
+    font-family="Arial,sans-serif" font-size="${label.length > 1 ? 9 : 12}"
+    font-weight="900" fill="white">${label}</text>
+</svg>`,
+    className:   'kabid-wp-icon',
+    iconSize:    [28, 28],
+    iconAnchor:  [14, 14],
+    popupAnchor: [0, -18],
   });
 };
 
@@ -92,8 +108,8 @@ interface MonitoringMapProps {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PERBAIKAN UTAMA #1 — Helper parse koordinat yang robust
-//
+// Helper parse koordinat yang robust
+// ─────────────────────────────────────────────────────────────────────────────
 
 /** Return true jika nilai bisa diparse menjadi angka finite dan bukan null/undefined/'' */
 const hasValidCoord = (v: any): boolean => {
@@ -120,12 +136,11 @@ export default function MonitoringMap({
   const trailGrpRef = useRef<L.LayerGroup | null>(null);
   const fittedRef   = useRef(false);
 
-  // PERBAIKAN #2 — Simpan onSelectTruck di ref agar tidak trigger re-render
-  // saat callback berubah referensi (Next.js sering buat closure baru tiap render)
+  // Simpan onSelectTruck di ref agar tidak trigger re-render
   const onSelectRef = useRef(onSelectTruck);
   useEffect(() => { onSelectRef.current = onSelectTruck; }, [onSelectTruck]);
 
-  // ── 1. Init map ─────────────────────────────────────────────────────────────
+  // ── 1. Init map ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (mapRef.current) return;
 
@@ -143,7 +158,6 @@ export default function MonitoringMap({
     mapRef.current = L.map('kabid-map', {
       zoomControl: true,
       attributionControl: false,
-      // PERBAIKAN #3 — prefer canvas renderer (lebih performa untuk banyak marker)
       preferCanvas: false,
     }).setView([2.3333, 99.0], 12);
 
@@ -155,23 +169,19 @@ export default function MonitoringMap({
     trailGrpRef.current = L.layerGroup().addTo(mapRef.current);
   }, []);
 
-  // ── 2. Render / update marker semua truk ────────────────────────────────────
+  // ── 2. Render / update marker semua truk ─────────────────────────────────────
   useEffect(() => {
     if (!mapRef.current) return;
 
-    const selectedId = selectedTruck?.id ?? null;
+    const selectedId  = selectedTruck?.id ?? null;
     const existingIds = new Set<string>();
 
     trucks.forEach(truck => {
-      // PERBAIKAN #4 — Cek dengan hasValidCoord, bukan "=== 0"
-      // Ini fix utama kenapa truk tidak muncul:
-      //   - currentLat bisa berupa null, "null", "", undefined → semua diskip dengan benar
-      //   - currentLat = "2.333" atau 2.333 → valid, muncul di map
       const latRaw = truck.currentLat  ?? truck.current_lat;
       const lngRaw = truck.currentLong ?? truck.current_long ?? truck.currentLng;
 
       if (!hasValidCoord(latRaw) || !hasValidCoord(lngRaw)) {
-        // Truk tanpa GPS — hapus marker lama jika ada, skip
+        // Truk tanpa GPS — hapus marker lama jika ada
         if (markersRef.current[truck.id]) {
           markersRef.current[truck.id].remove();
           delete markersRef.current[truck.id];
@@ -189,10 +199,9 @@ export default function MonitoringMap({
       existingIds.add(String(truck.id));
 
       if (markersRef.current[truck.id]) {
-        // Update posisi + icon + zIndex untuk marker yang sudah ada
+        // Update marker yang sudah ada
         markersRef.current[truck.id].setLatLng([lat, lng]);
         markersRef.current[truck.id].setIcon(icon);
-        // PERBAIKAN #5 — update zIndexOffset (method ini ada di Leaflet)
         markersRef.current[truck.id].setZIndexOffset(isSelected ? 1000 : 0);
       } else {
         // Buat marker baru
@@ -207,9 +216,7 @@ export default function MonitoringMap({
           zIndexOffset: isSelected ? 1000 : 0,
         }).addTo(mapRef.current!);
 
-        // Buat popup konten
-// Buat popup konten (disesuaikan dengan logo sederhana 🚛)
-const popupContent = `
+        const popupContent = `
   <div style="min-width:200px;font-family:'Segoe UI',Arial,sans-serif;padding:2px">
     <div style="font-weight:800;font-size:14px;margin:0 0 5px;color:#111">
       🚛 ${truck.plateNumber}
@@ -232,15 +239,15 @@ const popupContent = `
   </div>
 `;
 
-marker.bindPopup(popupContent, { maxWidth: 240 });
+        marker.bindPopup(popupContent, { maxWidth: 240 });
 
-marker.on('popupopen', () => {
-  const btn = document.getElementById(`kbpopup-${truck.id}`);
-  if (btn) btn.onclick = () => onSelectRef.current(truck);
-});
-marker.on('click', () => onSelectRef.current(truck));
+        marker.on('popupopen', () => {
+          const btn = document.getElementById(`kbpopup-${truck.id}`);
+          if (btn) btn.onclick = () => onSelectRef.current(truck);
+        });
+        marker.on('click', () => onSelectRef.current(truck));
 
-markersRef.current[truck.id] = marker;
+        markersRef.current[truck.id] = marker;
       }
     });
 
@@ -252,7 +259,7 @@ markersRef.current[truck.id] = marker;
       }
     });
 
-    // Fit bounds ke semua truk — hanya sekali saat pertama load dan belum ada selectedTruck
+    // Fit bounds ke semua truk — hanya sekali saat pertama load
     if (!fittedRef.current && !selectedTruck) {
       const valid = trucks.filter(t => {
         const lat = t.currentLat  ?? t.current_lat;
@@ -271,11 +278,12 @@ markersRef.current[truck.id] = marker;
             { padding: [50, 50], maxZoom: 14 }
           );
         } catch (e) {
-          // Fallback jika bounds error (misalnya semua titik sama)
           const first = valid[0];
           mapRef.current.setView(
-            [toCoord(first.currentLat ?? first.current_lat),
-             toCoord(first.currentLong ?? first.current_long ?? first.currentLng)],
+            [
+              toCoord(first.currentLat  ?? first.current_lat),
+              toCoord(first.currentLong ?? first.current_long ?? first.currentLng),
+            ],
             13
           );
         }
@@ -283,7 +291,7 @@ markersRef.current[truck.id] = marker;
     }
   }, [trucks, selectedTruck]);
 
-  // ── 3. Fly + gambar rute saat selectedTruck berubah ─────────────────────────
+  // ── 3. Fly + gambar rute saat selectedTruck berubah ──────────────────────────
   useEffect(() => {
     if (!mapRef.current || !routeGrpRef.current) return;
     routeGrpRef.current.clearLayers();
@@ -293,8 +301,8 @@ markersRef.current[truck.id] = marker;
     const lngRaw = selectedTruck.currentLong ?? selectedTruck.current_long ?? selectedTruck.currentLng;
 
     const hasPos = hasValidCoord(latRaw) && hasValidCoord(lngRaw);
-    const lat = hasPos ? toCoord(latRaw) : null;
-    const lng = hasPos ? toCoord(lngRaw) : null;
+    const lat    = hasPos ? toCoord(latRaw) : null;
+    const lng    = hasPos ? toCoord(lngRaw) : null;
 
     if (lat !== null && lng !== null) {
       mapRef.current.flyTo([lat, lng], 14, { duration: 1.3, easeLinearity: 0.5 });
@@ -343,8 +351,10 @@ markersRef.current[truck.id] = marker;
         icon: createWaypointIcon(idx, rute.waypoints.length),
       })
         .addTo(routeGrpRef.current!)
-        .bindTooltip(`<b style="font-size:12px">${label} — ${nama}</b>`,
-          { permanent: false, direction: 'top', offset: [0, -10] });
+        .bindTooltip(
+          `<b style="font-size:12px">${label} — ${nama}</b>`,
+          { permanent: false, direction: 'top', offset: [0, -10] }
+        );
     });
 
     // Fit bounds: seluruh rute + posisi truk
@@ -353,7 +363,7 @@ markersRef.current[truck.id] = marker;
     mapRef.current.fitBounds(L.latLngBounds(allPts), { padding: [60, 60], maxZoom: 15 });
   }, [selectedTruck]);
 
-  // ── 4. Gambar riwayat jalur GPS (trail biru) ─────────────────────────────────
+  // ── 4. Gambar riwayat jalur GPS (trail biru) ──────────────────────────────────
   useEffect(() => {
     if (!trailGrpRef.current) return;
     trailGrpRef.current.clearLayers();
@@ -392,7 +402,7 @@ markersRef.current[truck.id] = marker;
     });
   }, [historyTrail]);
 
-  // ── 5. Cleanup ───────────────────────────────────────────────────────────────
+  // ── 5. Cleanup ────────────────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       if (mapRef.current) {
@@ -426,7 +436,7 @@ markersRef.current[truck.id] = marker;
               <rect x="-2" y="-7" width="14" height="9" rx="1"/>
               <rect x="-14" y="-3" width="2.5" height="5" rx="1"/>
               <circle cx="-8" cy="4" r="2.5" fill="#059669" stroke="white" strokeWidth="1"/>
-              <circle cx="8" cy="4" r="2.5" fill="#059669" stroke="white" strokeWidth="1"/>
+              <circle cx="8" cy="4" r="2.5" fill="#6b7280" stroke="white" strokeWidth="1"/>
             </g>
           </svg>
           <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'sans-serif', color: '#374151' }}>

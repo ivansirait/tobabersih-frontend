@@ -333,7 +333,7 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-3">
             <Link href="/login" className="hidden sm:block text-white hover:text-green-400 font-bold px-4 transition-colors">Login</Link>
-            <Link href="/Warga" className="bg-green-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-green-700 transition-all active:scale-95">Lapor!</Link>
+            <Link href="/warga" className="bg-green-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-green-700 transition-all active:scale-95">Lapor!</Link>
           </div>
         </div>
       </nav>
@@ -426,7 +426,7 @@ export default function HomePage() {
       <section id="tentang" className="py-24 px-6 bg-slate-50">
         <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
           <div className="rounded-[1.5rem] overflow-hidden group shadow-lg transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl hover:shadow-green-900/10">
-            <img src="/kantor_dinas.jpg" className="w-full h-[400px] object-cover transition-transform duration-700 group-hover:scale-105" alt="Hero" />
+            <img src="/KantorDinas.jpeg" className="w-full h-[400px] object-cover transition-transform duration-700 group-hover:scale-105" alt="Hero" />
           </div>
           <div>
             <span className="text-green-600 font-bold tracking-widest text-sm">PROFIL LEMBAGA</span>

@@ -942,7 +942,7 @@ export default function ManagePenugasan() {
         title={successTitle}
         description={successDescription}
         buttonText="OK"
-        icon={successIcon}
+        type="success"
         onClose={() => setShowSuccessDialog(false)}
       />
 

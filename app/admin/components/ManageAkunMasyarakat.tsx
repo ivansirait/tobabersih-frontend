@@ -549,14 +549,14 @@ const stats = useMemo(() => ({
     <div className="max-w-7xl mx-auto space-y-8 p-4">
       <Toaster position="top-right" />
 
-      <AlertDialog
-        open={showSuccessDialog}
-        title={successTitle}
-        description={successDescription}
-        buttonText="OK"
-        icon={<CheckCircle2 size={24} />}
-        onClose={() => setShowSuccessDialog(false)}
-      />
+<AlertDialog
+  open={showSuccessDialog}
+  title={successTitle}
+  description={successDescription}
+  buttonText="OK"
+  type="success"
+  onClose={() => setShowSuccessDialog(false)}
+/>
 
       {/* Header */}
       <div className="bg-gradient-to-r from-[#DDE9E1] to-[#E8F1EB] rounded-[24px] p-8 shadow-sm border border-white/50">

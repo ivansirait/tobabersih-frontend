@@ -70,7 +70,8 @@ export default function AdminPage() {
     supir: [],
     truk: [],
     wilayah: [],
-    penugasan: []
+    penugasan: [],
+    galleries: []
   });
 
   const [laporanList, setLaporanList] = useState([]);

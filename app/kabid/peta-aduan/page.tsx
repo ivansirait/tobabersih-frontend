@@ -31,7 +31,11 @@ export default function PetaAduanPage() {
     startDate: '',
     endDate: ''
   });
-  const [filterOptions, setFilterOptions] = useState({ kecamatan: [], status: [], jenisSampah: [] });
+const [filterOptions, setFilterOptions] = useState<{
+  kecamatan: string[];
+  status: string[];
+  jenisSampah: string[];
+}>({ kecamatan: [], status: [], jenisSampah: [] });
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -86,9 +90,9 @@ export default function PetaAduanPage() {
       
       setStats({
         total: formattedTitik.length,
-        pending: formattedTitik.filter(p => p.status === 'PENDING').length,
-        diproses: formattedTitik.filter(p => p.status === 'DITINDAKLANJUTI').length,
-        selesai: formattedTitik.filter(p => p.status === 'SELESAI').length
+pending: formattedTitik.filter((p: any) => p.status === 'PENDING').length,
+diproses: formattedTitik.filter((p: any) => p.status === 'DITINDAKLANJUTI').length,
+selesai: formattedTitik.filter((p: any) => p.status === 'SELESAI').length
       });
       
     } catch (error: any) {
@@ -130,31 +134,30 @@ export default function PetaAduanPage() {
       setTitikAduan(titikConverted);
       setStats({
         total: titikConverted.length,
-        pending: titikConverted.filter(p => p.status === 'PENDING').length,
-        diproses: titikConverted.filter(p => p.status === 'DITINDAKLANJUTI').length,
-        selesai: titikConverted.filter(p => p.status === 'SELESAI').length
+        pending: titikConverted.filter((p: any) => p.status === 'PENDING').length,
+        diproses: titikConverted.filter((p: any) => p.status === 'DITINDAKLANJUTI').length,
+        selesai: titikConverted.filter((p: any) => p.status === 'SELESAI').length
       });
     } catch (fallbackError) {
       console.error('Fallback error:', fallbackError);
     }
   };
 
-  const fetchFilterOptions = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get(`${API_BASE_URL}/kabid/filter-options`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setFilterOptions(res.data.data);
-    } catch (error) {
-      setFilterOptions({
-        kecamatan: [],
-        status: ['PENDING', 'DITINDAKLANJUTI', 'SELESAI'],
-        jenisSampah: []
-      });
-    }
-  };
-
+const fetchFilterOptions = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await axios.get(`${API_BASE_URL}/kabid/filter-options`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    setFilterOptions(res.data.data);
+  } catch (error) {
+    setFilterOptions({
+      kecamatan: [] as string[],
+      status: ['PENDING', 'DITINDAKLANJUTI', 'SELESAI'] as string[],
+      jenisSampah: [] as string[]
+    });
+  }
+};
   const applyFilters = () => {
     fetchData();
     setShowFilter(false);

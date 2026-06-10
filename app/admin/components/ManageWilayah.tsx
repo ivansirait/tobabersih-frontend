@@ -38,7 +38,7 @@ interface InlineAlert {
 
 interface AlertState {
   open: boolean;
-  type: "success" | "error" | "warning" | "info" | "delete" | "loading" | "edit";
+  type: "success" | "error" | "delete" | "loading" | "edit" | "info";
   title: string;
   description: string;
   detailText?: string;
@@ -92,14 +92,14 @@ export default function ManageWilayah() {
   });
 
   // ── showAlert mengikuti signature ManageSupir ──
-  const showAlert = (
-    type: "success" | "error" | "warning" | "delete" | "edit",
-    title: string,
-    description: string,
-    detailText?: string
-  ) => {
-    setAlertState({ open: true, type, title, description, detailText });
-  };
+const showAlert = (
+  type: "success" | "error" | "delete" | "edit",
+  title: string,
+  description: string,
+  detailText?: string
+) => {
+  setAlertState({ open: true, type, title, description, detailText });
+};
 
   const closeAlert = () => {
     setAlertState((prev) => ({ ...prev, open: false }));

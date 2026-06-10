@@ -8,7 +8,6 @@ import {
   XAxis, YAxis, CartesianGrid,
   Tooltip, AreaChart, Area, ResponsiveContainer
 } from 'recharts';
-import PredictionWidget from './Gakguna/PredictionWidget';
 
 interface Laporan {
   id?: string;

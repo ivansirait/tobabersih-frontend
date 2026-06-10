@@ -107,9 +107,9 @@ export default function RekapPage() {
           ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
           : 'application/pdf';
 
-      const mimeType = contentTypeHeader.includes('application/')
-        ? res.headers['content-type'].toString()
-        : inferredMime;
+const mimeType = contentTypeHeader.includes('application/')
+  ? (res.headers['content-type']?.toString() ?? inferredMime)
+  : inferredMime;
 
       const blob =
         res.data instanceof Blob ? res.data : new Blob([res.data as any], { type: mimeType });

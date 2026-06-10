@@ -20,11 +20,11 @@
 
   // Import Komponen Manajemen Berdasarkan Code Anda Sebelumnya
   // Sesuaikan path import ini dengan struktur folder project Anda
-  import ManageWilayah from './ManageWilayah'; 
-  import ManageTruk from './ManageTruk';
-  import ManageSupir from './ManageSupir';
-  import ManajemenRute from './ManajemenRute';
-  import ManagePenugasan from './ManagePenugasan';
+import ManageWilayah  from '../../admin/components/ManageWilayah';
+import ManageTruk     from '../../admin/components/ManageTruk';
+import ManageSupir    from '../../admin/components/ManageSupir';
+import ManajemenRute  from '../../admin/components/ManageRute';
+import ManagePenugasan from '../../admin/components/ManageLayananAduan';
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
   const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
@@ -242,7 +242,7 @@
                             outerRadius={95}
                             innerRadius={45}
                             paddingAngle={3}
-                            label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                            label={({ name, percent }) => `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`}
                             style={{ fontSize: '10px', fontWeight: 'bold' }}
                           >
                             {filteredKategoriTerbanyak.map((entry: any, index: number) => (

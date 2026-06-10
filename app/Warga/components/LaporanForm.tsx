@@ -316,7 +316,7 @@ export default function LaporanForm({
 
   // ✅ PERUBAHAN: Tombol kirim hanya dinonaktifkan saat loading atau foto bermasalah.
   // Lokasi tidak terdeteksi atau sedang verifikasi TIDAK memblokir tombol.
-  const isSubmitDisabled = loading || !!qualityError;
+  const isSubmitDisabled = loading || !!qualityError || !isLocationRegistered || isCheckingLocation;
 
   return (
     <section className="overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-slate-200/70">
@@ -585,13 +585,17 @@ export default function LaporanForm({
             disabled={isSubmitDisabled}
             className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-green-700 py-4 text-base font-bold text-white shadow-lg shadow-green-700/20 transition-all hover:bg-green-800 hover:shadow-green-800/25 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading ? (
-              <><span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" /> Mengirim Laporan...</>
-            ) : qualityError ? (
-              <><AlertCircle size={20} /> Perbaiki Foto Terlebih Dahulu</>
-            ) : (
-              <><Send size={20} /> Kirim Laporan</>
-            )}
+          {loading ? (
+            <><span className="h-5 w-5 animate-spin ..." /> Mengirim Laporan...</>
+          ) : isCheckingLocation ? (
+            <><span className="h-5 w-5 animate-spin ..." /> Memverifikasi Wilayah...</>  // ← TAMBAH INI
+          ) : qualityError ? (
+            <><AlertCircle size={20} /> Perbaiki Foto Terlebih Dahulu</>
+          ) : !isLocationRegistered ? (
+            <><AlertCircle size={20} /> Lokasi di Luar Wilayah Operasional</>  // ← TAMBAH INI
+          ) : (
+            <><Send size={20} /> Kirim Laporan</>
+          )}
           </button>
         </form>
       </div>
