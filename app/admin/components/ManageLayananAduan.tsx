@@ -36,6 +36,13 @@ const API_BASE_URL = "/api";
 // ✅ [PERUBAHAN 2] Konstanta ITEMS_PER_PAGE — dipindah ke level modul agar konsisten dengan ManageSupir
 const ITEMS_PER_PAGE = 12;
 
+// Helper function to safely format coordinates
+const formatCoordinate = (coord: any, decimals: number = 5): string | null => {
+  if (!coord) return null;
+  const num = typeof coord === 'string' ? parseFloat(coord) : coord;
+  return Number.isFinite(num) ? num.toFixed(decimals) : null;
+};
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 15000,
@@ -60,6 +67,8 @@ interface Penugasan {
   taskNumber?: string;
   status: string;
   location: string;
+  latitude?: number;
+  longitude?: number;
   district?: string;
   scheduledAt?: string;
   description?: string;
@@ -71,6 +80,8 @@ interface Penugasan {
     description?: string;
     jenisSampah?: string;
     pelapor?: string;
+    latitude?: number;
+    longitude?: number;
   };
 
   driver?: {
@@ -211,6 +222,8 @@ export default function ManagePenugasan() {
           location: typeof item.location === "string"
             ? item.location
             : item.location?.name || item.description || "Lokasi tidak tersedia",
+          latitude: item.latitude || item.koordinat?.latitude,
+          longitude: item.longitude || item.koordinat?.longitude,
           district: item.jenisSampah,
           description: item.description,
           pelapor: item.pelapor,
@@ -219,6 +232,8 @@ export default function ManagePenugasan() {
             description: item.description,
             jenisSampah: item.jenisSampah,
             pelapor: item.pelapor,
+            latitude: item.latitude || item.koordinat?.latitude,
+            longitude: item.longitude || item.koordinat?.longitude,
           },
         }));
 
@@ -566,9 +581,18 @@ export default function ManagePenugasan() {
                   {/* LOKASI */}
                   <td className="px-6 py-5">
                     <p className="font-bold text-sm text-gray-900">{item.location}</p>
-                    <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
-                      <MapPin size={10} /> {item.district || "Area tidak terdeteksi"}
-                    </p>
+                    {formatCoordinate(item.latitude) && formatCoordinate(item.longitude) ? (
+                      <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
+                        <MapPin size={10} /> 
+                        <span className="font-mono">
+                          {formatCoordinate(item.latitude)}, {formatCoordinate(item.longitude)}
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
+                        <MapPin size={10} /> {item.district || "Area tidak terdeteksi"}
+                      </p>
+                    )}
                   </td>
 
                   {/* DRIVER & ARMADA */}
@@ -922,6 +946,7 @@ export default function ManagePenugasan() {
         icon={successIcon}
         onClose={() => setShowSuccessDialog(false)}
       />
+
       <ConfirmDialog
         open={showConfirmDialog}
         title="Hapus Data Penugasan?"

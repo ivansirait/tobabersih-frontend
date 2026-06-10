@@ -287,7 +287,7 @@ export default function ManageGalleries({ galleries, onGalleriesUpdate }: Manage
     } finally {
       setSavingAlbum(false);
     }
-  };
+  }
 
   const savePhotos = async () => {
     const readyFiles = photoFiles.filter((p) => p.done && p.url);

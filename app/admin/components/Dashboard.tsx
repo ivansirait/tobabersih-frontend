@@ -304,7 +304,7 @@ export default function Dashboard({ laporanList, posts, loading = false }: Dashb
               <h3 className="text-base sm:text-lg font-bold text-slate-900">Analitik Laporan</h3>
               <p className="text-xs sm:text-sm text-slate-500">Statistik 7 hari terakhir</p>
             </div>
-            <div className="flex items-center gap-1 md:gap-2 text-green-600 bg-green-50 px-2 sm:px-3 py-1 rounded-full text-xs font-bold border border-green-100">
+            <div className="flex items-center  gap-1 md:gap-2 text-green-600 bg-green-50 px-2 sm:px-3 py-1 rounded-full text-xs font-bold border border-green-100">
               <TrendingUp size={14} /> Tren
             </div>
           </div>

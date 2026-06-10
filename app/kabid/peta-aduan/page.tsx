@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   MapPin, Filter, X, RefreshCw, Clock, CheckCircle2, 
-  AlertCircle, AlertTriangle, FileText, Layers, TrendingUp, 
+  AlertCircle, AlertTriangle, FileText, Layers, 
   Eye, Calendar, Globe, ExternalLink, User
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
@@ -24,7 +24,7 @@ export default function PetaAduanPage() {
   const [selectedPoint, setSelectedPoint] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
-  const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
+  // ✅ HAPUS activeTab - tidak perlu lagi karena hanya 1 tab
   const [filters, setFilters] = useState({
     status: '',
     district: '',
@@ -304,111 +304,51 @@ export default function PetaAduanPage() {
               kecamatan={kecamatan}
               center={[2.3494, 99.1039]}
               zoom={12}
-              onSelectPoint={handleOpenPopup} // Klik pin peta langsung buka pop-up juga
+              onSelectPoint={handleOpenPopup}
             />
           </div>
         </div>
 
-        {/* Sidebar Navigasi Konten (1 Kolom) */}
+        {/* ✅ Sidebar DAFTAR ADUAN SAJA (tanpa tab Regional Insight) */}
         <div className="lg:col-span-1 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[580px]">
-          <div className="flex border-b bg-gray-50/50">
-            <button
-              onClick={() => setActiveTab('list')}
-              className={`flex-1 py-3.5 text-xs font-bold tracking-wide border-b-2 transition-all flex items-center justify-center gap-2 ${
-                activeTab === 'list' ? 'text-green-700 border-green-600 bg-white font-extrabold' : 'text-gray-400 border-transparent hover:text-gray-600'
-              }`}
-            >
-              <Layers size={14} /> Daftar Aduan
-            </button>
-            <button
-              onClick={() => setActiveTab('stats')}
-              className={`flex-1 py-3.5 text-xs font-bold tracking-wide border-b-2 transition-all flex items-center justify-center gap-2 ${
-                activeTab === 'stats' ? 'text-green-700 border-green-600 bg-white font-extrabold' : 'text-gray-400 border-transparent hover:text-gray-600'
-              }`}
-            >
-              <TrendingUp size={14} /> Regional Insight
-            </button>
+          {/* Header Sidebar - Langsung Daftar Aduan tanpa tab */}
+          <div className="border-b bg-gray-50/50 py-3.5 px-4">
+            <p className="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-2">
+              <Layers size={14} /> LOG ADUAN MASUK ({titikAduan.length})
+            </p>
           </div>
 
-          {/* Body Scrollbar Tab Sidebar */}
+          {/* Body Scrollbar Daftar Aduan */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {activeTab === 'list' ? (
-              <>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">LOG ADUAN MASUK ({titikAduan.length})</p>
-                {titikAduan.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400">
-                    <MapPin size={28} className="mx-auto text-gray-300 mb-1" />
-                    <p className="text-xs font-bold">Belum Ada Sinyal Laporan</p>
-                  </div>
-                ) : (
-                  titikAduan.map((point, idx) => (
-                    <div
-                      key={point.id || idx}
-                      onClick={() => handleOpenPopup(point)} // Trigger Pop-up Modal saat list diklik
-                      className="p-3 bg-gray-50/50 hover:bg-emerald-50/20 border border-gray-100 hover:border-emerald-200 rounded-xl cursor-pointer transition-all hover:shadow-sm group text-left"
-                    >
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <div className="flex items-center gap-1.5">
-                          {getStatusIcon(point.status)}
-                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border tracking-wide uppercase ${getStatusColor(point.status)}`}>
-                            {point.status === 'DITINDAKLANJUTI' ? 'Diproses' : point.status}
-                          </span>
-                        </div>
-                        <span className="text-[9px] font-mono text-gray-400 font-bold">
-                          {new Date(point.waktu).toLocaleDateString('id-ID')}
-                        </span>
-                      </div>
-                      <p className="text-xs font-bold text-gray-800 line-clamp-2 leading-relaxed group-hover:text-green-900">{point.deskripsi}</p>
-                      <div className="flex items-center gap-1 text-[10px] font-medium text-gray-400 mt-2">
-                        <MapPin size={10} className="shrink-0" /> <span className="truncate">{point.kecamatan}</span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </>
-            ) : (
-              <div className="space-y-4">
-                {/* Klaster Statistik */}
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Kepadatan Per Kecamatan</p>
-                  {Object.entries(
-                    titikAduan.reduce((acc: any, p) => {
-                      const kec = p.kecamatan;
-                      if (!acc[kec]) acc[kec] = { total: 0, pending: 0, proses: 0, selesai: 0 };
-                      acc[kec].total++;
-                      if (p.status === 'PENDING') acc[kec].pending++;
-                      else if (p.status === 'DITINDAKLANJUTI') acc[kec].proses++;
-                      else if (p.status === 'SELESAI') acc[kec].selesai++;
-                      return acc;
-                    }, {})
-                  ).map(([name, data]: [string, any]) => (
-                    <div key={name} className="p-2.5 bg-gray-50 border border-gray-100 rounded-xl text-xs">
-                      <div className="flex justify-between items-center font-bold text-gray-800 mb-1">
-                        <span>{name}</span>
-                        <span className="text-[11px] font-mono text-gray-500">{data.total} Kasus</span>
-                      </div>
-                      <div className="flex gap-2 text-[9px] font-black font-mono">
-                        <span className="text-red-500">P:{data.pending}</span>
-                        <span className="text-amber-600">D:{data.proses}</span>
-                        <span className="text-emerald-600">S:{data.selesai}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                
-                {/* Hotspot Rawan */}
-                <div className="space-y-2 pt-2 border-t">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                    <AlertTriangle size={12} className="text-red-500" /> Area Rawan (Kritis)
-                  </p>
-                  {titikAduan.filter(p => p.status === 'PENDING').slice(0, 3).map((p, idx) => (
-                    <div key={idx} onClick={() => handleOpenPopup(p)} className="p-2.5 bg-red-50/40 border border-red-100 rounded-xl cursor-pointer text-left">
-                      <p className="text-xs font-bold text-gray-800 line-clamp-1">{p.deskripsi}</p>
-                      <span className="text-[10px] text-gray-400 font-medium block mt-0.5">{p.kecamatan}</span>
-                    </div>
-                  ))}
-                </div>
+            {titikAduan.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <MapPin size={28} className="mx-auto text-gray-300 mb-1" />
+                <p className="text-xs font-bold">Belum Ada Sinyal Laporan</p>
               </div>
+            ) : (
+              titikAduan.map((point, idx) => (
+                <div
+                  key={point.id || idx}
+                  onClick={() => handleOpenPopup(point)}
+                  className="p-3 bg-gray-50/50 hover:bg-emerald-50/20 border border-gray-100 hover:border-emerald-200 rounded-xl cursor-pointer transition-all hover:shadow-sm group text-left"
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      {getStatusIcon(point.status)}
+                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border tracking-wide uppercase ${getStatusColor(point.status)}`}>
+                        {point.status === 'DITINDAKLANJUTI' ? 'Diproses' : point.status}
+                      </span>
+                    </div>
+                    <span className="text-[9px] font-mono text-gray-400 font-bold">
+                      {new Date(point.waktu).toLocaleDateString('id-ID')}
+                    </span>
+                  </div>
+                  <p className="text-xs font-bold text-gray-800 line-clamp-2 leading-relaxed group-hover:text-green-900">{point.deskripsi}</p>
+                  <div className="flex items-center gap-1 text-[10px] font-medium text-gray-400 mt-2">
+                    <MapPin size={10} className="shrink-0" /> <span className="truncate">{point.kecamatan}</span>
+                  </div>
+                </div>
+              ))
             )}
           </div>
         </div>
@@ -423,11 +363,10 @@ export default function PetaAduanPage() {
         <div className="flex items-center gap-1.5 ml-auto text-amber-600 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-100"><AlertTriangle size={14} /><span>Hotspot Timbunan Sampah</span></div>
       </div>
 
-      {/* ─── POP-UP DETAIL MODAL OVERLAY (Daftar Laporan Click View) ─── */}
+      {/* ─── POP-UP DETAIL MODAL OVERLAY ─── */}
       <AnimatePresence>
         {isModalOpen && selectedPoint && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-            {/* Backdrop Blur Gelap */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -436,14 +375,12 @@ export default function PetaAduanPage() {
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             />
             
-            {/* Jendela Konten Pop-up */}
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="bg-white rounded-[24px] w-full max-w-lg shadow-2xl overflow-hidden relative z-10 border border-gray-100 flex flex-col"
             >
-              {/* Header Jendela Pop-up */}
               <div className="p-5 border-b bg-gradient-to-r from-gray-50 to-white flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <Eye className="text-emerald-700" size={18} />
@@ -460,9 +397,7 @@ export default function PetaAduanPage() {
                 </button>
               </div>
 
-              {/* Body Jendela Pop-up */}
               <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh] text-left">
-                {/* Dokumentasi Kasus Gambar */}
                 {selectedPoint.foto ? (
                   <div className="rounded-xl overflow-hidden border bg-gray-50 relative aspect-[16/9]">
                     <img 
@@ -478,7 +413,6 @@ export default function PetaAduanPage() {
                   </div>
                 )}
 
-                {/* Status & Date */}
                 <div className="flex justify-between items-center border-b pb-3 border-gray-100">
                   <div className="space-y-1">
                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider block">Status Progres</span>
@@ -496,7 +430,6 @@ export default function PetaAduanPage() {
                   </div>
                 </div>
 
-                {/* Uraian */}
                 <div className="space-y-1">
                   <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider block">Deskripsi Kasus Masalah</span>
                   <p className="text-xs font-medium text-gray-700 leading-relaxed bg-gray-50 border border-gray-100 p-3.5 rounded-xl">
@@ -504,7 +437,6 @@ export default function PetaAduanPage() {
                   </p>
                 </div>
 
-                {/* Detail Sektor Lain */}
                 <div className="grid grid-cols-2 gap-4 bg-gray-50/50 border border-gray-100 p-4 rounded-xl text-xs font-bold">
                   <div className="space-y-1">
                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider block">Sektor Kecamatan</span>
@@ -531,7 +463,6 @@ export default function PetaAduanPage() {
                 </div>
               </div>
 
-              {/* Footer Aksi Pop-up */}
               <div className="p-4 bg-gray-50 border-t flex gap-2 shrink-0">
                 <button
                   onClick={() => setIsModalOpen(false)}
