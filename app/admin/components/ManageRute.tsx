@@ -75,19 +75,19 @@ interface AlertConfig {
 const HARI_LIST = ["SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU", "MINGGU"];
 
 const HARI_COLOR: Record<string, string> = {
-  SENIN: "bg-emerald-50 text-emerald-700 border-emerald-100",
-  SELASA: "bg-blue-50 text-blue-700 border-blue-100",
-  RABU: "bg-amber-50 text-amber-700 border-amber-100",
-  KAMIS: "bg-indigo-50 text-indigo-700 border-indigo-100",
-  JUMAT: "bg-rose-50 text-rose-700 border-rose-100",
-  SABTU: "bg-slate-50 text-slate-700 border-slate-100",
-  MINGGU: "bg-orange-50 text-orange-700 border-orange-100",
+  SENIN:   "bg-emerald-50 text-emerald-700 border-emerald-100",
+  SELASA:  "bg-blue-50 text-blue-700 border-blue-100",
+  RABU:    "bg-amber-50 text-amber-700 border-amber-100",
+  KAMIS:   "bg-indigo-50 text-indigo-700 border-indigo-100",
+  JUMAT:   "bg-rose-50 text-rose-700 border-rose-100",
+  SABTU:   "bg-slate-50 text-slate-700 border-slate-100",
+  MINGGU:  "bg-orange-50 text-orange-700 border-orange-100",
 };
 
 const API = "/api";
 const RUTE_PER_PAGE = 10;
 
-// ─── Sub-komponen Peta (sama seperti sebelumnya, tidak diubah) ──
+// ─── Sub-komponen: Peta Leaflet ──────────────────────────────
 function PetaWaypoint({
   waypoints,
   onMapClick,
@@ -99,10 +99,10 @@ function PetaWaypoint({
   selectedIdx: number | null;
   flyTo?: [number, number] | null;
 }) {
-  const mapRef = useRef<any>(null);
+  const mapRef       = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const markersRef = useRef<any[]>([]);
-  const lineRef = useRef<any>(null);
+  const markersRef   = useRef<any[]>([]);
+  const lineRef      = useRef<any>(null);
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
@@ -145,20 +145,20 @@ function PetaWaypoint({
   useEffect(() => {
     if (!isReady || !mapRef.current) return;
     const map = mapRef.current;
-    const L = map._L;
+    const L   = map._L;
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
     if (lineRef.current) { lineRef.current.remove(); lineRef.current = null; }
     if (waypoints.length === 0) return;
     const latlngs: [number, number][] = [];
     waypoints.forEach((wp, idx) => {
-      const isTPA = wp.name.toLowerCase().includes("tpa");
+      const isTPA      = wp.name.toLowerCase().includes("tpa");
       const isSelected = idx === selectedIdx;
       const bg = isTPA ? "#1A2E35" : isSelected ? "#064E3B" : "#059669";
       const icon = L.divIcon({
         html: `<div style="background:${bg};color:white;border-radius:8px;width:24px;height:24px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.2);font-size:10px;font-weight:bold;display:flex;align-items:center;justify-content:center">${isTPA ? "🏁" : wp.order}</div>`,
         className: "",
-        iconSize: [24, 24],
+        iconSize:   [24, 24],
         iconAnchor: [12, 12],
       });
       const marker = L.marker([wp.latitude, wp.longitude], { icon })
@@ -190,64 +190,54 @@ function PetaWaypoint({
 
 // ─── Komponen Utama ──────────────────────────────────────────
 export default function ManajemenRute() {
-  // State data
-  const [ruteList, setRuteList] = useState<RouteTemplate[]>([]);
-  const [trukList, setTrukList] = useState<TrukItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  // ── State data ──
+  const [ruteList, setRuteList]   = useState<RouteTemplate[]>([]);
+  const [trukList, setTrukList]   = useState<TrukItem[]>([]);
+  const [loading, setLoading]     = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterTruk, setFilterTruk] = useState("");
   const [filterHari, setFilterHari] = useState("ALL");
-  const [rutePage, setRutePage] = useState(1);
+  const [rutePage, setRutePage]   = useState(1);
 
-  // ── Alert System (seperti ManageSupir) ──
+  // ── Alert System ──
   const [alertConfig, setAlertConfig] = useState<AlertConfig>({
-    open: false,
-    type: "info",
-    title: "",
-    description: "",
+    open: false, type: "info", title: "", description: "",
   });
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting]         = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId]     = useState<string | null>(null);
   const [pendingDeleteName, setPendingDeleteName] = useState("");
 
-  // ── Modal Rute ──
+  // ── Modal Buat Rute ──
   const [showModalRute, setShowModalRute] = useState(false);
   const [formRute, setFormRute] = useState({ truckId: "", dayOfWeek: "", name: "" });
 
   // ── Modal Edit Info Rute ──
-  const [showModalEditRute, setShowModalEditRute] = useState(false);
-  const [editingRuteInfo, setEditingRuteInfo] = useState<RouteTemplate | null>(null);
-  const [formEditRute, setFormEditRute] = useState({ truckId: "", dayOfWeek: "", name: "" });
-  const [savingEditRute, setSavingEditRute] = useState(false);
+  const [showModalEditRute, setShowModalEditRute]   = useState(false);
+  const [editingRuteInfo, setEditingRuteInfo]       = useState<RouteTemplate | null>(null);
+  const [formEditRute, setFormEditRute]             = useState({ truckId: "", dayOfWeek: "", name: "" });
+  const [savingEditRute, setSavingEditRute]         = useState(false);
 
   // ── Editor Waypoint ──
-  const [editingRuteId, setEditingRuteId] = useState<string | null>(null);
+  const [editingRuteId, setEditingRuteId]   = useState<string | null>(null);
   const [localWaypoints, setLocalWaypoints] = useState<Waypoint[]>([]);
-  const [selectedWpIdx, setSelectedWpIdx] = useState<number | null>(null);
+  const [selectedWpIdx, setSelectedWpIdx]   = useState<number | null>(null);
   const [wpForm, setWpForm] = useState({ name: "", latitude: "", longitude: "" });
-  const [savingWp, setSavingWp] = useState(false);
-  const [wpSearchQuery, setWpSearchQuery] = useState("");
-  const [wpSearching, setWpSearching] = useState(false);
-  const [mapFlyTo, setMapFlyTo] = useState<[number, number] | null>(null);
+  const [savingWp, setSavingWp]             = useState(false);
+  const [wpSearchQuery, setWpSearchQuery]   = useState("");
+  const [wpSearching, setWpSearching]       = useState(false);
+  const [mapFlyTo, setMapFlyTo]             = useState<[number, number] | null>(null);
 
-  // ── Helper Alert ──
+  // ── Helpers ──
   const showAlert = (type: AlertType, title: string, description: string, detailText?: string) => {
-    setAlertConfig({
-      open: true,
-      type,
-      title,
-      description,
-      detailText,
-    });
+    setAlertConfig({ open: true, type, title, description, detailText });
   };
-  const closeAlert = () => setAlertConfig(prev => ({ ...prev, open: false }));
+  const closeAlert = () => setAlertConfig((prev) => ({ ...prev, open: false }));
 
   const token = useCallback(() => localStorage.getItem("token"), []);
 
-  const getErrorMessage = (error: any, fallback: string) => {
-    return error?.response?.data?.message || fallback;
-  };
+  const getErrorMessage = (error: any, fallback: string) =>
+    error?.response?.data?.message || fallback;
 
   // ── Fetch Data ──
   const fetchRute = useCallback(async () => {
@@ -285,16 +275,19 @@ export default function ManajemenRute() {
     fetchTruk();
   }, [fetchRute, fetchTruk]);
 
+  // Reset halaman ke 1 setiap filter berubah
   useEffect(() => {
     setRutePage(1);
   }, [filterTruk, filterHari]);
 
+  // ── Computed Stats ──
   const stats = useMemo(() => ({
-    total: ruteList.length,
-    active: ruteList.filter((r) => r.isActive).length,
+    total:    ruteList.length,
+    active:   ruteList.filter((r) => r.isActive).length,
     inactive: ruteList.filter((r) => !r.isActive).length,
   }), [ruteList]);
 
+  // ── Filtered & Paginated ──
   const filtered = useMemo(() =>
     ruteList.filter((r) => {
       if (filterTruk && r.truckId !== filterTruk) return false;
@@ -305,19 +298,21 @@ export default function ManajemenRute() {
   );
 
   const ruteTotalPages = Math.max(1, Math.ceil(filtered.length / RUTE_PER_PAGE));
+
   const paginatedRute = useMemo(() => {
     const start = (rutePage - 1) * RUTE_PER_PAGE;
     return filtered.slice(start, start + RUTE_PER_PAGE);
   }, [filtered, rutePage]);
 
+  // Nomor halaman dengan ellipsis (±2 dari halaman aktif)
   const rutePageNumbers = useMemo(() => {
     const delta = 2;
     const range: number[] = [];
     const start = Math.max(1, rutePage - delta);
-    const end = Math.min(ruteTotalPages, rutePage + delta);
+    const end   = Math.min(ruteTotalPages, rutePage + delta);
     for (let i = start; i <= end; i++) range.push(i);
-    if (start > 1) range.unshift(-1, 1);
-    if (end < ruteTotalPages) range.push(-2, ruteTotalPages);
+    if (start > 1)             range.unshift(-1, 1);
+    if (end < ruteTotalPages)  range.push(-2, ruteTotalPages);
     return range;
   }, [rutePage, ruteTotalPages]);
 
@@ -340,15 +335,11 @@ export default function ManajemenRute() {
     }
   };
 
-  // ── Edit Info Rute ──
+  // ── Handler: Edit Info Rute ──
   const openEditRuteModal = (rute: RouteTemplate, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingRuteInfo(rute);
-    setFormEditRute({
-      truckId: rute.truckId,
-      dayOfWeek: rute.dayOfWeek,
-      name: rute.name,
-    });
+    setFormEditRute({ truckId: rute.truckId, dayOfWeek: rute.dayOfWeek, name: rute.name });
     setShowModalEditRute(true);
   };
 
@@ -361,8 +352,8 @@ export default function ManajemenRute() {
       await axios.put(
         `${API}/rute/${editingRuteInfo.id}`,
         {
-          name: formEditRute.name,
-          truckId: formEditRute.truckId,
+          name:      formEditRute.name,
+          truckId:   formEditRute.truckId,
           dayOfWeek: formEditRute.dayOfWeek,
         },
         { headers: { Authorization: `Bearer ${token()}` } }
@@ -380,7 +371,7 @@ export default function ManajemenRute() {
     }
   };
 
-  // ── Toggle Status (tanpa konfirmasi, langsung dengan loading) ──
+  // ── Handler: Toggle Status ──
   const handleToggle = async (ruteId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setSubmitting(true);
@@ -397,7 +388,7 @@ export default function ManajemenRute() {
     }
   };
 
-  // ── Delete dengan konfirmasi AlertDialog ──
+  // ── Handler: Hapus Rute (dengan konfirmasi AlertDialog) ──
   const openDeleteConfirm = (id: string, name: string) => {
     setPendingDeleteId(id);
     setPendingDeleteName(name);
@@ -424,7 +415,7 @@ export default function ManajemenRute() {
     }
   };
 
-  // ── Waypoint Editor ──
+  // ── Handler: Waypoint Editor ──
   const openWaypointEditor = (rute: RouteTemplate) => {
     setEditingRuteId(rute.id);
     setLocalWaypoints([...rute.waypoints]);
@@ -443,20 +434,16 @@ export default function ManajemenRute() {
     if (!wpSearchQuery.trim()) return;
     setWpSearching(true);
     try {
-      const res = await fetch(
+      const res  = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(wpSearchQuery)}&limit=1`
       );
       const data = await res.json();
       if (data.length > 0) {
-        const loc = data[0];
-        const lat = parseFloat(loc.lat);
-        const lng = parseFloat(loc.lon);
+        const loc        = data[0];
+        const lat        = parseFloat(loc.lat);
+        const lng        = parseFloat(loc.lon);
         const namaLokasi = loc.display_name.split(",")[0].trim();
-        setWpForm({
-          name: namaLokasi,
-          latitude: lat.toFixed(6),
-          longitude: lng.toFixed(6),
-        });
+        setWpForm({ name: namaLokasi, latitude: lat.toFixed(6), longitude: lng.toFixed(6) });
         setMapFlyTo([lat, lng]);
         showAlert("success", "Lokasi ditemukan", `"${namaLokasi}" siap ditambahkan.`);
       } else {
@@ -475,11 +462,11 @@ export default function ManajemenRute() {
       return;
     }
     const newWp: Waypoint = {
-      id: `temp-${Date.now()}`,
-      routeId: editingRuteId!,
-      order: localWaypoints.length + 1,
-      name: wpForm.name,
-      latitude: parseFloat(wpForm.latitude),
+      id:        `temp-${Date.now()}`,
+      routeId:   editingRuteId!,
+      order:     localWaypoints.length + 1,
+      name:      wpForm.name,
+      latitude:  parseFloat(wpForm.latitude),
       longitude: parseFloat(wpForm.longitude),
     };
     setLocalWaypoints((prev) => [...prev, newWp]);
@@ -497,7 +484,7 @@ export default function ManajemenRute() {
 
   const moveWp = (idx: number, dir: "up" | "down") => {
     setLocalWaypoints((prev) => {
-      const arr = [...prev];
+      const arr     = [...prev];
       const swapIdx = dir === "up" ? idx - 1 : idx + 1;
       if (swapIdx < 0 || swapIdx >= arr.length) return arr;
       [arr[idx], arr[swapIdx]] = [arr[swapIdx], arr[idx]];
@@ -513,10 +500,10 @@ export default function ManajemenRute() {
         `${API}/rute/${editingRuteId}/waypoint`,
         {
           bulk: localWaypoints.map((wp) => ({
-            name: wp.name,
-            latitude: wp.latitude,
+            name:      wp.name,
+            latitude:  wp.latitude,
             longitude: wp.longitude,
-            order: wp.order,
+            order:     wp.order,
           })),
         },
         { headers: { Authorization: `Bearer ${token()}` } }
@@ -538,7 +525,8 @@ export default function ManajemenRute() {
   // ──────────────────────────────────────────────────────────
   return (
     <div className="max-w-7xl mx-auto space-y-6 md:space-y-8 p-4 md:p-6 text-black">
-      {/* ALERT GLOBAL (info/success/error) */}
+
+      {/* ── ALERT: info / success / error ── */}
       <AlertDialog
         open={alertConfig.open}
         type={alertConfig.type}
@@ -548,7 +536,7 @@ export default function ManajemenRute() {
         onClose={closeAlert}
       />
 
-      {/* LOADING ALERT (submitting) */}
+      {/* ── ALERT: loading (saat submit) ── */}
       <AlertDialog
         open={submitting}
         type="loading"
@@ -559,7 +547,7 @@ export default function ManajemenRute() {
         onClose={() => {}}
       />
 
-      {/* DELETE CONFIRM ALERT */}
+      {/* ── ALERT: konfirmasi hapus ── */}
       <AlertDialog
         open={showDeleteConfirm}
         type="delete"
@@ -578,7 +566,7 @@ export default function ManajemenRute() {
         }}
       />
 
-      {/* HEADER */}
+      {/* ── HEADER ── */}
       <div className="bg-gradient-to-r from-[#DDE9E1] to-[#E8F1EB] rounded-[24px] p-8 shadow-sm border border-white/50 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-40 h-40 bg-white/20 rounded-full -mr-10 -mt-10 blur-2xl" />
         <div className="relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
@@ -596,12 +584,12 @@ export default function ManajemenRute() {
         </div>
       </div>
 
-      {/* STATS CARDS */}
+      {/* ── STATS CARDS ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
         {[
-          { label: "Total Rute", val: stats.total, icon: Route, color: "text-gray-600", bg: "bg-gray-50" },
-          { label: "Rute Aktif", val: stats.active, icon: Power, color: "text-green-600", bg: "bg-green-50" },
-          { label: "Nonaktif", val: stats.inactive, icon: PowerOff, color: "text-red-600", bg: "bg-red-50" },
+          { label: "Total Rute",  val: stats.total,    icon: Route,    color: "text-gray-600",  bg: "bg-gray-50"  },
+          { label: "Rute Aktif",  val: stats.active,   icon: Power,    color: "text-green-600", bg: "bg-green-50" },
+          { label: "Nonaktif",    val: stats.inactive, icon: PowerOff, color: "text-red-600",   bg: "bg-red-50"   },
         ].map((s, i) => (
           <div key={`stat-${i}`} className="bg-white p-4 md:p-5 rounded-2xl border border-gray-100 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
             <div className={`p-3 rounded-xl ${s.bg} ${s.color}`}>
@@ -615,7 +603,7 @@ export default function ManajemenRute() {
         ))}
       </div>
 
-      {/* BUTTON BUAT RUTE */}
+      {/* ── BUTTON BUAT RUTE ── */}
       <div className="flex justify-end">
         <button
           onClick={() => {
@@ -630,7 +618,7 @@ export default function ManajemenRute() {
         </button>
       </div>
 
-      {/* FILTER BAR */}
+      {/* ── FILTER BAR ── */}
       <div className="bg-white rounded-2xl border-none shadow-sm p-3 md:p-4 flex flex-col lg:flex-row gap-4 justify-between items-stretch lg:items-center">
         <div className="flex gap-3 flex-1 flex-wrap items-center">
           <div className="relative flex-1 min-w-[180px]">
@@ -669,7 +657,7 @@ export default function ManajemenRute() {
         </div>
       </div>
 
-      {/* LIST RUTE */}
+      {/* ── LIST RUTE ── */}
       <div className="space-y-4">
         {loading ? (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-12 text-center">
@@ -685,7 +673,7 @@ export default function ManajemenRute() {
         ) : (
           paginatedRute.map((rute) => {
             const isExpanded = expandedId === rute.id;
-            const isEditing = editingRuteId === rute.id;
+            const isEditing  = editingRuteId === rute.id;
 
             return (
               <div
@@ -696,7 +684,7 @@ export default function ManajemenRute() {
                     : "border-gray-100 shadow-sm hover:border-gray-200 hover:shadow-md"
                 }`}
               >
-                {/* HEADER CARD (sama seperti sebelumnya) */}
+                {/* ── HEADER CARD ── */}
                 <div className="p-5 md:p-6 flex items-center gap-4">
                   <button
                     onClick={() => setExpandedId(isExpanded ? null : rute.id)}
@@ -706,9 +694,11 @@ export default function ManajemenRute() {
                   >
                     {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                   </button>
+
                   <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center border border-green-100 shrink-0">
                     <Navigation size={18} className="text-[#4A6D55]" />
                   </div>
+
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2 mb-1">
                       <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase border ${HARI_COLOR[rute.dayOfWeek]}`}>
@@ -727,6 +717,7 @@ export default function ManajemenRute() {
                       </span>
                     </div>
                   </div>
+
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={(e) => handleToggle(rute.id, e)}
@@ -739,12 +730,14 @@ export default function ManajemenRute() {
                       {rute.isActive ? <Power size={10} /> : <PowerOff size={10} />}
                       {rute.isActive ? "AKTIF" : "NONAKTIF"}
                     </button>
+
                     <div className="h-8 w-px bg-gray-100 hidden sm:block" />
+
                     <div className="flex items-center gap-1.5">
                       <button
                         onClick={(e) => openEditRuteModal(rute, e)}
                         className="p-2 bg-yellow-400 text-white rounded-lg hover:bg-yellow-500 transition-colors inline-flex shadow-sm"
-                        title="Edit Info Rute"
+                        title="Edit Info Rute (Truk, Hari, Nama)"
                       >
                         <Edit3 size={14} />
                       </button>
@@ -762,17 +755,19 @@ export default function ManajemenRute() {
                   </div>
                 </div>
 
-                {/* BODY EXPANDED (sama seperti asli, hanya mengganti toast dengan showAlert jika ada) */}
+                {/* ── BODY EXPANDED ── */}
                 {isExpanded && (
                   <div className="border-t border-gray-100 p-6 md:p-8 bg-gray-50/40 rounded-b-[24px]">
                     {isEditing ? (
-                      /* Mode Edit Waypoint (tidak berubah signifikan) */
+                      /* MODE EDIT WAYPOINT */
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-10">
+
                         {/* LEFT: MAP + FORM TITIK */}
                         <div className="space-y-5">
                           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">
                             Konfigurasi Jalur Peta
                           </p>
+
                           <PetaWaypoint
                             key={editingRuteId ?? "peta"}
                             waypoints={localWaypoints}
@@ -780,8 +775,10 @@ export default function ManajemenRute() {
                             selectedIdx={selectedWpIdx}
                             flyTo={mapFlyTo}
                           />
+
                           <div className="bg-white p-5 md:p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-                            {/* Search bar */}
+
+                            {/* Search bar lokasi */}
                             <div>
                               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">
                                 Cari Lokasi / Nama Jalan
@@ -794,7 +791,9 @@ export default function ManajemenRute() {
                                     placeholder="Contoh: Simpang Sibulele, Pasar Horas..."
                                     value={wpSearchQuery}
                                     onChange={(e) => setWpSearchQuery(e.target.value)}
-                                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSearchWaypoint(); } }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") { e.preventDefault(); handleSearchWaypoint(); }
+                                    }}
                                     className="w-full pl-9 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none text-sm font-medium transition-all"
                                   />
                                 </div>
@@ -802,14 +801,19 @@ export default function ManajemenRute() {
                                   type="button"
                                   onClick={handleSearchWaypoint}
                                   disabled={wpSearching || !wpSearchQuery.trim()}
-                                  className="px-4 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors shadow-md flex items-center gap-2 disabled:opacity-50"
+                                  className="px-4 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                  {wpSearching ? <RefreshCw size={14} className="animate-spin" /> : <Search size={14} />}
+                                  {wpSearching
+                                    ? <RefreshCw size={14} className="animate-spin" />
+                                    : <Search size={14} />}
                                   Cari
                                 </button>
                               </div>
                             </div>
+
                             <div className="border-t border-gray-100" />
+
+                            {/* Nama lokasi */}
                             <div>
                               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">
                                 Nama Lokasi Titik
@@ -822,6 +826,8 @@ export default function ManajemenRute() {
                                 className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-green-500/20 outline-none text-sm font-medium transition-all"
                               />
                             </div>
+
+                            {/* Lat & Lng */}
                             <div className="grid grid-cols-2 gap-4">
                               <div>
                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">
@@ -832,7 +838,7 @@ export default function ManajemenRute() {
                                   placeholder="-6.200000"
                                   value={wpForm.latitude}
                                   onChange={(e) => setWpForm((p) => ({ ...p, latitude: e.target.value }))}
-                                  className="w-full px-4 py-3 bg-gray-50 rounded-xl text-xs font-mono text-gray-700 border border-gray-100 outline-none focus:ring-2 focus:ring-green-500/20"
+                                  className="w-full px-4 py-3 bg-gray-50 rounded-xl text-xs font-mono text-gray-700 border border-gray-100 outline-none focus:ring-2 focus:ring-green-500/20 transition-all"
                                 />
                               </div>
                               <div>
@@ -844,10 +850,11 @@ export default function ManajemenRute() {
                                   placeholder="106.816666"
                                   value={wpForm.longitude}
                                   onChange={(e) => setWpForm((p) => ({ ...p, longitude: e.target.value }))}
-                                  className="w-full px-4 py-3 bg-gray-50 rounded-xl text-xs font-mono text-gray-700 border border-gray-100 outline-none focus:ring-2 focus:ring-green-500/20"
+                                  className="w-full px-4 py-3 bg-gray-50 rounded-xl text-xs font-mono text-gray-700 border border-gray-100 outline-none focus:ring-2 focus:ring-green-500/20 transition-all"
                                 />
                               </div>
                             </div>
+
                             <button
                               type="button"
                               onClick={handleTambahWpLokal}
@@ -897,7 +904,7 @@ export default function ManajemenRute() {
                                       type="button"
                                       onClick={(e) => { e.stopPropagation(); moveWp(idx, "up"); }}
                                       disabled={idx === 0}
-                                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 disabled:opacity-20"
+                                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 disabled:opacity-20 transition-colors"
                                     >
                                       <ArrowUp size={14} />
                                     </button>
@@ -905,14 +912,14 @@ export default function ManajemenRute() {
                                       type="button"
                                       onClick={(e) => { e.stopPropagation(); moveWp(idx, "down"); }}
                                       disabled={idx === localWaypoints.length - 1}
-                                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 disabled:opacity-20"
+                                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 disabled:opacity-20 transition-colors"
                                     >
                                       <ArrowDown size={14} />
                                     </button>
                                     <button
                                       type="button"
                                       onClick={(e) => { e.stopPropagation(); handleHapusWpLokal(idx); }}
-                                      className="p-2 hover:bg-red-50 rounded-lg text-red-400"
+                                      className="p-2 hover:bg-red-50 rounded-lg text-red-400 transition-colors"
                                     >
                                       <X size={14} />
                                     </button>
@@ -928,7 +935,11 @@ export default function ManajemenRute() {
                               disabled={savingWp}
                               className="flex-[2] py-3.5 bg-[#4A6D55] hover:bg-[#3a5643] text-white rounded-2xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                             >
-                              {savingWp ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />}
+                              {savingWp ? (
+                                <RefreshCw size={18} className="animate-spin" />
+                              ) : (
+                                <Save size={18} />
+                              )}
                               {savingWp ? "Menyimpan..." : "Simpan Semua Waypoint"}
                             </button>
                             <button
@@ -942,7 +953,7 @@ export default function ManajemenRute() {
                         </div>
                       </div>
                     ) : (
-                      /* Mode View Waypoints */
+                      /* MODE VIEW WAYPOINTS */
                       <div className="space-y-4">
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                           Titik Perjalanan ({rute.waypoints.length})
@@ -977,9 +988,10 @@ export default function ManajemenRute() {
         )}
       </div>
 
-      {/* PAGINATION (sama seperti sebelumnya) */}
+      {/* ── PAGINATION ── */}
       {!loading && filtered.length > 0 && (
         <div className="px-6 py-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white rounded-2xl shadow-sm">
+          {/* Info halaman */}
           <p className="text-xs text-gray-400 font-medium">
             Menampilkan{" "}
             <span className="font-bold text-gray-600">
@@ -990,34 +1002,50 @@ export default function ManajemenRute() {
             <span className="font-bold text-gray-600">{filtered.length}</span>{" "}
             rute
           </p>
+
+          {/* Tombol navigasi */}
           <div className="flex items-center gap-1">
+            {/* Ke halaman pertama */}
             <button
               type="button"
               onClick={() => setRutePage(1)}
               disabled={rutePage === 1}
-              className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30"
+              className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              title="Halaman pertama"
             >
               <ChevronsLeft size={16} />
             </button>
+
+            {/* Halaman sebelumnya */}
             <button
               type="button"
               onClick={() => setRutePage((p) => Math.max(1, p - 1))}
               disabled={rutePage === 1}
-              className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30"
+              className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              title="Halaman sebelumnya"
             >
               <ChevronLeft size={16} />
             </button>
+
+            {/* Nomor halaman */}
             <div className="flex items-center gap-1 mx-1">
               {rutePageNumbers.map((page, i) =>
                 page < 0 ? (
-                  <span key={`ellipsis-${i}`} className="px-1 text-gray-400 text-xs font-bold">…</span>
+                  <span
+                    key={`rute-ellipsis-${i}`}
+                    className="px-1 text-gray-400 text-xs font-bold select-none"
+                  >
+                    …
+                  </span>
                 ) : (
                   <button
                     key={page}
                     type="button"
                     onClick={() => setRutePage(page)}
                     className={`min-w-[34px] h-[34px] rounded-lg text-xs font-bold transition-all ${
-                      rutePage === page ? "bg-[#4A6D55] text-white shadow-sm" : "text-gray-500 hover:bg-gray-100"
+                      rutePage === page
+                        ? "bg-[#4A6D55] text-white shadow-sm"
+                        : "text-gray-500 hover:bg-gray-100"
                     }`}
                   >
                     {page}
@@ -1025,19 +1053,25 @@ export default function ManajemenRute() {
                 )
               )}
             </div>
+
+            {/* Halaman berikutnya */}
             <button
               type="button"
               onClick={() => setRutePage((p) => Math.min(ruteTotalPages, p + 1))}
               disabled={rutePage === ruteTotalPages}
-              className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30"
+              className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              title="Halaman berikutnya"
             >
               <ChevronLeft size={16} className="rotate-180" />
             </button>
+
+            {/* Ke halaman terakhir */}
             <button
               type="button"
               onClick={() => setRutePage(ruteTotalPages)}
               disabled={rutePage === ruteTotalPages}
-              className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30"
+              className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              title="Halaman terakhir"
             >
               <ChevronsRight size={16} />
             </button>
@@ -1045,7 +1079,7 @@ export default function ManajemenRute() {
         </div>
       )}
 
-      {/* MODAL BUAT RUTE BARU (sama, hanya ada di sini) */}
+      {/* ── MODAL BUAT RUTE BARU ── */}
       <AnimatePresence>
         {showModalRute && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
@@ -1057,12 +1091,14 @@ export default function ManajemenRute() {
             >
               <div className="px-6 py-5 border-b flex justify-between items-center bg-gray-50">
                 <h3 className="font-extrabold text-lg text-gray-800">Registrasi Rute Baru</h3>
-                <button onClick={() => setShowModalRute(false)} className="p-2 text-gray-400 hover:bg-gray-200 rounded-full transition-colors">
+                <button
+                  onClick={() => setShowModalRute(false)}
+                  className="p-2 text-gray-400 hover:bg-gray-200 rounded-full transition-colors"
+                >
                   <X size={20} />
                 </button>
               </div>
               <form onSubmit={handleBuatRute} className="p-6 space-y-5 flex-1 overflow-y-auto">
-                {/* form fields sama seperti asli */}
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">
                     Pilih Armada Truk <span className="text-red-500">*</span>
@@ -1076,11 +1112,13 @@ export default function ManajemenRute() {
                         setFormRute((prev) => ({
                           ...prev,
                           truckId: e.target.value,
-                          name: truk && prev.dayOfWeek ? `Rute ${truk.plateNumber} - ${prev.dayOfWeek}` : prev.name,
+                          name: truk && prev.dayOfWeek
+                            ? `Rute ${truk.plateNumber} - ${prev.dayOfWeek}`
+                            : prev.name,
                         }));
                       }}
                       required
-                      className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-green-500/20 outline-none text-sm font-medium appearance-none"
+                      className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-green-500/20 outline-none text-sm font-medium transition-all appearance-none"
                     >
                       <option value="">Pilih plat nomor armada</option>
                       {trukList.map((t) => (
@@ -1096,7 +1134,7 @@ export default function ManajemenRute() {
                   <div className="grid grid-cols-4 gap-2">
                     {HARI_LIST.map((h) => (
                       <button
-                        key={h}
+                        key={`buat-hari-${h}`}
                         type="button"
                         onClick={() => {
                           const truk = trukList.find((t) => t.id === formRute.truckId);
@@ -1129,7 +1167,7 @@ export default function ManajemenRute() {
                       onChange={(e) => setFormRute((p) => ({ ...p, name: e.target.value }))}
                       required
                       placeholder="Contoh: Rute BK 1234 AB - SENIN"
-                      className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-green-500/20 outline-none text-sm font-medium"
+                      className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-green-500/20 outline-none text-sm font-medium transition-all"
                     />
                   </div>
                 </div>
@@ -1147,7 +1185,7 @@ export default function ManajemenRute() {
         )}
       </AnimatePresence>
 
-      {/* MODAL EDIT INFO RUTE */}
+      {/* ── MODAL EDIT INFO RUTE ── */}
       <AnimatePresence>
         {showModalEditRute && editingRuteInfo && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
@@ -1164,10 +1202,14 @@ export default function ManajemenRute() {
                     Ubah armada, hari operasional, dan nama rute
                   </p>
                 </div>
-                <button onClick={() => { setShowModalEditRute(false); setEditingRuteInfo(null); }} className="p-2 text-gray-400 hover:bg-amber-100 rounded-full transition-colors">
+                <button
+                  onClick={() => { setShowModalEditRute(false); setEditingRuteInfo(null); }}
+                  className="p-2 text-gray-400 hover:bg-amber-100 rounded-full transition-colors"
+                >
                   <X size={20} />
                 </button>
               </div>
+
               <div className="px-6 pt-5">
                 <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex items-center gap-3">
                   <div className="w-9 h-9 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
@@ -1179,6 +1221,7 @@ export default function ManajemenRute() {
                   </div>
                 </div>
               </div>
+
               <form onSubmit={handleSimpanEditRute} className="p-6 space-y-5 flex-1 overflow-y-auto">
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">
@@ -1193,10 +1236,12 @@ export default function ManajemenRute() {
                         setFormEditRute((prev) => ({
                           ...prev,
                           truckId: e.target.value,
-                          name: truk ? `Rute ${truk.plateNumber} - ${prev.dayOfWeek}` : prev.name,
+                          name: truk
+                            ? `Rute ${truk.plateNumber} - ${prev.dayOfWeek}`
+                            : prev.name,
                         }));
                       }}
-                      className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 outline-none text-sm font-medium appearance-none"
+                      className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 outline-none text-sm font-medium transition-all appearance-none"
                     >
                       <option value="">Pilih plat nomor armada</option>
                       {trukList.map((t) => (
@@ -1208,6 +1253,7 @@ export default function ManajemenRute() {
                     ⚠️ Mengubah armada tidak akan memindahkan waypoint secara otomatis
                   </p>
                 </div>
+
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 block">
                     Hari Operasional
@@ -1215,7 +1261,7 @@ export default function ManajemenRute() {
                   <div className="grid grid-cols-4 gap-2">
                     {HARI_LIST.map((h) => (
                       <button
-                        key={h}
+                        key={`edit-hari-${h}`}
                         type="button"
                         onClick={() => {
                           const truk = trukList.find((t) => t.id === formEditRute.truckId);
@@ -1236,6 +1282,7 @@ export default function ManajemenRute() {
                     ))}
                   </div>
                 </div>
+
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">
                     Nama Rute <span className="text-red-500">*</span>
@@ -1248,16 +1295,27 @@ export default function ManajemenRute() {
                       onChange={(e) => setFormEditRute((p) => ({ ...p, name: e.target.value }))}
                       required
                       placeholder="Contoh: Rute BK 1234 AB - SENIN"
-                      className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 outline-none text-sm font-medium"
+                      className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 outline-none text-sm font-medium transition-all"
                     />
                   </div>
                 </div>
+
                 <div className="pt-4 pb-4 sm:pb-0 flex gap-3">
-                  <button type="button" onClick={() => { setShowModalEditRute(false); setEditingRuteInfo(null); }} className="flex-1 px-6 py-4 rounded-xl text-gray-600 font-bold hover:bg-gray-100 transition-all border border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => { setShowModalEditRute(false); setEditingRuteInfo(null); }}
+                    className="flex-1 px-6 py-4 rounded-xl text-gray-600 font-bold hover:bg-gray-100 transition-all border border-gray-200"
+                  >
                     Batal
                   </button>
-                  <button type="submit" disabled={savingEditRute} className="flex-[2] py-4 bg-amber-500 text-white rounded-2xl font-bold shadow-lg hover:bg-amber-600 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
-                    {savingEditRute ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />}
+                  <button
+                    type="submit"
+                    disabled={savingEditRute}
+                    className="flex-[2] py-4 bg-amber-500 text-white rounded-2xl font-bold shadow-lg hover:bg-amber-600 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {savingEditRute
+                      ? <RefreshCw size={18} className="animate-spin" />
+                      : <Save size={18} />}
                     {savingEditRute ? "Menyimpan..." : "Simpan Perubahan"}
                   </button>
                 </div>

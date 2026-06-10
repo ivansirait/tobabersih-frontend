@@ -9,7 +9,6 @@ import {
   RefreshCw,
   Repeat,
   ClipboardList,
-  // ✅ [PERUBAHAN 1] Tambah ChevronsLeft & ChevronsRight — sebelumnya tidak ada di import
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -22,7 +21,7 @@ import {
   Edit3,
   MapPin,
   Calendar,
-  Truck
+  Truck,
 } from "lucide-react";
 
 import toast, { Toaster } from "react-hot-toast";
@@ -33,8 +32,8 @@ import AlertDialog from './AlertDialog';
 
 const API_BASE_URL = "/api";
 
-// ✅ [PERUBAHAN 2] Konstanta ITEMS_PER_PAGE — dipindah ke level modul agar konsisten dengan ManageSupir
 const ITEMS_PER_PAGE = 12;
+const MIN_SCHEDULE_DAYS = 3;
 
 // Helper function to safely format coordinates
 const formatCoordinate = (coord: any, decimals: number = 5): string | null => {
@@ -119,8 +118,6 @@ interface Truk {
   status: string;
 }
 
-const MIN_SCHEDULE_DAYS = 3;
-
 export default function ManagePenugasan() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -130,6 +127,8 @@ export default function ManagePenugasan() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemList, setItemList] = useState<Item[]>([]);
   const [trukList, setTrukList] = useState<Truk[]>([]);
+
+  // Dialog States
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showConfirmTolakDialog, setShowConfirmTolakDialog] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
@@ -138,6 +137,7 @@ export default function ManagePenugasan() {
   const [successIcon, setSuccessIcon] = useState<ReactNode>(<CheckCircle2 size={24} />);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [pendingDeleteName, setPendingDeleteName] = useState<string>('');
+  const [pendingDeleteIsLaporan, setPendingDeleteIsLaporan] = useState<boolean>(false);
   const [pendingTolakId, setPendingTolakId] = useState<string | null>(null);
   const [pendingTolakName, setPendingTolakName] = useState<string>('');
 
@@ -172,12 +172,8 @@ export default function ManagePenugasan() {
   const minScheduleValue = toDateTimeLocalValue(getMinimumScheduleDate());
 
   const getDriverFromTruck = (truk: Truk) => {
-    if (truk.operator) {
-      return { id: truk.operator.id, fullName: truk.operator.fullName };
-    }
-    if (truk.driver) {
-      return { id: truk.driver.id, fullName: truk.driver.fullName };
-    }
+    if (truk?.operator) return { id: truk.operator.id, fullName: truk.operator.fullName };
+    if (truk?.driver) return { id: truk.driver.id, fullName: truk.driver.fullName };
     return null;
   };
 
@@ -191,49 +187,54 @@ export default function ManagePenugasan() {
     return driver ? driver.id : "";
   };
 
+  // =========================
+  // FETCH DATA
+  // =========================
   const fetchData = async () => {
     try {
       setLoading(true);
 
       const [penugasanRes, laporanRes, trukRes] = await Promise.all([
-        api.get("/penugasan?type=ADUAN"),
-        api.get("/laporan"),
-        api.get("/admin/truks"),
+        api.get("/penugasan?type=ADUAN").catch(() => ({ data: { data: [] } })),
+        api.get("/laporan").catch(() => ({ data: { data: [] } })),
+        api.get("/admin/truks").catch(() => ({ data: { data: [] } })),
       ]);
 
-      const penugasanData = penugasanRes.data.data || [];
+      const penugasanData = Array.isArray(penugasanRes.data?.data) ? penugasanRes.data.data : [];
+      const laporanRawData = Array.isArray(laporanRes.data?.data) ? laporanRes.data.data : [];
 
+      // Filter laporan yang sudah ditugaskan agar tidak duplikat
       const laporanYangSudahDitugaskan = new Set(
         penugasanData
           .map((p: any) => p.report?.id)
           .filter(Boolean)
       );
 
-      const laporanBaru = (laporanRes.data.data || [])
+      const laporanBaru = laporanRawData
         .filter((item: any) =>
-          (item.status === "LAPORAN_BARU" || item.status === "PENDING") &&
+          (item?.status === "LAPORAN_BARU" || item?.status === "PENDING") &&
           !laporanYangSudahDitugaskan.has(item.id)
         )
         .map((item: any) => ({
-          id: item.id,
+          id: item?.id || Math.random().toString(),
           status: "LAPORAN_BARU",
           isLaporanBaru: true,
           taskNumber: null,
-          location: typeof item.location === "string"
+          location: typeof item?.location === "string"
             ? item.location
-            : item.location?.name || item.description || "Lokasi tidak tersedia",
-          latitude: item.latitude || item.koordinat?.latitude,
-          longitude: item.longitude || item.koordinat?.longitude,
-          district: item.jenisSampah,
-          description: item.description,
-          pelapor: item.pelapor,
+            : item?.location?.name || item?.description || "Lokasi tidak tersedia",
+          latitude: item?.latitude || item?.koordinat?.latitude,
+          longitude: item?.longitude || item?.koordinat?.longitude,
+          district: item?.jenisSampah || "Aduan Warga",
+          description: item?.description || "Tidak ada deskripsi",
+          pelapor: item?.pelapor || item?.user?.fullName || "Warga Anonim",
           report: {
-            id: item.id,
-            description: item.description,
-            jenisSampah: item.jenisSampah,
-            pelapor: item.pelapor,
-            latitude: item.latitude || item.koordinat?.latitude,
-            longitude: item.longitude || item.koordinat?.longitude,
+            id: item?.id,
+            description: item?.description,
+            jenisSampah: item?.jenisSampah || "Aduan Warga",
+            pelapor: item?.pelapor || item?.user?.fullName || "Warga Anonim",
+            latitude: item?.latitude || item?.koordinat?.latitude,
+            longitude: item?.longitude || item?.koordinat?.longitude,
           },
         }));
 
@@ -246,11 +247,11 @@ export default function ManagePenugasan() {
       });
 
       setItemList(deduplicated);
-      setTrukList(trukRes.data.data || []);
+      setTrukList(Array.isArray(trukRes.data?.data) ? trukRes.data.data : []);
       setCurrentPage(1);
     } catch (error) {
-      console.error(error);
-      toast.error("Gagal memuat data");
+      console.error("Fetch Data Error:", error);
+      toast.error("Gagal memuat data dari server");
     } finally {
       setLoading(false);
     }
@@ -260,24 +261,25 @@ export default function ManagePenugasan() {
     fetchData();
   }, []);
 
-  // ✅ [PERUBAHAN 3] useEffect reset halaman ke 1 setiap search atau filter berubah — diambil dari pola ManageSupir
+  // Reset halaman ke 1 setiap search atau filter berubah
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, filter]);
 
+  // =========================
+  // FILTER
+  // =========================
   const filteredItems = useMemo(() => {
     return itemList.filter((item) => {
       const search = searchTerm.toLowerCase();
 
       const matchSearch =
-        (item.location || "").toLowerCase().includes(search) ||
-        (item.driver?.fullName || "").toLowerCase().includes(search) ||
-        (item.pelapor || "").toLowerCase().includes(search) ||
-        (item.taskNumber || "").toLowerCase().includes(search);
+        String(item?.location || "").toLowerCase().includes(search) ||
+        String(item?.driver?.fullName || "").toLowerCase().includes(search) ||
+        String(item?.pelapor || item?.report?.pelapor || "").toLowerCase().includes(search) ||
+        String(item?.taskNumber || "").toLowerCase().includes(search);
 
-      const matchStatus = filter.status
-        ? item.status === filter.status
-        : true;
+      const matchStatus = filter.status ? item?.status === filter.status : true;
 
       return matchSearch && matchStatus;
     });
@@ -290,15 +292,15 @@ export default function ManagePenugasan() {
     return filteredItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [filteredItems, currentPage]);
 
-  // ✅ [PERUBAHAN 4] Computed pageNumbers dengan ellipsis — identik dengan ManageSupir, sebelumnya tidak ada
+  // Computed pageNumbers dengan ellipsis
   const penugasanPageNumbers = useMemo(() => {
     const delta = 2;
     const range: number[] = [];
     const start = Math.max(1, currentPage - delta);
     const end = Math.min(totalPages, currentPage + delta);
     for (let i = start; i <= end; i++) range.push(i);
-    if (start > 1) range.unshift(-1, 1);       // -1 = ellipsis kiri
-    if (end < totalPages) range.push(-2, totalPages); // -2 = ellipsis kanan
+    if (start > 1) range.unshift(-1, 1);
+    if (end < totalPages) range.push(-2, totalPages);
     return range;
   }, [currentPage, totalPages]);
 
@@ -316,16 +318,16 @@ export default function ManagePenugasan() {
     setSelectedItem(item);
 
     let locationString = "";
-    if (typeof item.location === "string") {
+    if (typeof item?.location === "string") {
       locationString = item.location;
-    } else if (item.location && typeof item.location === "object") {
+    } else if (item?.location && typeof item.location === "object") {
       locationString = (item.location as any)?.name || (item.location as any)?.address || "";
     } else {
-      locationString = item.description || "";
+      locationString = item?.description || "";
     }
 
     setFormData({
-      reportId: item.report?.id || item.id,
+      reportId: item?.report?.id || item?.id || "",
       truckId: "",
       driverId: "",
       scheduledAt: "",
@@ -335,31 +337,19 @@ export default function ManagePenugasan() {
   };
 
   const handleInputChange = (e: any) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
-
-    if (!formData.location) {
-      toast.error("Lokasi harus diisi");
-      return;
-    }
-
-    if (!formData.driverId) {
-      toast.error("Armada yang dipilih tidak memiliki driver");
-      return;
-    }
+    if (!formData.location) return toast.error("Lokasi harus diisi");
+    if (!formData.driverId) return toast.error("Armada yang dipilih tidak memiliki driver");
 
     const selectedSchedule = new Date(formData.scheduledAt);
     const minScheduleDate = getMinimumScheduleDate();
 
     if (Number.isNaN(selectedSchedule.getTime()) || selectedSchedule.getTime() < minScheduleDate.getTime()) {
-      toast.error(`Jadwal penugasan minimal ${MIN_SCHEDULE_DAYS} hari dari sekarang.`);
-      return;
+      return toast.error(`Jadwal penugasan minimal ${MIN_SCHEDULE_DAYS} hari dari sekarang.`);
     }
 
     try {
@@ -390,28 +380,51 @@ export default function ManagePenugasan() {
     }
   };
 
+  // =========================
+  // DELETE LOGIC
+  // =========================
   const handleDelete = async () => {
     if (!pendingDeleteId) return;
-
     try {
-      await api.delete(`/penugasan/${pendingDeleteId}`);
-      setSuccessTitle('Penugasan berhasil dihapus');
-      setSuccessDescription('Penugasan telah dihapus secara permanen.');
+      const deleteUrl = pendingDeleteIsLaporan
+        ? `/laporan/${pendingDeleteId}`
+        : `/penugasan/${pendingDeleteId}`;
+
+      await api.delete(deleteUrl);
+
+      setSuccessTitle('Data berhasil dihapus');
+      setSuccessDescription('Data aduan/penugasan operasional telah dihapus secara permanen.');
       setSuccessIcon(<Trash2 size={24} />);
       setShowSuccessDialog(true);
       fetchData();
-    } catch (error) {
-      toast.error("Gagal menghapus");
-    } finally {
-      setShowConfirmDialog(false);
-      setPendingDeleteId(null);
-      setPendingDeleteName('');
-    }
+
+
+} catch (error: any) {
+  console.error("Delete Error:", error);
+
+  const status = error?.response?.status;
+  const serverMsg = error?.response?.data?.message;
+
+  if (status === 404) {
+    toast.error("Data tidak ditemukan di server. Mungkin sudah dihapus sebelumnya.");
+  } else if (status === 400) {
+    toast.error(serverMsg || "Permintaan tidak valid.");
+  } else if (serverMsg) {
+    toast.error(serverMsg);
+  } else {
+    toast.error("Gagal menghapus data. Silakan coba lagi.");
+  }
+} finally {
+  // ✅ Jangan lupa finally — ini wajib ada agar dialog selalu tertutup
+  setShowConfirmDialog(false);
+  setPendingDeleteId(null);
+  setPendingDeleteName('');
+  setPendingDeleteIsLaporan(false);
+}
   };
 
   const handleTolak = async () => {
     if (!pendingTolakId) return;
-
     try {
       await api.put(`/laporan/${pendingTolakId}/tolak`);
       setSuccessTitle('Laporan berhasil ditolak');
@@ -430,32 +443,27 @@ export default function ManagePenugasan() {
 
   const stats = {
     total: itemList.length,
-    laporan_baru: itemList.filter((i) => i.status === "LAPORAN_BARU").length,
-    dalam_proses: itemList.filter(
-      (i) => i.status === "DITUGASKAN" || i.status === "BEKERJA"
-    ).length,
-    selesai: itemList.filter((i) => i.status === "SELESAI").length,
-    driver_aktif: new Set(
-      itemList
-        .filter((i) => i.status !== "LAPORAN_BARU")
-        .map((i) => i.driver?.id)
-    ).size,
+    laporan_baru: itemList.filter((i) => i?.status === "LAPORAN_BARU").length,
+    dalam_proses: itemList.filter((i) => i?.status === "DITUGASKAN" || i?.status === "BEKERJA").length,
+    selesai: itemList.filter((i) => i?.status === "SELESAI").length,
+    driver_aktif: new Set(itemList.filter((i) => i?.status !== "LAPORAN_BARU").map((i) => i?.driver?.id).filter(Boolean)).size,
   };
 
-  const StatusBadge = ({ status }: { status: string }) => {
-    const styles: Record<string, { bg: string, text: string, ring: string }> = {
+  const StatusBadge = ({ status }: { status?: string | null }) => {
+    const safeStatus = status || "PENDING";
+    const styles: Record<string, { bg: string; text: string; ring: string }> = {
       LAPORAN_BARU: { bg: "bg-red-50", text: "text-red-700", ring: "ring-red-600/10" },
       DITUGASKAN: { bg: "bg-blue-50", text: "text-blue-700", ring: "ring-blue-600/10" },
       BEKERJA: { bg: "bg-amber-50", text: "text-amber-700", ring: "ring-amber-600/10" },
       SELESAI: { bg: "bg-emerald-50", text: "text-emerald-700", ring: "ring-emerald-600/10" },
       DITOLAK: { bg: "bg-slate-50", text: "text-slate-700", ring: "ring-slate-600/10" },
     };
-    const style = styles[status] || styles.DITUGASKAN;
+    const style = styles[safeStatus] || styles.DITUGASKAN;
 
     return (
       <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] md:text-[11px] font-bold ring-1 ring-inset ${style.bg} ${style.text} ${style.ring}`}>
         <span className={`w-1.5 h-1.5 rounded-full mr-2 ${style.text.replace('text', 'bg')}`}></span>
-        {status.replace(/_/g, " ")}
+        {safeStatus.replace(/_/g, " ")}
       </span>
     );
   };
@@ -477,7 +485,7 @@ export default function ManagePenugasan() {
                 Operasional & Monitoring
               </span>
               <h1 className="text-3xl font-extrabold text-[#1A2E35] tracking-tight uppercase">
-                Penugasan Aduan Masyarakat
+                Penugasan Aduan
               </h1>
               <p className="text-[#5B7078] mt-2 font-medium">
                 Monitoring laporan warga dan distribusi armada operasional.
@@ -496,7 +504,7 @@ export default function ManagePenugasan() {
           { label: "Selesai", value: stats.selesai, icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50" },
           { label: "Driver Aktif", value: stats.driver_aktif, icon: User, color: "text-purple-600", bg: "bg-purple-50" },
         ].map((s, i) => (
-          <div key={`penugasan-stat-${i}`} className="bg-white p-4 md:p-5 rounded-2xl border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
+          <div key={i} className="bg-white p-4 md:p-5 rounded-2xl border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
             <div className={`p-3 rounded-xl ${s.bg} ${s.color}`}>
               <s.icon size={24} />
             </div>
@@ -545,6 +553,7 @@ export default function ManagePenugasan() {
         <table className="w-full text-left border-spacing-0 min-w-[1100px]">
           <thead>
             <tr className="bg-gray-50 text-gray-400 text-[10px] font-bold uppercase tracking-widest border-b border-gray-100">
+              <th className="px-6 py-4">Tugas</th>
               <th className="px-6 py-4">Pelapor</th>
               <th className="px-6 py-4">Lokasi</th>
               <th className="px-6 py-4">Driver & Armada</th>
@@ -565,7 +574,16 @@ export default function ManagePenugasan() {
               </tr>
             ) : (
               paginatedItems.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50/80 transition-colors group">
+                <tr key={item?.id || Math.random()} className="hover:bg-gray-50/80 transition-colors group">
+                  {/* TUGAS */}
+                  <td className="px-6 py-5">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-sm">
+                        {item?.taskNumber ? `#${item.taskNumber}` : "Laporan Baru"}
+                      </span>
+                    </div>
+                  </td>
+
                   {/* PELAPOR */}
                   <td className="px-6 py-5">
                     <div className="flex items-center gap-3">
@@ -573,38 +591,38 @@ export default function ManagePenugasan() {
                         <User size={14} />
                       </div>
                       <span className="text-sm font-semibold text-gray-700">
-                        {item.pelapor || item.report?.pelapor || "Anonim"}
+                        {item?.pelapor || item?.report?.pelapor || "Warga Anonim"}
                       </span>
                     </div>
                   </td>
 
                   {/* LOKASI */}
                   <td className="px-6 py-5">
-                    <p className="font-bold text-sm text-gray-900">{item.location}</p>
-                    {formatCoordinate(item.latitude) && formatCoordinate(item.longitude) ? (
+                    <p className="font-bold text-sm text-gray-900">{item?.location || "-"}</p>
+                    {formatCoordinate(item?.latitude) && formatCoordinate(item?.longitude) ? (
                       <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
-                        <MapPin size={10} /> 
+                        <MapPin size={10} />
                         <span className="font-mono">
-                          {formatCoordinate(item.latitude)}, {formatCoordinate(item.longitude)}
+                          {formatCoordinate(item?.latitude)}, {formatCoordinate(item?.longitude)}
                         </span>
                       </p>
                     ) : (
                       <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
-                        <MapPin size={10} /> {item.district || "Area tidak terdeteksi"}
+                        <MapPin size={10} /> {item?.district || "Area tidak terdeteksi"}
                       </p>
                     )}
                   </td>
 
                   {/* DRIVER & ARMADA */}
                   <td className="px-6 py-5">
-                    {item.status === "LAPORAN_BARU" ? (
+                    {item?.status === "LAPORAN_BARU" ? (
                       <span className="text-xs italic text-gray-400">Belum Ditugaskan</span>
                     ) : (
                       <div>
-                        <p className="text-sm font-semibold text-gray-700">{item.driver?.fullName || "Tanpa Driver"}</p>
+                        <p className="text-sm font-semibold text-gray-700">{item?.driver?.fullName || "Tanpa Driver"}</p>
                         <p className="text-[10px] font-mono mt-1">
                           <span className="bg-gray-100 px-1.5 py-0.5 rounded-md text-gray-600 flex items-center gap-1 w-fit">
-                            <Truck size={10} /> {item.truck?.plateNumber || "-"}
+                            <Truck size={10} /> {item?.truck?.plateNumber || "-"}
                           </span>
                         </p>
                       </div>
@@ -613,15 +631,19 @@ export default function ManagePenugasan() {
 
                   {/* JADWAL */}
                   <td className="px-6 py-5">
-                    {item.scheduledAt ? (
+                    {item?.scheduledAt ? (
                       <div>
                         <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
                           <Calendar size={12} className="text-gray-400" />
-                          {new Date(item.scheduledAt).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {new Date(item.scheduledAt).getTime() > 0
+                            ? new Date(item.scheduledAt).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' })
+                            : "Jadwal Invalid"}
                         </p>
                         <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1.5">
                           <Clock size={12} className="text-gray-400" />
-                          {new Date(item.scheduledAt).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' })} WIB
+                          {new Date(item.scheduledAt).getTime() > 0
+                            ? `${new Date(item.scheduledAt).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' })} WIB`
+                            : "-"}
                         </p>
                       </div>
                     ) : (
@@ -631,13 +653,13 @@ export default function ManagePenugasan() {
 
                   {/* STATUS */}
                   <td className="px-6 py-5 text-center">
-                    <StatusBadge status={item.status} />
+                    <StatusBadge status={item?.status} />
                   </td>
 
                   {/* AKSI */}
-                  <td className="px-6 py-5 text-right">
+                  <td className="px-6 py-5">
                     <div className="flex justify-end gap-2">
-                      {item.status === "LAPORAN_BARU" ? (
+                      {item?.status === "LAPORAN_BARU" ? (
                         <>
                           <button
                             onClick={() => openTugaskanModal(item)}
@@ -668,7 +690,7 @@ export default function ManagePenugasan() {
                             <Eye size={16} />
                           </button>
 
-                          {item.status !== "SELESAI" && (
+                          {item?.status !== "SELESAI" && (
                             <button
                               onClick={() => openTugaskanModal(item)}
                               className="p-2 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100 transition-colors inline-flex"
@@ -681,6 +703,7 @@ export default function ManagePenugasan() {
                             onClick={() => {
                               setPendingDeleteId(item.id);
                               setPendingDeleteName(item.location || 'Penugasan');
+                              setPendingDeleteIsLaporan(!!item?.isLaporanBaru);
                               setShowConfirmDialog(true);
                             }}
                             className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors inline-flex"
@@ -697,12 +720,7 @@ export default function ManagePenugasan() {
           </tbody>
         </table>
 
-        {/* ✅ [PERUBAHAN 5] Blok pagination — diubah total dari versi lama (hanya ChevronLeft/Right + nomor halaman sederhana)
-            menjadi versi baru identik dengan ManageSupir:
-            - Tambah ChevronsLeft (ke halaman pertama) dan ChevronsRight (ke halaman terakhir)
-            - Tambah info teks "Menampilkan X–Y dari Z penugasan"
-            - Gunakan penugasanPageNumbers dengan ellipsis (…) untuk banyak halaman
-            - Tombol nomor halaman aktif pakai warna brand #4A6D55 */}
+        {/* PAGINATION */}
         {!loading && filteredItems.length > 0 && (
           <div className="px-6 py-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
             {/* Info range data */}
@@ -746,7 +764,7 @@ export default function ManagePenugasan() {
                 {penugasanPageNumbers.map((page, i) =>
                   page < 0 ? (
                     <span
-                      key={`penugasan-ellipsis-${i}`}
+                      key={`ellipsis-${i}`}
                       className="px-1 text-gray-400 text-xs font-bold select-none"
                     >
                       …
@@ -802,7 +820,7 @@ export default function ManagePenugasan() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-none sm:rounded-3xl shadow-2xl w-full max-w-lg min-h-screen sm:min-h-0 overflow-hidden my-auto"
+              className="bg-white rounded-none sm:rounded-3xl shadow-2xl w-full max-w-2xl min-h-screen sm:min-h-0 overflow-hidden my-auto"
             >
               <div className="px-6 py-5 border-b flex justify-between items-center bg-gray-50">
                 <div>
@@ -812,11 +830,7 @@ export default function ManagePenugasan() {
                   </p>
                 </div>
                 <button
-                  onClick={() => {
-                    setShowModal(false);
-                    resetForm();
-                    setSelectedItem(null);
-                  }}
+                  onClick={() => { setShowModal(false); resetForm(); setSelectedItem(null); }}
                   className="p-2 text-gray-400 hover:bg-gray-200 rounded-full transition-colors"
                 >
                   <X size={18} />
@@ -833,18 +847,9 @@ export default function ManagePenugasan() {
                     name="truckId"
                     value={formData.truckId}
                     onChange={(e) => {
-                      const selectedTruck = trukList.find(
-                        (t) => t.id === e.target.value
-                      );
-                      const driverId = selectedTruck
-                        ? getDriverId(selectedTruck)
-                        : "";
-
-                      setFormData({
-                        ...formData,
-                        truckId: e.target.value,
-                        driverId,
-                      });
+                      const selectedTruck = trukList.find((t) => t.id === e.target.value);
+                      const driverId = selectedTruck ? getDriverId(selectedTruck) : "";
+                      setFormData({ ...formData, truckId: e.target.value, driverId });
                     }}
                     className="w-full p-3.5 bg-gray-50 border border-gray-100 rounded-xl outline-none text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all font-medium"
                   >
@@ -854,10 +859,7 @@ export default function ManagePenugasan() {
                       const hasDriverForTruck = !!getDriverId(t);
                       return (
                         <option key={t.id} value={t.id}>
-                          {t.plateNumber}
-                          {t.unitCode ? ` (${t.unitCode})` : ""} -{" "}
-                          {driverName}
-                          {!hasDriverForTruck ? " ⚠️" : ""}
+                          {t.plateNumber}{t.unitCode ? ` (${t.unitCode})` : ""} - {driverName}{!hasDriverForTruck ? " ⚠️" : ""}
                         </option>
                       );
                     })}
@@ -865,7 +867,11 @@ export default function ManagePenugasan() {
                 </div>
 
                 {formData.truckId && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`border rounded-2xl p-4 ${hasDriver ? "bg-green-50 border-green-100" : "bg-amber-50 border-amber-100"}`}>
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`border rounded-2xl p-4 ${hasDriver ? "bg-green-50 border-green-100" : "bg-amber-50 border-amber-100"}`}
+                  >
                     {hasDriver ? (
                       <>
                         <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider flex items-center gap-1.5">
@@ -903,11 +909,7 @@ export default function ManagePenugasan() {
                 <div className="pt-4 flex gap-3">
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowModal(false);
-                      resetForm();
-                      setSelectedItem(null);
-                    }}
+                    onClick={() => { setShowModal(false); resetForm(); setSelectedItem(null); }}
                     className="flex-1 px-6 py-4 rounded-xl text-gray-600 font-bold hover:bg-gray-100 transition-all"
                   >
                     Batal
@@ -930,10 +932,7 @@ export default function ManagePenugasan() {
       {showDetailModal && selectedItem && (
         <PenugasanDetail
           penugasan={selectedItem}
-          onClose={() => {
-            setShowDetailModal(false);
-            setSelectedItem(null);
-          }}
+          onClose={() => { setShowDetailModal(false); setSelectedItem(null); }}
         />
       )}
 
@@ -958,6 +957,7 @@ export default function ManagePenugasan() {
           setShowConfirmDialog(false);
           setPendingDeleteId(null);
           setPendingDeleteName('');
+          setPendingDeleteIsLaporan(false);
         }}
       />
 
