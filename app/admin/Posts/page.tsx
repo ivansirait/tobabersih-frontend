@@ -2,6 +2,8 @@
   import { useState, useEffect } from 'react';
   import axios from 'axios';
   import { Edit, Trash2, Plus, Search, Calendar, User } from 'lucide-react';
+  import toast, { Toaster } from 'react-hot-toast';
+  import { useConfirm } from '../../components/ConfirmProvider';
 
   export const dynamic = 'force-dynamic';
 
@@ -13,6 +15,7 @@
   export default function ManagePosts({ posts = [], onPostsUpdate }: ManagePostsProps) {
     const [showModal, setShowModal] = useState(false);
     const [editingPost, setEditingPost] = useState<any>(null);
+    const confirm = useConfirm();
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -147,7 +150,7 @@
             config
           );
           console.log('Update response:', response.data);
-          alert('Berita berhasil diperbarui!');
+          toast.success('Berita berhasil diperbarui!');
         } else {
           response = await axios.post(
             '/api/posts', 
@@ -155,7 +158,7 @@
             config
           );
           console.log('Create response:', response.data);
-          alert('Berita berhasil ditambahkan!');
+          toast.success('Berita berhasil ditambahkan!');
         }
         
         setShowModal(false);
@@ -186,8 +189,14 @@
     };
 
     const handleDelete = async (id: number) => {
-      if (!confirm('Apakah Anda yakin ingin menghapus berita ini?')) return;
-      
+      const ok = await confirm({
+        title: 'Hapus Berita?',
+        description: 'Aksi ini akan menghapus berita secara permanen dari sistem.',
+        confirmText: 'Hapus',
+        cancelText: 'Batal'
+      });
+      if (!ok) return;
+
       const token = localStorage.getItem('token');
       if (!token) {
         setError('Sesi Anda telah berakhir. Silakan login ulang.');
@@ -198,7 +207,7 @@
         await axios.delete(`/api/posts/${id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        alert('Berita berhasil dihapus!');
+        toast.success('Berita berhasil dihapus!');
         onPostsUpdate();
       } catch (error: any) {
         console.error('Error deleting post:', error);
@@ -209,7 +218,7 @@
             window.location.href = '/admin/login';
           }, 2000);
         } else {
-          alert(error.response?.data?.message || 'Gagal menghapus berita');
+          toast.error(error.response?.data?.message || 'Gagal menghapus berita');
         }
       }
     };
@@ -236,6 +245,7 @@
 
     return (
       <div className="bg-white rounded-xl shadow-sm p-6">
+        <Toaster position="top-right" />
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <h2 className="text-2xl font-bold text-gray-800">Kelola Berita Homepage</h2>
@@ -261,6 +271,9 @@
               <Plus size={18} />
               <span>Tambah Berita</span>
             </button>
+          </div>
+
+        {/* Delete confirmation handled by ConfirmProvider */}
           </div>
         </div>
 

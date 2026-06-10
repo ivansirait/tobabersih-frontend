@@ -1,4 +1,3 @@
-// app/kabid/layout.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -95,7 +94,7 @@ export default function KabidLayout({ children }: { children: React.ReactNode })
         setActiveMenu={setActiveMenu}
         onLogout={handleLogout}
       />
-      <main className="md:ml-64 min-h-screen transition-all duration-300">
+      <main className="md:ml-[300px] min-h-screen">
         <div className="p-6">
           {children}
         </div>

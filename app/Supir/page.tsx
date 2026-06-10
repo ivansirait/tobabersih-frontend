@@ -6,6 +6,7 @@ import NavbarSupir from './components/NavbarSupir';
 import TugasCard from './components/TugasCard';
 import FormSelesai from './components/FormSelesai';
 import { Truck, ClipboardList, CheckCircle, Clock, Map as MapIcon, BarChart3 } from 'lucide-react';
+import { normalizeRole } from '@/lib/authRole';
 
 export default function HalamanSupir() {
   const router = useRouter();
@@ -32,14 +33,9 @@ export default function HalamanSupir() {
       const userData = JSON.parse(userStr);
       
       // Cek apakah role-nya OPERATOR (supir)
-      if (userData.role !== 'OPERATOR') {
-        if (userData.role === 'ADMIN') {
-          router.push('/admin');
-        } else if (userData.role === 'WARGA') {
-          router.push('/Warga');
-        } else {
-          router.push('/');
-        }
+      const role = normalizeRole(userData.role || localStorage.getItem('role') || '');
+      if (role !== 'OPERATOR') {
+        router.push('/unauthorized');
         return;
       }
 
@@ -61,8 +57,8 @@ const fetchTugas = async () => {
     setLoading(true);
     const token = localStorage.getItem('token');
     
-    // HARUSNYA PANGGIL INI:
-    const res = await axios.get('http://localhost:5000/api/supir-op/tugas/aduan', {
+    // Panggil melalui proxy Next.js
+    const res = await axios.get('/api/supir-op/tugas/aduan', {
       headers: { Authorization: `Bearer ${token}` }
     });
     
@@ -92,7 +88,7 @@ const fetchTugas = async () => {
   // Fallback ke endpoint lama (untuk sementara)
   const fetchTugasLegacy = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/laporan');
+      const res = await axios.get('/api/laporan');
       const allData = res.data;
 
       setStats({
@@ -129,14 +125,14 @@ const fetchTugas = async () => {
 
       // 🔴 PERBAIKAN: Gunakan endpoint yang benar
       await axios.post(
-        `http://localhost:5000/api/supir/tugas/${selectedTugas.id}/volume`,
+        `${selectedTugas?.id ? '/api/supir/tugas/' + selectedTugas.id : ''}/volume`,
         { volume: data.volume },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (data.photo) {
         await axios.post(
-          `http://localhost:5000/api/supir/tugas/${selectedTugas.id}/foto`,
+          `/api/supir/tugas/${selectedTugas.id}/foto`,
           formData,
           { 
             headers: { 

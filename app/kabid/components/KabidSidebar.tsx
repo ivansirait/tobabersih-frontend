@@ -1,4 +1,3 @@
-// app/kabid/components/KabidSidebar.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -92,7 +91,7 @@ export default function KabidSidebar(_props: SidebarProps) {
   };
 
   const NavItem = ({ item, isSubItem = false }: { item: MenuItem; isSubItem?: boolean }) => {
-    const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+   const isActive =item.href === '/kabid'  ? pathname === '/kabid'  : pathname.startsWith(item.href);
 
     return (
       <Link

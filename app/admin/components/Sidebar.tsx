@@ -70,7 +70,7 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
       group: "Data & Operasional",
       icon: Database,
       items: [
-        { id: 'manajemen-pengguna', label: 'Data Kepala Bidang', icon: UserCog, color: 'from-emerald-400 to-cyan-600', href: '/admin/KelolaKabid'},
+        // { id: 'manajemen-pengguna', label: 'Data Kepala Bidang', icon: UserCog, color: 'from-emerald-400 to-cyan-600', href: '/admin/KelolaKabid'},
          { id: 'data-supir', label: 'Data Supir', icon: Users, color: 'from-sky-400 to-indigo-600', href: '/admin/Supir' },
         { id: 'data-truk', label: 'Data Armada', icon: Truck, color: 'from-amber-400 to-orange-600', href: '/admin/Truk' },
         { id: 'data-wilayah', label: 'Data Wilayah', icon: Map, color: 'from-teal-400 to-green-600', href: '/admin/Wilayah' },

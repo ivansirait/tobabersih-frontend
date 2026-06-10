@@ -18,7 +18,9 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "/api";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL 
+      ? `${process.env.NEXT_PUBLIC_API_URL}/api` 
+      : "/api";
 
       const readArray = (payload: any) => {
         if (Array.isArray(payload)) return payload;

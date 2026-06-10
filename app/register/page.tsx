@@ -42,7 +42,7 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/register', {
+      const response = await axios.post('/api/auth/register', {
         fullName: formData.fullName,
         email: formData.email,
         password: formData.password,

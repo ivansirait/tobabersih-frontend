@@ -4,14 +4,13 @@ import { useState, useEffect, ReactNode, useMemo } from 'react';
 import axios from 'axios';
 import { 
   Plus, Edit3, Trash2, Search, Mail, Phone, X, Users,
-  CheckCircle2, XCircle, UserPlus, Eye, Lock, ChevronDown,
-  BadgeCheck, UserCog, Activity
+  CheckCircle2, XCircle, Eye, Lock,
+  BadgeCheck, UserCog
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import AlertDialog from '../components/AlertDialog';
 
-// Gunakan proxy Next.js
 const API_BASE_URL = '/api';
 
 interface Kabid {
@@ -66,7 +65,6 @@ export default function KelolaKabid() {
     setShowErrorDialog(true);
   };
 
-  // Fetch data
   const fetchKabid = async () => {
     try {
       setLoading(true);
@@ -90,25 +88,32 @@ export default function KelolaKabid() {
     fetchKabid();
   }, []);
 
-  // Stats
   const stats = useMemo(() => ({
     total: kabidList.length,
     active: kabidList.filter((k) => k.isActive).length,
     inactive: kabidList.filter((k) => !k.isActive).length,
   }), [kabidList]);
 
-  // Handle input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
+
+    // ✅ Nomor telepon: hanya angka, max 13 digit
+    if (name === 'phoneNumber') {
+      const onlyDigits = value.replace(/\D/g, '').slice(0, 13);
+      setFormData({ ...formData, phoneNumber: onlyDigits });
+      return;
+    }
+
     setFormData({
       ...formData,
       [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
     });
   };
 
-  // Open modal for create
   const openCreateModal = () => {
     setEditingKabid(null);
+    setShowPassword(false);
+    // ✅ Reset penuh — pastikan tidak ada sisa nilai dari sesi edit sebelumnya
     setFormData({
       email: '',
       fullName: '',
@@ -120,7 +125,6 @@ export default function KelolaKabid() {
     setShowModal(true);
   };
 
-  // Open modal for edit
   const openEditModal = (kabid: Kabid) => {
     setEditingKabid(kabid);
     setFormData({
@@ -134,11 +138,49 @@ export default function KelolaKabid() {
     setShowModal(true);
   };
 
-  // Handle submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    
+
+    // ✅ Validasi semua field wajib saat CREATE
+    if (!editingKabid) {
+      if (!formData.fullName.trim()) {
+        showErrorAlert('Nama lengkap wajib diisi.', 'Form Tidak Lengkap');
+        setSubmitting(false);
+        return;
+      }
+      if (!formData.email.trim()) {
+        showErrorAlert('Email wajib diisi.', 'Form Tidak Lengkap');
+        setSubmitting(false);
+        return;
+      }
+      if (!formData.phoneNumber.trim()) {
+        showErrorAlert('Nomor telepon wajib diisi.', 'Form Tidak Lengkap');
+        setSubmitting(false);
+        return;
+      }
+      if (formData.phoneNumber.length < 10 || formData.phoneNumber.length > 13) {
+        showErrorAlert('Nomor telepon harus 10–13 digit angka.', 'Format Tidak Valid');
+        setSubmitting(false);
+        return;
+      }
+      if (!formData.phoneNumber.startsWith('0') && !formData.phoneNumber.startsWith('62')) {
+        showErrorAlert('Nomor telepon harus diawali 0 atau 62.', 'Format Tidak Valid');
+        setSubmitting(false);
+        return;
+      }
+      if (!formData.password.trim()) {
+        showErrorAlert('Password wajib diisi.', 'Form Tidak Lengkap');
+        setSubmitting(false);
+        return;
+      }
+      if (formData.password.length < 6) {
+        showErrorAlert('Password minimal 6 karakter.', 'Form Tidak Lengkap');
+        setSubmitting(false);
+        return;
+      }
+    }
+
     try {
       const token = localStorage.getItem('token');
       const config = { 
@@ -186,32 +228,48 @@ export default function KelolaKabid() {
       resetForm();
     } catch (error: any) {
       console.error('Error saving kabid:', error);
-      toast.error(error.response?.data?.message || error.response?.data?.error || 'Gagal menyimpan data');
+      showErrorAlert(
+        error.response?.data?.message || error.response?.data?.error || 'Gagal menyimpan data',
+        'Gagal Menyimpan'
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Handle delete
+  // ✅ Handle delete — alert sudah diperbaiki menjadi "dihapus"
   const handleDelete = async () => {
     if (!pendingDeleteId) return;
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`${API_BASE_URL}/admin/kabid/${pendingDeleteId}`, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
+      const response = await axios.delete(
+        `${API_BASE_URL}/admin/kabid/${pendingDeleteId}`,
+        {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         }
-      });
-      setSuccessTitle('Data berhasil dihapus');
-      setSuccessDescription('Akun Kepala Bidang telah dihapus secara permanen.');
-      setSuccessIcon(<Trash2 size={24} />);
-      setShowSuccessDialog(true);
-      fetchKabid();
+      );
+      
+      if (response.data.success) {
+        // ✅ Teks diperbaiki: "dihapus" bukan "dinonaktifkan"
+        setSuccessTitle('Akun Berhasil Dihapus');
+        setSuccessDescription(`Akun Kepala Bidang "${pendingDeleteName}" telah dihapus dari sistem.`);
+        setSuccessIcon(<Trash2 size={24} />);
+        setShowSuccessDialog(true);
+        fetchKabid();
+      } else {
+        throw new Error(response.data.message);
+      }
+      
     } catch (error: any) {
-      console.error('Error deleting kabid:', error);
-      showErrorAlert(error.response?.data?.error || 'Gagal menghapus akun', 'Penghapusan Ditolak');
+      console.error('Error delete kabid:', error);
+      showErrorAlert(
+        error.response?.data?.message || 'Gagal menghapus akun', 
+        'Operasi Gagal'
+      );
     } finally {
       setShowConfirmDialog(false);
       setPendingDeleteId(null);
@@ -232,7 +290,6 @@ export default function KelolaKabid() {
     setShowPassword(false);
   };
 
-  // Filter berdasarkan search
   const filteredKabid = kabidList.filter(kabid =>
     kabid.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     kabid.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -256,7 +313,7 @@ export default function KelolaKabid() {
       {/* Error Dialog */}
       {showErrorDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm scale-150 rounded-3xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
+          <div className="w-full max-w-sm rounded-3xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-600">
@@ -274,11 +331,9 @@ export default function KelolaKabid() {
                 <X size={20} />
               </button>
             </div>
-
             <div className="px-6 py-5">
               <p className="text-sm leading-relaxed text-slate-600">{errorDescription}</p>
             </div>
-
             <div className="flex items-center justify-end gap-3 px-6 pb-6">
               <button
                 onClick={() => setShowErrorDialog(false)}
@@ -291,7 +346,7 @@ export default function KelolaKabid() {
         </div>
       )}
 
-      {/* HEADER - Consistent with ManageSupir */}
+      {/* HEADER */}
       <div className="mb-8">
         <div className="bg-gradient-to-r from-[#DDE9E1] to-[#E8F1EB] rounded-[24px] p-8 shadow-sm border border-white/50">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
@@ -308,7 +363,7 @@ export default function KelolaKabid() {
         </div>
       </div>
 
-      {/* STATS CARD - Consistent with ManageSupir */}
+      {/* STATS CARD */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: 'Total Kepala Bidang', val: stats.total, color: 'text-gray-600', bg: 'bg-gray-50', icon: Users },
@@ -467,7 +522,7 @@ export default function KelolaKabid() {
         )}
       </div>
 
-      {/* MODAL VIEW DETAIL - Consistent with ManageSupir */}
+      {/* MODAL VIEW DETAIL */}
       {viewingKabid && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-white/20">
@@ -527,7 +582,7 @@ export default function KelolaKabid() {
         </div>
       )}
 
-      {/* MODAL FORM - Consistent with ManageSupir */}
+      {/* MODAL FORM CREATE / EDIT */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-white/20">
@@ -535,12 +590,16 @@ export default function KelolaKabid() {
               <h3 className="text-xl font-bold text-gray-900">
                 {editingKabid ? 'Edit Data Kepala Bidang' : 'Tambah Kepala Bidang Baru'}
               </h3>
-              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-white rounded-full transition-colors text-gray-400">
+              <button
+                onClick={() => { setShowModal(false); resetForm(); }}
+                className="p-2 hover:bg-white rounded-full transition-colors text-gray-400"
+              >
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-8 space-y-5">
+            <form onSubmit={handleSubmit} className="p-8 space-y-5" noValidate>
+              {/* Nama Lengkap */}
               <div className="space-y-1.5">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">
                   Nama Lengkap <span className="text-red-500">*</span>
@@ -550,13 +609,13 @@ export default function KelolaKabid() {
                   name="fullName"
                   value={formData.fullName}
                   onChange={handleInputChange}
-                  required
                   placeholder="Masukkan nama lengkap"
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition font-medium text-black"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
+                {/* Email */}
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">
                     Email <span className="text-red-500">*</span>
@@ -566,15 +625,16 @@ export default function KelolaKabid() {
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    required
                     disabled={!!editingKabid}
                     placeholder="kabid@cleancity.com"
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition font-medium text-black disabled:bg-gray-100 disabled:text-gray-500"
                   />
                 </div>
+
+                {/* Nomor Telepon */}
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">
-                    Nomor Telepon
+                    Nomor Telepon <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="tel"
@@ -582,11 +642,17 @@ export default function KelolaKabid() {
                     value={formData.phoneNumber}
                     onChange={handleInputChange}
                     placeholder="08123456789"
+                    inputMode="numeric"
+                    maxLength={13}
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition font-medium text-black"
                   />
+                  <p className="text-[10px] text-gray-400 ml-1 mt-1">
+                    Angka saja, 10–13 digit, diawali 0 atau 62
+                  </p>
                 </div>
               </div>
 
+              {/* Password — hanya saat CREATE */}
               {!editingKabid && (
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">
@@ -594,11 +660,10 @@ export default function KelolaKabid() {
                   </label>
                   <div className="relative">
                     <input
-                      type={showPassword ? "text" : "password"}
+                      type={showPassword ? 'text' : 'password'}
                       name="password"
                       value={formData.password}
                       onChange={handleInputChange}
-                      required={!editingKabid}
                       placeholder="Minimal 6 karakter"
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 outline-none transition font-medium text-black pr-12"
                     />
@@ -613,6 +678,7 @@ export default function KelolaKabid() {
                 </div>
               )}
 
+              {/* Password Baru — hanya saat EDIT */}
               {editingKabid && (
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">
@@ -629,6 +695,7 @@ export default function KelolaKabid() {
                 </div>
               )}
 
+              {/* Status Akun — hanya saat EDIT */}
               {editingKabid && (
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400 ml-1">
@@ -646,10 +713,17 @@ export default function KelolaKabid() {
                 </div>
               )}
 
+              {/* Info wajib isi — hanya saat CREATE */}
+              {!editingKabid && (
+                <p className="text-xs text-gray-400 ml-1">
+                  <span className="text-red-500">*</span> Semua field wajib diisi
+                </p>
+              )}
+
               <div className="pt-4 flex gap-3">
                 <button 
                   type="button" 
-                  onClick={() => setShowModal(false)} 
+                  onClick={() => { setShowModal(false); resetForm(); }} 
                   className="flex-1 px-6 py-3 rounded-xl text-gray-600 font-bold hover:bg-gray-100 transition-all"
                 >
                   Batal

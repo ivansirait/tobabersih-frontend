@@ -25,7 +25,7 @@ export default function RiwayatTugas() {
       setLoading(true);
       const token = localStorage.getItem('token');
       
-      let url = `http://localhost:5000/api/supir/riwayat?page=${page}&limit=10`;
+      let url = `/api/supir/riwayat?page=${page}&limit=10`;
       if (filter.startDate) url += `&startDate=${filter.startDate}`;
       if (filter.endDate) url += `&endDate=${filter.endDate}`;
 

@@ -24,40 +24,39 @@ export default function ConfirmDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-sm scale-150 rounded-3xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-600">
-              <AlertTriangle size={24} />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
-              {description && <p className="text-sm text-slate-500 mt-1">{description}</p>}
-            </div>
-          </div>
-          <button onClick={onCancel} className="text-slate-400 hover:text-slate-600 transition-colors">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-lg rounded-[24px] bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
+        <div className="p-8 md:p-10 flex flex-col items-center text-center">
+          <button onClick={onCancel} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors">
             <X size={20} />
           </button>
-        </div>
 
-        <div className="px-6 py-5">
-          <p className="text-sm text-slate-600">{description ?? 'Aksi ini tidak dapat dibatalkan.'}</p>
-        </div>
+          <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-amber-50 flex items-center justify-center text-amber-600 mb-6 border-8 border-amber-50/50">
+            <AlertTriangle size={36} />
+          </div>
 
-        <div className="flex items-center justify-end gap-3 px-6 pb-6">
-          <button
-            onClick={onCancel}
-            className="rounded-full border border-slate-200 bg-slate-100 px-5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
-          >
-            {cancelText}
-          </button>
-          <button
-            onClick={onConfirm}
-            className="rounded-full bg-[#064E3B] px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-[#064E3B]/10 transition hover:bg-[#053f30]"
-          >
-            {confirmText}
-          </button>
+          <h3 className="font-black text-2xl md:text-3xl text-gray-900 mb-2">{title}</h3>
+
+          {description && (
+            <p className="text-gray-500 text-sm md:text-base leading-relaxed font-medium max-w-prose mb-6">
+              {description}
+            </p>
+          )}
+
+          <div className="flex w-full gap-4">
+            <button
+              onClick={onCancel}
+              className="flex-1 py-3 px-6 bg-gray-100 text-gray-700 rounded-full font-semibold hover:bg-gray-200 transition"
+            >
+              {cancelText}
+            </button>
+            <button
+              onClick={onConfirm}
+              className="flex-1 py-3 px-6 bg-red-500 text-white rounded-full font-semibold hover:bg-red-600 transition shadow-lg"
+            >
+              {confirmText}
+            </button>
+          </div>
         </div>
       </div>
     </div>
