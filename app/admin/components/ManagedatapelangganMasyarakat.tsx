@@ -69,9 +69,9 @@ interface AlertConfig {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const _envBase = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000").replace(/\/+$/, "");
-const API_BASE = _envBase.endsWith("/api") ? _envBase : `${_envBase}/api`;
-
+const API_BASE = process.env.NEXT_PUBLIC_API_URL
+  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') + '/api'
+  : '/api';
 const INITIAL_FORM: FormData = {
   nama: "", alamat: "", jenisUsaha: "", driverId: "",
 };
@@ -507,6 +507,8 @@ export default function ManagePelanggan() {
   // ── Fetch ────────────────────────────────────────────────────────────────
 
   const fetchList = async (page = 1) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -526,9 +528,11 @@ export default function ManagePelanggan() {
     }
   };
 
-  const fetchDrivers = async () => {
-    try {
-      const res = await axios.get(`${API_BASE}/admin/supir-list`, getAuthConfig());
+const fetchDrivers = async () => {
+  const token = localStorage.getItem('token');
+  if (!token) return;
+  try {
+    const res = await axios.get(`${API_BASE}/admin/supir-list`, getAuthConfig());
       if (res.data.success) {
         setDrivers((res.data.data ?? []).filter((d: Driver) => d.isActive));
       }
