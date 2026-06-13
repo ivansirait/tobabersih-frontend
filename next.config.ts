@@ -8,6 +8,7 @@ const API_PROXY_TARGET = (process.env.API_PROXY_TARGET || "http://localhost:5000
 console.log(`📡 Next.js Proxy Target: ${API_PROXY_TARGET}`);
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   serverExternalPackages: ["@prisma.client"],
 
   allowedDevOrigins: [
