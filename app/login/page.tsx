@@ -8,7 +8,6 @@ import { Mail, Lock, LogIn, Eye, EyeOff, Leaf } from 'lucide-react';
 import { getRoleRoute, normalizeRole } from '@/lib/authRole';
 
 // Gunakan proxy Next.js untuk backend communication
-const API_BASE_URL = '/api/auth';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,7 +23,9 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const res = await axios.post(`${API_BASE_URL}/login`, { email, password });
+      const rawBase = process.env.NEXT_PUBLIC_API_URL || "";
+      const BASE = rawBase ? rawBase.replace(/\/$/, "") + "/api" : "/api";
+      const res = await axios.post(`${BASE}/auth/login`, { email, password });
       console.log('[LOGIN DEBUG] Response:', res.data);
 
       if (res.data?.success) {

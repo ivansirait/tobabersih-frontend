@@ -154,13 +154,15 @@ export default function LaporanForm({
   selectedImage,
   qualityError,
 }: LaporanFormProps) {
-  // State untuk verifikasi wilayah (tetap ada, tapi tidak memblokir tombol)
   const [wilayahList, setWilayahList] = useState<Wilayah[]>([]);
   const [activeWilayah, setActiveWilayah] = useState<Wilayah | null>(null);
   const [wilayahMessage, setWilayahMessage] = useState<string | null>(null);
   const [isLocationRegistered, setIsLocationRegistered] = useState<boolean>(true);
   const [isCheckingLocation, setIsCheckingLocation] = useState<boolean>(false);
   const [checkTrigger, setCheckTrigger] = useState<number>(0);
+  
+  // ✅ State tambahan untuk menyimpan error saat tombol kirim ditekan
+  const [submitLocationError, setSubmitLocationError] = useState<string | null>(null);
 
   const isValidCoordinate = (latitude: number, longitude: number) => {
     return (
@@ -229,6 +231,9 @@ export default function LaporanForm({
 
   useEffect(() => {
     const checkWilayahAdmin = async () => {
+      // Hapus pesan error lama jika lokasi berubah/dicek ulang
+      setSubmitLocationError(null);
+      
       if (!isValidCoordinate(form.latitude, form.longitude)) {
         setIsLocationRegistered(false);
         setActiveWilayah(null);
@@ -291,6 +296,26 @@ export default function LaporanForm({
     checkWilayahAdmin();
   }, [form.latitude, form.longitude, checkTrigger]);
 
+  // ✅ Fungsi intersepsi submit form
+  const handleLocalSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    setSubmitLocationError(null);
+
+    // Validasi saat tombol ditekan
+    if (isCheckingLocation) {
+      setSubmitLocationError("Harap tunggu, sistem sedang memverifikasi lokasi Anda.");
+      return;
+    }
+
+    if (!isLocationRegistered) {
+      setSubmitLocationError("Laporan tidak dapat dikirim karena lokasi saat ini berada di luar area layanan / tidak terdaftar.");
+      return;
+    }
+
+    // Jika aman, teruskan ke fungsi submit bawaan
+    handleSubmit(e);
+  };
+
   // Helper UI
   const hasErrors = Object.values(errors).some(Boolean);
 
@@ -314,9 +339,9 @@ export default function LaporanForm({
     );
   };
 
-  // ✅ PERUBAHAN: Tombol kirim hanya dinonaktifkan saat loading atau foto bermasalah.
-  // Lokasi tidak terdeteksi atau sedang verifikasi TIDAK memblokir tombol.
-  const isSubmitDisabled = loading || !!qualityError || !isLocationRegistered || isCheckingLocation;
+  // ✅ PERUBAHAN: Tombol kirim hanya disable saat loading atau ada error kualitas foto bawaan
+  // Registrasi wilayah tidak mematikan tombol, tapi akan memicu `handleLocalSubmit`
+  const isSubmitDisabled = loading || !!qualityError;
 
   return (
     <section className="overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-slate-200/70">
@@ -355,7 +380,8 @@ export default function LaporanForm({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+        {/* Gunakan handleLocalSubmit pada onSubmit form */}
+        <form onSubmit={handleLocalSubmit} className="space-y-6" noValidate>
           {/* Nama Lengkap */}
           <div>
             <label className={labelClass}>Nama Lengkap <span className="text-red-500">*</span></label>
@@ -388,7 +414,7 @@ export default function LaporanForm({
             <FieldError message={errors.email} />
           </div>
 
-          {/* Lampiran Foto (hanya kamera) */}
+          {/* Lampiran Foto */}
           <div>
             <label className={labelClass}>
               Lampiran Foto <span className="text-red-500">*</span>
@@ -494,7 +520,7 @@ export default function LaporanForm({
             <FieldError message={errors.deskripsi} />
           </div>
 
-          {/* Blok Info Lokasi + Verifikasi Wilayah Aktif (hanya info, tidak memblokir tombol) */}
+          {/* Blok Info Lokasi */}
           <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3.5">
             <div className="flex items-center justify-between mb-1.5">
               <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
@@ -511,7 +537,6 @@ export default function LaporanForm({
               )}
             </div>
 
-            {/* Status GPS & Alamat */}
             {savedLocation ? (
               <div className="flex items-start gap-2.5">
                 <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-100">
@@ -555,7 +580,6 @@ export default function LaporanForm({
               </div>
             )}
 
-            {/* Informasi verifikasi wilayah aktif */}
             {isCheckingLocation && (
               <div className="mt-3 flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
                 <RefreshCw size={14} className="animate-spin" />
@@ -579,23 +603,34 @@ export default function LaporanForm({
             )}
           </div>
 
-          {/* Tombol Kirim - selalu aktif kecuali loading atau foto bermasalah */}
+          {/* ✅ Tampilan Alert Error jika validasi lokasi gagal saat submit ditekan */}
+          {submitLocationError && (
+            <div className="rounded-xl border border-red-300 bg-red-50 p-3 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+              <div className="flex items-start gap-2.5">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-100">
+                  <AlertCircle size={15} className="text-red-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-red-800">Gagal Mengirim Laporan</p>
+                  <p className="mt-0.5 text-xs text-red-700 leading-relaxed">{submitLocationError}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tombol Kirim */}
           <button
             type="submit"
             disabled={isSubmitDisabled}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-green-700 py-4 text-base font-bold text-white shadow-lg shadow-green-700/20 transition-all hover:bg-green-800 hover:shadow-green-800/25 disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-green-700 py-4 text-base font-bold text-white shadow-lg shadow-green-700/20 transition-all hover:bg-green-800 hover:shadow-green-800/25 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
           >
-          {loading ? (
-            <><span className="h-5 w-5 animate-spin ..." /> Mengirim Laporan...</>
-          ) : isCheckingLocation ? (
-            <><span className="h-5 w-5 animate-spin ..." /> Memverifikasi Wilayah...</>  // ← TAMBAH INI
-          ) : qualityError ? (
-            <><AlertCircle size={20} /> Perbaiki Foto Terlebih Dahulu</>
-          ) : !isLocationRegistered ? (
-            <><AlertCircle size={20} /> Lokasi di Luar Wilayah Operasional</>  // ← TAMBAH INI
-          ) : (
-            <><Send size={20} /> Kirim Laporan</>
-          )}
+            {loading ? (
+              <><span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" /> Mengirim Laporan...</>
+            ) : qualityError ? (
+              <><AlertCircle size={20} /> Perbaiki Foto Terlebih Dahulu</>
+            ) : (
+              <><Send size={20} /> Kirim Laporan</>
+            )}
           </button>
         </form>
       </div>
