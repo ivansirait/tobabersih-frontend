@@ -38,8 +38,6 @@ export default function Home() {
   const [qualityError, setQualityError] = useState<string | null>(null);
   const [gpsStatus, setGpsStatus] = useState("Mendeteksi lokasi...");
   const [savedLocation, setSavedLocation] = useState<string | null>(null);
-  const [isLocationRegistered, setIsLocationRegistered] = useState(false);
-  const [isCheckingLocation, setIsCheckingLocation] = useState(false);
 
   const [uiAlert, setUiAlert] = useState<{
     type: "success" | "error" | "warning";
@@ -263,22 +261,8 @@ export default function Home() {
       }
     }
 
-async function handleSubmit(e: React.FormEvent) {
-  e.preventDefault();
-
-  // ← TAMBAH INI
-  if (isCheckingLocation) {
-    showUiAlert("warning", "Mohon Tunggu", "Sedang memverifikasi wilayah lokasi Anda...");
-    return;
-  }
-
-  if (!isLocationRegistered) {
-    showUiAlert("error", "Lokasi Tidak Valid", "Lokasi Anda tidak berada dalam wilayah operasional aktif. Laporan tidak dapat dikirim.");
-    return;
-  }
-
-  if (!validateForm()) return;
-  // ... sisa kode yang sudah ada
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
 
     if (!validateForm()) return;
 

@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   Hash,
   AlertCircle,
+  ChevronDown,
 } from "lucide-react";
 
 import AlertDialog, { type AlertType } from "./AlertDialog";
@@ -63,8 +64,10 @@ interface AlertConfig {
    CONFIG
 ========================= */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_ADMIN_URL || "/api/admin";
-
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') + '/api/admin'
+  : '/api/admin';
+  
 const INITIAL_FORM_DATA: FormData = {
   fullName: "",
   email: "",
@@ -87,15 +90,13 @@ export default function ManageSupir() {
 
   const [showModal, setShowModal] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [originalData, setOriginalData] = useState<Partial<FormData> | null>(null);
 
   const [viewingSupir, setViewingSupir] = useState<Supir | null>(null);
   const [editingSupir, setEditingSupir] = useState<Supir | null>(null);
 
   const [selectedSupirForDelete, setSelectedSupirForDelete] = useState<Supir | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
-
-  const [selectedSupirForToggle, setSelectedSupirForToggle] = useState<Supir | null>(null);
-  const [showToggleConfirm, setShowToggleConfirm] = useState<boolean>(false);
 
   const [formData, setFormData] = useState<FormData>({ ...INITIAL_FORM_DATA });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -203,23 +204,26 @@ export default function ManageSupir() {
     setShowModal(true);
   };
 
-  const openEditModal = (supir: Supir) => {
-    setEditingSupir(supir);
-    setFormErrors({});
-    setShowPassword(false);
-    setFormData({
-      fullName: supir.fullName || "",
-      email: supir.email || "",
-      password: "",
-      phoneNumber: supir.phoneNumber || "",
-      isActive: supir.isActive,
-    });
-    setShowModal(true);
+const openEditModal = (supir: Supir) => {
+  setEditingSupir(supir);
+  setFormErrors({});
+  setShowPassword(false);
+  const data = {
+    fullName: supir.fullName || "",
+    email: supir.email || "",
+    password: "",
+    phoneNumber: supir.phoneNumber || "",
+    isActive: supir.isActive,
   };
+  setOriginalData(data); // ← tambah ini
+  setFormData(data);
+  setShowModal(true);
+};
 
   const closeFormModal = () => {
     setShowModal(false);
     setEditingSupir(null);
+     setOriginalData(null);
     resetForm();
   };
 
@@ -273,10 +277,25 @@ export default function ManageSupir() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleSubmit = async (e: FormEvent): Promise<void> => {
-    e.preventDefault();
-    if (!validateForm()) return;
+      const handleSubmit = async (e: FormEvent): Promise<void> => {
+        e.preventDefault();
+        if (!validateForm()) return;
 
+        // ── CEK PERUBAHAN (khusus mode edit) ──
+        if (editingSupir && originalData) {
+          const hasChanged =
+            formData.fullName.trim() !== originalData.fullName ||
+            formData.email.trim() !== originalData.email ||
+            formData.phoneNumber.trim() !== originalData.phoneNumber ||
+            formData.isActive !== originalData.isActive ||
+            formData.password.trim() !== "";
+
+          if (!hasChanged) {
+            closeFormModal();
+            showAlert("info", "Tidak Ada Perubahan", "Data supir tidak mengalami perubahan apapun.", "Silakan ubah data terlebih dahulu sebelum menyimpan.");
+            return;
+          }
+        }
     setSubmitting(true);
 
     try {
@@ -374,47 +393,6 @@ export default function ManageSupir() {
   };
 
   /* =========================
-     STATUS HANDLER
-  ========================= */
-
-  const toggleStatus = async (supir: Supir): Promise<void> => {
-    try {
-      setSubmitting(true);
-      await axios.put(
-        `${API_BASE_URL}/supir/${supir.id}`,
-        {
-          fullName: supir.fullName,
-          email: supir.email,
-          phoneNumber: supir.phoneNumber || "",
-          isActive: !supir.isActive,
-        },
-        getAuthConfig()
-      );
-      
-      // Matikan loading dan tampilkan alert SEGERA
-      setSubmitting(false);
-      showAlert(
-        "success",
-        !supir.isActive ? "Supir berhasil diaktifkan" : "Supir berhasil dinonaktifkan",
-        !supir.isActive
-          ? "Akun supir sudah dapat digunakan kembali."
-          : "Akun supir sementara tidak dapat digunakan."
-      );
-      
-      // Refresh data tabel di background
-      fetchSupir();
-    } catch (error: any) {
-      setSubmitting(false);
-      showAlert(
-        "error",
-        "Gagal mengubah status",
-        "Status akun supir gagal diubah. Silakan coba lagi.",
-        getErrorMessage(error, "Terjadi kesalahan sistem.")
-      );
-    }
-  };
-
-  /* =========================
      RENDER
   ========================= */
 
@@ -468,32 +446,6 @@ export default function ManageSupir() {
           setSelectedSupirForDelete(null);
         }}
       />
-
-      {/* 4. Toggle Status Confirm Alert */}
-      <AlertDialog
-        open={showToggleConfirm}
-        type="edit"
-        title={selectedSupirForToggle?.isActive ? "Nonaktifkan Supir?" : "Aktifkan Supir?"}
-        description={
-          selectedSupirForToggle?.isActive
-            ? "Supir ini tidak akan bisa masuk ke aplikasi mobile sementara waktu."
-            : "Berikan kembali akses aplikasi mobile kepada supir ini."
-        }
-        buttonText="Ya, Lanjutkan"
-        showCancelButton={true}
-        onConfirm={async () => {
-          setShowToggleConfirm(false); // Tutup dialog konfirmasi dulu
-          if (selectedSupirForToggle) {
-            await toggleStatus(selectedSupirForToggle);
-          }
-          setSelectedSupirForToggle(null);
-        }}
-        onClose={() => {
-          setShowToggleConfirm(false);
-          setSelectedSupirForToggle(null);
-        }}
-      />
-
       {/* HEADER */}
       <div className="bg-gradient-to-r from-[#DDE9E1] to-[#E8F1EB] rounded-[24px] p-8 shadow-sm border border-white/50 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-40 h-40 bg-white/20 rounded-full -mr-10 -mt-10 blur-2xl" />
@@ -636,19 +588,12 @@ export default function ManageSupir() {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedSupirForToggle(supir);
-                        setShowToggleConfirm(true);
-                      }}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all ${
-                        supir.isActive ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-red-100 text-red-700 hover:bg-red-200"
-                      }`}
-                    >
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                      supir.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                    }`}>
                       {supir.isActive ? <Power size={10} /> : <PowerOff size={10} />}
                       {supir.isActive ? "AKTIF" : "NONAKTIF"}
-                    </button>
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-right space-x-2">
                     <button
@@ -711,78 +656,70 @@ export default function ManageSupir() {
                   <X size={18} />
                 </button>
               </div>
+            <form key={editingSupir ? `edit-${editingSupir.id}` : "create-supir"} onSubmit={handleSubmit} className="p-6 space-y-4" autoComplete="off" noValidate>
+              {/* Hidden fields untuk autofill browser */}
+              <input type="text" name="fake_username" autoComplete="username" tabIndex={-1} className="absolute opacity-0 pointer-events-none h-0 w-0" />
+              <input type="password" name="fake_password" autoComplete="new-password" tabIndex={-1} className="absolute opacity-0 pointer-events-none h-0 w-0" />
 
-              <form key={editingSupir ? `edit-${editingSupir.id}` : "create-supir"} onSubmit={handleSubmit} className="p-6 space-y-5" autoComplete="off" noValidate>
-                <input type="text" name="fake_username" autoComplete="username" tabIndex={-1} className="absolute opacity-0 pointer-events-none h-0 w-0" />
-                <input type="password" name="fake_password" autoComplete="new-password" tabIndex={-1} className="absolute opacity-0 pointer-events-none h-0 w-0" />
-
-                {Object.keys(formErrors).length > 0 && (
-                  <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-xs font-semibold flex items-start gap-2">
-                    <AlertCircle size={16} className="shrink-0 mt-0.5" />
-                    <span>Lengkapi semua data yang wajib diisi sebelum menyimpan.</span>
-                  </div>
-                )}
-
-                {/* NAMA */}
-                <div className="flex flex-col space-y-1.5">
-                  <label className="text-xs font-bold text-gray-600 tracking-wide flex items-center gap-1">
-                    Nama Lengkap <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <User className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${formErrors.fullName ? "text-red-400" : "text-gray-400"}`} size={16} />
-                    <input
-                      type="text"
-                      name="fullName"
-                      value={formData.fullName}
-                      onChange={handleInputChange}
-                      placeholder="Masukkan nama lengkap supir"
-                      autoComplete="off"
-                      className={`w-full pl-11 pr-4 py-3 bg-gray-50/80 rounded-xl outline-none text-base font-medium transition-all border ${
-                        formErrors.fullName ? "border-red-300 focus:border-red-400 focus:ring-4 focus:ring-red-500/10 bg-red-50/10" : "border-gray-200/80 focus:border-[#4A6D55] focus:ring-4 focus:ring-[#4A6D55]/10 focus:bg-white"
-                      }`}
-                    />
-                  </div>
-                  {formErrors.fullName && (
-                    <p className="text-red-500 text-[11px] font-medium flex items-center gap-1 pl-1">
-                      <AlertCircle size={12} className="shrink-0" />{formErrors.fullName}
-                    </p>
-                  )}
+              {Object.keys(formErrors).length > 0 && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-xs font-semibold flex items-start gap-2">
+                  <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                  <span>Lengkapi semua data yang wajib diisi sebelum menyimpan.</span>
                 </div>
+              )}
 
+              {/* FIELD NAMA LENGKAP - full width */}
+              <div className="flex flex-col space-y-1.5">
+                <label className="text-xs font-bold text-gray-600 tracking-wide">
+                  Nama Lengkap Supir <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <User className={`absolute left-4 top-1/2 -translate-y-1/2 ${formErrors.fullName ? "text-red-400" : "text-gray-400"}`} size={16} />
+                  <input
+                    type="text"
+                    name="fullName"
+                    value={formData.fullName}
+                    onChange={handleInputChange}
+                    placeholder="Masukkan nama lengkap supir"
+                    className={`w-full pl-11 pr-4 py-3 bg-gray-50/80 rounded-xl outline-none text-sm font-medium transition-all border ${
+                      formErrors.fullName ? "border-red-300 focus:border-red-400 focus:ring-4 focus:ring-red-500/10 bg-red-50/10" : "border-gray-200 focus:border-[#4A6D55] focus:ring-4 focus:ring-[#4A6D55]/10 focus:bg-white"
+                    }`}
+                  />
+                </div>
+                {formErrors.fullName && <p className="text-red-500 text-[11px] font-medium flex items-center gap-1 pl-1"><AlertCircle size={12} />{formErrors.fullName}</p>}
+              </div>
+
+              {/* GRID 2 KOLOM: Email & Telepon */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* EMAIL */}
                 <div className="flex flex-col space-y-1.5">
-                  <label className="text-xs font-bold text-gray-600 tracking-wide flex items-center gap-1">
+                  <label className="text-xs font-bold text-gray-600 tracking-wide">
                     Email Akses <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
-                    <Mail className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${formErrors.email ? "text-red-400" : "text-gray-400"}`} size={16} />
+                    <Mail className={`absolute left-4 top-1/2 -translate-y-1/2 ${formErrors.email ? "text-red-400" : "text-gray-400"}`} size={16} />
                     <input
                       type="email"
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
-                      placeholder="contoh: supir@company.com"
-                      autoComplete="new-email"
-                      className={`w-full pl-11 pr-4 py-3 bg-gray-50/80 rounded-xl outline-none text-base font-medium transition-all border ${
-                        formErrors.email ? "border-red-300 focus:border-red-400 focus:ring-4 focus:ring-red-500/10 bg-red-50/10" : "border-gray-200/80 focus:border-[#4A6D55] focus:ring-4 focus:ring-[#4A6D55]/10 focus:bg-white"
+                      placeholder="contoh: supir@perusahaan.com"
+                      className={`w-full pl-11 pr-4 py-3 bg-gray-50/80 rounded-xl outline-none text-sm font-medium transition-all border ${
+                        formErrors.email ? "border-red-300 focus:border-red-400 focus:ring-4 focus:ring-red-500/10 bg-red-50/10" : "border-gray-200 focus:border-[#4A6D55] focus:ring-4 focus:ring-[#4A6D55]/10 focus:bg-white"
                       }`}
                     />
                   </div>
-                  {formErrors.email && (
-                    <p className="text-red-500 text-[11px] font-medium flex items-center gap-1 pl-1">
-                      <AlertCircle size={12} className="shrink-0" />{formErrors.email}
-                    </p>
-                  )}
+                  {formErrors.email && <p className="text-red-500 text-[11px] font-medium flex items-center gap-1 pl-1"><AlertCircle size={12} />{formErrors.email}</p>}
                 </div>
 
                 {/* TELEPON */}
                 <div className="flex flex-col space-y-1.5">
-                  <label className="text-xs font-bold text-gray-600 tracking-wide flex items-center gap-1">
+                  <label className="text-xs font-bold text-gray-600 tracking-wide">
                     Nomor Telepon <span className="text-red-500">*</span>
-                    <span className="text-gray-400 font-normal">Angka saja</span>
+                    <span className="text-gray-400 font-normal ml-1">(Angka saja)</span>
                   </label>
                   <div className="relative">
-                    <Phone className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${formErrors.phoneNumber ? "text-red-400" : "text-gray-400"}`} size={16} />
+                    <Phone className={`absolute left-4 top-1/2 -translate-y-1/2 ${formErrors.phoneNumber ? "text-red-400" : "text-gray-400"}`} size={16} />
                     <input
                       type="text"
                       inputMode="numeric"
@@ -791,98 +728,95 @@ export default function ManageSupir() {
                       value={formData.phoneNumber}
                       onChange={handleInputChange}
                       placeholder="Contoh: 08123456789"
-                      autoComplete="off"
-                      className={`w-full pl-11 pr-4 py-3 bg-gray-50/80 rounded-xl outline-none text-base font-medium transition-all border ${
-                        formErrors.phoneNumber ? "border-red-300 focus:border-red-400 focus:ring-4 focus:ring-red-500/10 bg-red-50/10" : "border-gray-200/80 focus:border-[#4A6D55] focus:ring-4 focus:ring-[#4A6D55]/10 focus:bg-white"
+                      className={`w-full pl-11 pr-4 py-3 bg-gray-50/80 rounded-xl outline-none text-sm font-medium transition-all border ${
+                        formErrors.phoneNumber ? "border-red-300 focus:border-red-400 focus:ring-4 focus:ring-red-500/10 bg-red-50/10" : "border-gray-200 focus:border-[#4A6D55] focus:ring-4 focus:ring-[#4A6D55]/10 focus:bg-white"
                       }`}
                     />
                   </div>
-                  {formErrors.phoneNumber && (
-                    <p className="text-red-500 text-[11px] font-medium flex items-center gap-1 pl-1">
-                      <AlertCircle size={12} className="shrink-0" />{formErrors.phoneNumber}
-                    </p>
-                  )}
+                  {formErrors.phoneNumber && <p className="text-red-500 text-[11px] font-medium flex items-center gap-1 pl-1"><AlertCircle size={12} />{formErrors.phoneNumber}</p>}
                 </div>
+              </div>
 
-                {/* PASSWORD */}
-                <div className="flex flex-col space-y-1.5">
-                  <label className="text-xs font-bold text-gray-600 tracking-wide">
-                    {editingSupir ? "Ubah Password Baru" : "Password Akses"}{" "}
-                    <span className={editingSupir ? "text-gray-400 font-normal" : "text-red-500"}>
-                      {editingSupir ? "Opsional" : "*"}
-                    </span>
-                  </label>
-                  <div className="relative">
-                    <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${formErrors.password ? "text-red-400" : "text-gray-400"}`} size={16} />
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      name="password"
-                      value={formData.password}
-                      onChange={handleInputChange}
-                      placeholder={editingSupir ? "Kosongkan jika tidak ingin diubah" : "Minimal 6 karakter"}
-                      autoComplete="new-password"
-                      className={`w-full pl-11 pr-11 py-3 bg-gray-50/80 rounded-xl outline-none text-base font-medium transition-all border ${
-                        formErrors.password ? "border-red-300 focus:border-red-400 focus:ring-4 focus:ring-red-500/10 bg-red-50/10" : "border-gray-200/80 focus:border-[#4A6D55] focus:ring-4 focus:ring-[#4A6D55]/10 focus:bg-white"
-                      }`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors p-0.5"
-                    >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                  {formErrors.password && (
-                    <p className="text-red-500 text-[11px] font-medium flex items-center gap-1 pl-1">
-                      <AlertCircle size={12} className="shrink-0" />{formErrors.password}
-                    </p>
-                  )}
-                </div>
-
-                {/* STATUS */}
-                {editingSupir && (
-                  <div className="pt-1">
-                    <label className={`flex items-center gap-3.5 p-3.5 border rounded-xl cursor-pointer transition-all duration-200 ${
-                      formData.isActive ? "bg-emerald-50/40 border-emerald-200/70 shadow-sm shadow-emerald-50" : "bg-gray-50/70 border-gray-200"
-                    }`}>
-                      <input
-                        type="checkbox"
-                        name="isActive"
-                        checked={formData.isActive}
-                        onChange={handleInputChange}
-                        className="w-4 h-4 text-[#4A6D55] bg-white border-gray-300 rounded focus:ring-[#4A6D55] transition-all cursor-pointer"
-                      />
-                      <div className="leading-tight">
-                        <p className="text-base font-bold text-gray-800">Status Akun Aktif</p>
-                        <p className="text-[11px] text-gray-400 mt-0.5 font-medium">Supir diizinkan masuk dan menggunakan aplikasi mobile.</p>
-                      </div>
-                    </label>
-                  </div>
-                )}
-
-                {/* ACTION BUTTONS */}
-                <div className="pt-4 flex items-center gap-3 w-full">
+              {/* PASSWORD - full width */}
+              <div className="flex flex-col space-y-1.5">
+                <label className="text-xs font-bold text-gray-600 tracking-wide">
+                  {editingSupir ? "Password Baru" : "Password Akses"}
+                  <span className={editingSupir ? "text-gray-400 text-xs font-normal ml-1" : "text-red-500 ml-1"}>
+                    {editingSupir ? "(Opsional)" : "*"}
+                  </span>
+                </label>
+                <div className="relative">
+                  <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 ${formErrors.password ? "text-red-400" : "text-gray-400"}`} size={16} />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    placeholder={editingSupir ? "Kosongkan jika tidak ingin diubah" : "Minimal 6 karakter"}
+                    className={`w-full pl-11 pr-11 py-3 bg-gray-50/80 rounded-xl outline-none text-sm font-medium transition-all border ${
+                      formErrors.password ? "border-red-300 focus:border-red-400 focus:ring-4 focus:ring-red-500/10 bg-red-50/10" : "border-gray-200 focus:border-[#4A6D55] focus:ring-4 focus:ring-[#4A6D55]/10 focus:bg-white"
+                    }`}
+                  />
                   <button
                     type="button"
-                    onClick={closeFormModal}
-                    className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 active:scale-[0.99] text-gray-600 rounded-xl font-bold transition-all text-base text-center"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
                   >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="flex-1 py-3.5 bg-[#4A6D55] hover:bg-[#3d5a46] active:scale-[0.99] text-white rounded-xl font-bold shadow-md shadow-green-900/10 transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2 text-base"
-                  >
-                    {submitting ? (
-                      <><Loader2 size={16} className="animate-spin" /><span>Menyimpan...</span></>
-                    ) : (
-                      <span>{editingSupir ? "Simpan Perubahan" : "Daftarkan Supir"}</span>
-                    )}
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
-              </form>
+                {formErrors.password && <p className="text-red-500 text-[11px] font-medium flex items-center gap-1 pl-1"><AlertCircle size={12} />{formErrors.password}</p>}
+              </div>
+
+              {/* STATUS AKUN - Dropdown (Hanya saat edit) */}
+              {editingSupir && (
+                <div className="flex flex-col space-y-1.5">
+                  <label className="text-xs font-bold text-gray-600 tracking-wide">
+                    Status Akun <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Power className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                    <select
+                      name="isActive"
+                      value={formData.isActive ? "AKTIF" : "NONAKTIF"}
+                      onChange={(e) => {
+                        const newValue = e.target.value === "AKTIF";
+                        setFormData((prev) => ({ ...prev, isActive: newValue }));
+                      }}
+                      className="w-full pl-11 pr-10 py-3 bg-gray-50/80 border border-gray-200 focus:border-[#4A6D55] focus:ring-4 focus:ring-[#4A6D55]/10 rounded-xl outline-none text-sm font-medium transition-all appearance-none"
+                    >
+                      <option value="AKTIF">Aktif</option>
+                      <option value="NONAKTIF">Nonaktif</option>
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                  </div>
+                  <p className="text-[11px] text-gray-400 font-medium pl-1">Status aktif mengizinkan supir mengakses aplikasi mobile.</p>
+                </div>
+              )}
+
+              {/* ACTION BUTTONS */}
+              <div className="pt-4 flex items-center gap-3 w-full">
+                <button
+                  type="button"
+                  onClick={closeFormModal}
+                  disabled={submitting}
+                  className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 active:scale-[0.99] text-gray-600 rounded-xl font-bold transition-all text-sm text-center disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 py-3.5 bg-[#4A6D55] hover:bg-[#3d5a46] active:scale-[0.99] text-white rounded-xl font-bold shadow-md shadow-green-900/10 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                >
+                  {submitting ? (
+                    <><Loader2 size={16} className="animate-spin" /><span>Menyimpan...</span></>
+                  ) : (
+                    <span>{editingSupir ? "Simpan Perubahan" : "Daftarkan Supir"}</span>
+                  )}
+                </button>
+              </div>
+            </form>
             </motion.div>
           </div>
         )}

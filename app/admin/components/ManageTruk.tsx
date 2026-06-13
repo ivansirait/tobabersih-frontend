@@ -55,7 +55,9 @@ interface AlertConfig {
    CONFIG
 ========================= */
 
-const API_BASE_URL = "http://localhost:5000/api/admin";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') + '/api/admin'
+  : '/api/admin';
 
 const INITIAL_FORM_DATA = {
   plateNumber: "",
@@ -80,6 +82,7 @@ export default function ManageTruk() {
   const [showModal, setShowModal] = useState(false);
   const [editingTruk, setEditingTruk] = useState<Truk | null>(null);
   const [viewingTruk, setViewingTruk] = useState<Truk | null>(null);
+   
 
   const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
