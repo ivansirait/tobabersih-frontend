@@ -135,7 +135,7 @@ export default function AdminPage() {
     try {
       // Fetch laporan - coba berbagai endpoint
       try {
-        const laporanRes = await axios.get('/api/admin/laporan', { headers, timeout: 5000 });
+      const laporanRes = await axios.get(`${API_BASE_URL}/admin/laporan`, { headers, timeout: 5000 });
         const laporanData = Array.isArray(laporanRes.data) ? laporanRes.data : (laporanRes.data?.data || []);
         setLaporanList(laporanData);
         setData(prev => ({ ...prev, laporan: laporanData }));
@@ -143,7 +143,8 @@ export default function AdminPage() {
       } catch (err: any) {
         console.warn('⚠️ Fetch laporan admin gagal, coba endpoint umum:', err.message);
         try {
-          const laporanRes = await axios.get('/api/laporan', { headers, timeout: 5000 });
+          const laporanRes = await axios.get(`${API_BASE_URL}/laporan`, { headers, timeout: 5000 });
+          
           const laporanData = Array.isArray(laporanRes.data) ? laporanRes.data : (laporanRes.data?.data || []);
           setLaporanList(laporanData);
           setData(prev => ({ ...prev, laporan: laporanData }));
@@ -156,7 +157,7 @@ export default function AdminPage() {
 
       // Fetch posts/berita
       try {
-        const postsRes = await axios.get('/api/posts', { headers, timeout: 5000 });
+        const postsRes = await axios.get(`${API_BASE_URL}/posts`, { headers, timeout: 5000 });
         const postsData = Array.isArray(postsRes.data)
           ? postsRes.data
           : Array.isArray(postsRes.data?.data)
