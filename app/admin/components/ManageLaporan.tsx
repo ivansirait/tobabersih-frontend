@@ -35,6 +35,10 @@ interface TruckType {
   plateNumber: string;
 }
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') + '/api'
+  : '/api';
+
 const MIN_SCHEDULE_DAYS = 3;
 
 export default function ManageLaporan() {
@@ -89,6 +93,9 @@ export default function ManageLaporan() {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+    ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') + '/api'
+    : '/api';
       const res = await axios.get('/api/laporan', {
         headers: { Authorization: `Bearer ${token}` }
       });

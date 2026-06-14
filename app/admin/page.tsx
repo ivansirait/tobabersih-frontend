@@ -20,9 +20,13 @@ import { getRoleRoute, normalizeRole } from '@/lib/authRole';
 
 // --- API Instance ---
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+    ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') + '/api'
+    : '/api';
+
 const api = axios.create({
-  baseURL: '/api',
-  timeout: 15000, // Proxy through Next.js
+  baseURL: API_BASE_URL,
+  timeout: 15000,
 });
 
 api.interceptors.request.use((config) => {
