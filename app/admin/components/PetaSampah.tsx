@@ -103,7 +103,10 @@ function AlertContainer({ alerts, onDismiss }: { alerts: AlertItem[]; onDismiss:
 // CONSTANTS & HELPERS
 // ============================================================
 const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5005';
-const API_URL = '/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
+  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') + '/api'
+  : '/api';
+  
 const WAYPOINT_PASSED_RADIUS_M = 80;
 
 function formatDurasi(menit: number): string {
