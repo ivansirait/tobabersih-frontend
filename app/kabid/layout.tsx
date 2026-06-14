@@ -29,7 +29,8 @@ export default function KabidLayout({ children }: { children: React.ReactNode })
         
         // ✅ Verify token dengan backend
         try {
-          const response = await axios.post('/api/auth/verify', {}, {
+          const BASE_URL = 'http://187.77.121.239:5005';
+          const response = await axios.post(`${BASE_URL}/api/auth/verify`, {}, {
             headers: {
               'Authorization': `Bearer ${token}`
             }
