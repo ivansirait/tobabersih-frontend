@@ -1,14 +1,12 @@
-// components/LaporanForm.tsx
 "use client";
 
 import type { ChangeEvent, Dispatch, FormEvent, RefObject, SetStateAction } from "react";
 import {
   MapPin, Camera, X, Send,
   User, FileText, Mail, AlertCircle, CheckCircle2,
-  RefreshCw, ZoomIn, Sun, Focus, Trash2
+  RefreshCw, ZoomIn, Sun, Focus, Trash2, Loader2
 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useState } from "react";
 
 export type FormState = {
   pelapor: string;
@@ -23,16 +21,6 @@ export type FormErrors = {
   email?: string;
   photo?: string;
   deskripsi?: string;
-};
-
-type Wilayah = {
-  id?: string;
-  name?: string;
-  code?: string;
-  latitude?: number | string;
-  longitude?: number | string;
-  radius?: number;
-  isActive?: boolean;
 };
 
 type LaporanFormProps = {
@@ -138,6 +126,75 @@ function PhotoQualityAlert({ reason, onRetry }: { reason: string; onRetry: () =>
   );
 }
 
+// ── GPS Status Block ──────────────────────────────────────────
+function GpsStatusBlock({
+  form,
+  gpsStatus,
+  savedLocation,
+}: {
+  form: FormState;
+  gpsStatus: string;
+  savedLocation?: string | null;
+}) {
+  const hasCoords = form.latitude !== 0 || form.longitude !== 0;
+  const isDetecting = gpsStatus.toLowerCase().includes("mendetek");
+  const isFailed =
+    gpsStatus.toLowerCase().includes("gagal") ||
+    gpsStatus.toLowerCase().includes("tidak");
+
+  if (isDetecting) {
+    return (
+      <div className="flex items-center gap-2.5">
+        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100">
+          <Loader2 size={13} className="animate-spin text-blue-500" />
+        </div>
+        <p className="text-xs text-gray-600">Sedang mendeteksi lokasi GPS…</p>
+      </div>
+    );
+  }
+
+  if (hasCoords) {
+    const displayCoords = savedLocation || `${form.latitude.toFixed(6)}, ${form.longitude.toFixed(6)}`;
+    return (
+      <div className="flex items-start gap-2.5">
+        <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-100">
+          <CheckCircle2 size={14} className="text-green-600" />
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-green-700">Lokasi berhasil terdeteksi</p>
+          <p className="mt-0.5 text-[11px] text-gray-500 leading-relaxed font-mono">{displayCoords}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isFailed) {
+    return (
+      <div className="flex items-start gap-2.5">
+        <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-100">
+          <AlertCircle size={14} className="text-orange-500" />
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-orange-700">GPS tidak terdeteksi</p>
+          <p className="mt-0.5 text-[11px] text-gray-500 leading-relaxed">
+            Pastikan izin lokasi diaktifkan di browser. Laporan tetap bisa dikirim, namun koordinat tidak akan tersimpan.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2.5">
+      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-yellow-100">
+        <MapPin size={13} className="text-yellow-600" />
+      </div>
+      <p className="text-xs text-gray-600">{gpsStatus ?? "Mendeteksi lokasi…"}</p>
+    </div>
+  );
+}
+
+// ── Main Component ────────────────────────────────────────────
 export default function LaporanForm({
   form,
   setForm,
@@ -154,169 +211,7 @@ export default function LaporanForm({
   selectedImage,
   qualityError,
 }: LaporanFormProps) {
-  const [wilayahList, setWilayahList] = useState<Wilayah[]>([]);
-  const [activeWilayah, setActiveWilayah] = useState<Wilayah | null>(null);
-  const [wilayahMessage, setWilayahMessage] = useState<string | null>(null);
-  const [isLocationRegistered, setIsLocationRegistered] = useState<boolean>(true);
-  const [isCheckingLocation, setIsCheckingLocation] = useState<boolean>(false);
-  const [checkTrigger, setCheckTrigger] = useState<number>(0);
-  
-  // ✅ State tambahan untuk menyimpan error saat tombol kirim ditekan
-  const [submitLocationError, setSubmitLocationError] = useState<string | null>(null);
 
-  const isValidCoordinate = (latitude: number, longitude: number) => {
-    return (
-      Number.isFinite(latitude) &&
-      Number.isFinite(longitude) &&
-      !(latitude === 0 && longitude === 0)
-    );
-  };
-
-  const getDistanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const toRad = (value: number) => (value * Math.PI) / 180;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const earthRadius = 6371000;
-    return earthRadius * c;
-  };
-
-  const parseCoordinate = (value: number | string | undefined) => {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  };
-
-  const extractWilayahList = (payload: unknown): Wilayah[] => {
-    if (!payload) return [];
-    if (Array.isArray(payload)) return payload as Wilayah[];
-    const obj = payload as Record<string, unknown>;
-    const candidates: unknown[] = [
-      obj['data'], obj['items'], obj['result'],
-      (obj['data'] as any)?.data,
-      (obj['data'] as any)?.items,
-    ];
-    for (const c of candidates) {
-      if (Array.isArray(c)) return c as Wilayah[];
-    }
-    for (const key of ['wilayah', 'data', 'items', 'result']) {
-      const v = obj[key];
-      if (Array.isArray(v)) return v as Wilayah[];
-    }
-    return [];
-  };
-
-  const findActiveWilayah = (latitude: number, longitude: number, areas: Wilayah[]) => {
-    const activeAreas = areas.filter((area) => area.isActive && area.radius !== undefined);
-    let best: Wilayah | null = null;
-    let bestDistance = Number.POSITIVE_INFINITY;
-
-    for (const area of activeAreas) {
-      const lat = parseCoordinate(area.latitude);
-      const lon = parseCoordinate(area.longitude);
-      const radius = area.radius ?? 0;
-      if (lat === null || lon === null || radius <= 0) continue;
-
-      const distance = getDistanceMeters(latitude, longitude, lat, lon);
-      if (distance <= radius && distance < bestDistance) {
-        bestDistance = distance;
-        best = area;
-      }
-    }
-    return best;
-  };
-
-  useEffect(() => {
-    const checkWilayahAdmin = async () => {
-      // Hapus pesan error lama jika lokasi berubah/dicek ulang
-      setSubmitLocationError(null);
-      
-      if (!isValidCoordinate(form.latitude, form.longitude)) {
-        setIsLocationRegistered(false);
-        setActiveWilayah(null);
-        setWilayahMessage("Lokasi belum terdeteksi atau tidak valid.");
-        return;
-      }
-
-      setIsCheckingLocation(true);
-
-      try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : '';
-        const response = await fetch(`/api/wilayah/public`, {
-          cache: 'no-store',
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`[API Error] Status: ${response.status}, Detail: ${errorText}`);
-          if (response.status === 401) {
-            setWilayahMessage('Gagal memverifikasi wilayah. Jika Anda sudah login, coba refresh halaman atau masuk ulang.');
-          }
-          throw new Error(`Gagal memuat data wilayah; status ${response.status}`);
-        }
-
-        const payload = await response.json();
-        const list = extractWilayahList(payload);
-        setWilayahList(list);
-
-        const matchedWilayah = findActiveWilayah(form.latitude, form.longitude, list);
-        setActiveWilayah(matchedWilayah);
-
-        if (matchedWilayah) {
-          setIsLocationRegistered(true);
-          setWilayahMessage(
-            `Lokasi Anda berada di dalam wilayah aktif "${matchedWilayah.name || matchedWilayah.code || 'terdaftar'}".`
-          );
-        } else {
-          setIsLocationRegistered(false);
-          const activeCount = list.filter((area) => area.isActive).length;
-          setWilayahMessage(
-            activeCount === 0
-              ? 'Belum ada wilayah operasional aktif terdaftar. Silakan hubungi admin.'
-              : 'Lokasi saat ini tidak berada dalam wilayah operasional aktif yang terdaftar.'
-          );
-        }
-      } catch (error) {
-        console.error('Gagal memverifikasi wilayah:', error);
-        setIsLocationRegistered(false);
-        setActiveWilayah(null);
-        setWilayahMessage('Tidak dapat memverifikasi wilayah saat ini. Silakan coba lagi.');
-      } finally {
-        setIsCheckingLocation(false);
-      }
-    };
-
-    checkWilayahAdmin();
-  }, [form.latitude, form.longitude, checkTrigger]);
-
-  // ✅ Fungsi intersepsi submit form
-  const handleLocalSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    setSubmitLocationError(null);
-
-    // Validasi saat tombol ditekan
-    if (isCheckingLocation) {
-      setSubmitLocationError("Harap tunggu, sistem sedang memverifikasi lokasi Anda.");
-      return;
-    }
-
-    if (!isLocationRegistered) {
-      setSubmitLocationError("Laporan tidak dapat dikirim karena lokasi saat ini berada di luar area layanan / tidak terdaftar.");
-      return;
-    }
-
-    // Jika aman, teruskan ke fungsi submit bawaan
-    handleSubmit(e);
-  };
-
-  // Helper UI
   const hasErrors = Object.values(errors).some(Boolean);
 
   const inputBaseClass =
@@ -339,8 +234,6 @@ export default function LaporanForm({
     );
   };
 
-  // ✅ PERUBAHAN: Tombol kirim hanya disable saat loading atau ada error kualitas foto bawaan
-  // Registrasi wilayah tidak mematikan tombol, tapi akan memicu `handleLocalSubmit`
   const isSubmitDisabled = loading || !!qualityError;
 
   return (
@@ -364,6 +257,7 @@ export default function LaporanForm({
       </div>
 
       <div className="p-6 md:p-7">
+        {/* Global form error banner */}
         {hasErrors && !qualityError && (
           <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4">
             <div className="flex items-start gap-3">
@@ -380,8 +274,7 @@ export default function LaporanForm({
           </div>
         )}
 
-        {/* Gunakan handleLocalSubmit pada onSubmit form */}
-        <form onSubmit={handleLocalSubmit} className="space-y-6" noValidate>
+        <form onSubmit={handleSubmit} className="space-y-6" noValidate>
           {/* Nama Lengkap */}
           <div>
             <label className={labelClass}>Nama Lengkap <span className="text-red-500">*</span></label>
@@ -430,13 +323,11 @@ export default function LaporanForm({
                     : "border-gray-200 bg-gray-50 hover:border-green-500 hover:bg-green-50"
                 }`}
               >
-                <div
-                  className={`rounded-xl p-2 transition-all ${
-                    errors.photo && !qualityError
-                      ? "bg-red-100 text-red-500"
-                      : "bg-white text-gray-500 group-hover:text-green-600"
-                  }`}
-                >
+                <div className={`rounded-xl p-2 transition-all ${
+                  errors.photo && !qualityError
+                    ? "bg-red-100 text-red-500"
+                    : "bg-white text-gray-500 group-hover:text-green-600"
+                }`}>
                   <Camera size={24} />
                 </div>
                 <span className="text-xs font-semibold text-gray-700">Ambil Foto</span>
@@ -520,112 +411,26 @@ export default function LaporanForm({
             <FieldError message={errors.deskripsi} />
           </div>
 
-          {/* Blok Info Lokasi */}
+          {/* Blok Info Lokasi — hanya informatif, tidak memblokir submit */}
           <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3.5">
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
-                📍 Lokasi Anda
-              </p>
-              {form.latitude !== 0 && !isCheckingLocation && (
-                <button
-                  type="button"
-                  onClick={() => setCheckTrigger(prev => prev + 1)}
-                  className="flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-800 transition-colors bg-blue-100 px-2 py-1 rounded-md"
-                >
-                  <RefreshCw size={10} /> Cek Ulang
-                </button>
-              )}
-            </div>
-
-            {savedLocation ? (
-              <div className="flex items-start gap-2.5">
-                <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-100">
-                  <CheckCircle2 size={14} className="text-green-600" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-green-700">Lokasi Anda sudah tersimpan</p>
-                  <p className="mt-0.5 text-[11px] text-gray-600 leading-relaxed">{savedLocation}</p>
-                </div>
-              </div>
-            ) : form.latitude !== 0 ? (
-              <div className="flex items-start gap-2.5">
-                <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-100">
-                  <CheckCircle2 size={14} className="text-green-600" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-green-700">Lokasi Anda sudah tersimpan</p>
-                  <p className="mt-0.5 text-[11px] text-gray-500 leading-relaxed">
-                    {`${form.latitude.toFixed(5)}, ${form.longitude.toFixed(5)}`}
-                  </p>
-                </div>
-              </div>
-            ) : (gpsStatus ?? "").toLowerCase().includes("gagal") || (gpsStatus ?? "").toLowerCase().includes("tidak") ? (
-              <div className="flex items-start gap-2.5">
-                <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-100">
-                  <AlertCircle size={14} className="text-red-500" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-red-600">Lokasi tidak terdeteksi</p>
-                  <p className="mt-0.5 text-[11px] text-gray-500 leading-relaxed">
-                    Pastikan izin lokasi diaktifkan di pengaturan browser Anda.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-yellow-100">
-                  <MapPin size={13} className="text-yellow-600" />
-                </div>
-                <p className="text-xs text-gray-600">{gpsStatus ?? "Mendeteksi lokasi..."}</p>
-              </div>
-            )}
-
-            {isCheckingLocation && (
-              <div className="mt-3 flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-                <RefreshCw size={14} className="animate-spin" />
-                <span>Memverifikasi wilayah jangkauan...</span>
-              </div>
-            )}
-
-            {!isCheckingLocation && wilayahMessage && (
-              <div className={`mt-3 rounded-xl border px-3 py-2 text-xs shadow-sm ${
-                isLocationRegistered ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-orange-200 bg-orange-50 text-orange-800'
-              }`}>
-                <div className="flex items-start gap-2">
-                  {isLocationRegistered ? (
-                    <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-600" />
-                  ) : (
-                    <AlertCircle size={16} className="mt-0.5 shrink-0 text-orange-600" />
-                  )}
-                  <span className="leading-relaxed">{wilayahMessage}</span>
-                </div>
-              </div>
-            )}
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+              📍 Lokasi Anda
+            </p>
+            <GpsStatusBlock
+              form={form}
+              gpsStatus={gpsStatus}
+              savedLocation={savedLocation}
+            />
           </div>
-
-          {/* ✅ Tampilan Alert Error jika validasi lokasi gagal saat submit ditekan */}
-          {submitLocationError && (
-            <div className="rounded-xl border border-red-300 bg-red-50 p-3 shadow-sm animate-in fade-in slide-in-from-bottom-2">
-              <div className="flex items-start gap-2.5">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-100">
-                  <AlertCircle size={15} className="text-red-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-red-800">Gagal Mengirim Laporan</p>
-                  <p className="mt-0.5 text-xs text-red-700 leading-relaxed">{submitLocationError}</p>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Tombol Kirim */}
           <button
             type="submit"
             disabled={isSubmitDisabled}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-green-700 py-4 text-base font-bold text-white shadow-lg shadow-green-700/20 transition-all hover:bg-green-800 hover:shadow-green-800/25 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-green-700 py-4 text-base font-bold text-white shadow-lg shadow-green-700/20 transition-all hover:bg-green-800 hover:shadow-green-800/25 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none active:scale-[0.98]"
           >
             {loading ? (
-              <><span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" /> Mengirim Laporan...</>
+              <><Loader2 size={20} className="animate-spin" /> Mengirim Laporan…</>
             ) : qualityError ? (
               <><AlertCircle size={20} /> Perbaiki Foto Terlebih Dahulu</>
             ) : (
