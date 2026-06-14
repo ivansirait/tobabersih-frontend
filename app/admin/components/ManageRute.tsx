@@ -58,9 +58,12 @@ interface RouteTemplate {
   totalWaypoint: number;
 }
 
+// BARU:
 interface TrukItem {
   id: string;
   plateNumber: string;
+  operator?: { id: string; fullName: string } | null;
+  driver?: { id: string; fullName: string } | null;
 }
 
 interface AlertConfig {
@@ -234,6 +237,7 @@ export default function ManajemenRute() {
   const [wpSearchQuery, setWpSearchQuery]   = useState("");
   const [wpSearching, setWpSearching]       = useState(false);
   const [mapFlyTo, setMapFlyTo]             = useState<[number, number] | null>(null);
+  const wpFormRef = useRef<HTMLDivElement>(null);
 
   // ── Helpers ──
   const showAlert = (type: AlertType, title: string, description: string, detailText?: string) =>
@@ -395,6 +399,7 @@ export default function ManajemenRute() {
   };
 
   // ── Waypoint Editor ──
+// GANTI fungsi openWaypointEditor yang lama dengan ini:
   const openWaypointEditor = (rute: RouteTemplate) => {
     setEditingRuteId(rute.id);
     setLocalWaypoints([...rute.waypoints]);
@@ -403,6 +408,10 @@ export default function ManajemenRute() {
     setWpSearchQuery("");
     setMapFlyTo(null);
     setExpandedId(rute.id);
+    // Scroll ke form setelah render
+    setTimeout(() => {
+      wpFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 300);
   };
 
   const handleMapClick = useCallback((lat: number, lng: number) => {
@@ -466,27 +475,42 @@ export default function ManajemenRute() {
     });
   };
 
-  const handleSimpanWaypoints = async () => {
-    setSavingWp(true);
-    setSubmitting(true);
-    try {
-      await axios.post(
-        `${API}/rute/${editingRuteId}/waypoint`,
-        { bulk: localWaypoints.map((wp) => ({ name: wp.name, latitude: wp.latitude, longitude: wp.longitude, order: wp.order })) },
-        { headers: { Authorization: `Bearer ${token()}` } }
+// GANTI fungsi handleSimpanWaypoints yang lama:
+const handleSimpanWaypoints = async () => {
+  // Cek apakah rute ini punya supir
+  const ruteYangDiedit = ruteList.find((r) => r.id === editingRuteId);
+  if (ruteYangDiedit) {
+    const truk = trukList.find((t) => t.id === ruteYangDiedit.truckId);
+    const adaSupir = truk?.operator?.fullName || truk?.driver?.fullName;
+    if (!adaSupir) {
+      showAlert(
+        "error",
+        "Armada Belum Memiliki Supir",
+        `Rute "${ruteYangDiedit.name}" menggunakan armada ${ruteYangDiedit.truck.plateNumber} yang belum memiliki supir. Assign supir terlebih dahulu di menu Manajemen Armada.`
       );
-      setSubmitting(false);
-      setSavingWp(false);
-      showAlert("success", "Waypoint tersimpan", "Urutan perjalanan rute telah diperbarui.");
-      setEditingRuteId(null);
-      fetchRute();
-    } catch (err: any) {
-      setSubmitting(false);
-      setSavingWp(false);
-      showAlert("error", "Gagal menyimpan waypoint", getErr(err, "Coba lagi."));
+      return;
     }
-  };
+  }
 
+  setSavingWp(true);
+  setSubmitting(true);
+  try {
+    await axios.post(
+      `${API}/rute/${editingRuteId}/waypoint`,
+      { bulk: localWaypoints.map((wp) => ({ name: wp.name, latitude: wp.latitude, longitude: wp.longitude, order: wp.order })) },
+      { headers: { Authorization: `Bearer ${token()}` } }
+    );
+    setSubmitting(false);
+    setSavingWp(false);
+    showAlert("success", "Waypoint tersimpan", "Urutan perjalanan rute telah diperbarui.");
+    setEditingRuteId(null);
+    fetchRute();
+  } catch (err: any) {
+    setSubmitting(false);
+    setSavingWp(false);
+    showAlert("error", "Gagal menyimpan waypoint", getErr(err, "Coba lagi."));
+  }
+};
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────
@@ -629,16 +653,33 @@ export default function ManajemenRute() {
                       </span>
                       <h3 className="font-semibold text-gray-800 text-sm truncate">{rute.name}</h3>
                     </div>
+
+
                     <div className="flex flex-wrap items-center gap-3 text-[10px] text-gray-400">
                       <span className="flex items-center gap-1.5">
                         <Truck size={11} className="text-[#4A6D55]" />
                         <span className="font-medium text-gray-600">{rute.truck.plateNumber}</span>
                       </span>
+                      {/* Nama supir */}
+                      {(() => {
+                        const truk = trukList.find((t) => t.id === rute.truckId);
+                        const namaSupir = truk?.operator?.fullName || truk?.driver?.fullName;
+                        return namaSupir ? (
+                          <span className="flex items-center gap-1.5">
+                            <Navigation size={11} className="text-[#4A6D55]" />
+                            <span className="font-medium text-gray-600">{namaSupir}</span>
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1.5 text-red-400">
+                            <Navigation size={11} />
+                            <span className="font-medium italic">Belum ada supir</span>
+                          </span>
+                        );
+                      })()}
                       <span className="flex items-center gap-1.5">
                         <MapPin size={11} className="text-[#4A6D55]" />
                         <span className="font-medium text-gray-600">{rute.totalWaypoint} Titik</span>
                       </span>
-                      {/* Status hanya ditampilkan, tidak bisa diklik */}
                       <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${
                         rute.isActive
                           ? "bg-green-50 text-green-600 border-green-100"
@@ -648,10 +689,36 @@ export default function ManajemenRute() {
                         {rute.isActive ? "Aktif" : "Nonaktif"}
                       </span>
                     </div>
-                  </div>
 
-                  {/* Aksi: View, Edit, Hapus */}
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  </div>
+                  {/* Aksi: View, Edit, Hapus, Waypoint */}
+                  <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                    {/* Tambah Titik Rute */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedId(rute.id);
+                        openWaypointEditor(rute);
+                      }}
+                      className="px-2.5 py-1.5 bg-[#4A6D55] text-white rounded-lg hover:bg-[#3a5643] transition-colors shadow-sm inline-flex items-center gap-1 text-[10px] font-semibold whitespace-nowrap"
+                      title="Tambah Titik Rute"
+                    >
+                      <Plus size={11} /> Tambah Titik
+                    </button>
+
+                    {/* Edit Titik Rute */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedId(rute.id);
+                        openWaypointEditor(rute);
+                      }}
+                     className="px-2.5 py-1.5 bg-yellow-400 text-white rounded-lg hover:bg-yellow-500 transition-colors shadow-sm inline-flex items-center gap-1 text-[10px] font-semibold whitespace-nowrap"
+                      title="Edit Titik Rute"
+                    >
+                      <MapPin size={11} /> Edit Titik
+                    </button>
+
                     {/* View */}
                     <button
                       onClick={(e) => { e.stopPropagation(); setViewingRute(rute); }}
@@ -663,7 +730,7 @@ export default function ManajemenRute() {
                     {/* Edit */}
                     <button
                       onClick={(e) => openEditRuteModal(rute, e)}
-                      className="p-2 bg-amber-400 text-white rounded-lg hover:bg-amber-500 transition-colors shadow-sm inline-flex"
+                    className="p-2 bg-yellow-400 text-white rounded-lg hover:bg-yellow-500 transition-colors shadow-sm inline-flex"
                       title="Edit Info Rute"
                     >
                       <Edit3 size={14} />
@@ -695,7 +762,7 @@ export default function ManajemenRute() {
                             selectedIdx={selectedWpIdx}
                             flyTo={mapFlyTo}
                           />
-                          <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                         <div ref={wpFormRef} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
                             {/* Search lokasi */}
                             <div>
                               <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 block">Cari Lokasi</label>
@@ -1020,7 +1087,15 @@ export default function ManajemenRute() {
                       className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-green-500/20 outline-none text-sm font-medium appearance-none"
                     >
                       <option value="">Pilih plat nomor armada</option>
-                      {trukList.map((t) => <option key={t.id} value={t.id}>{t.plateNumber}</option>)}
+                     // BARU:
+                      {trukList.map((t) => {
+                        const driver = t.operator?.fullName || t.driver?.fullName || null;
+                        return (
+                          <option key={t.id} value={t.id}>
+                            {t.plateNumber}{driver ? ` — ${driver}` : " — (Belum ada supir)"}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 </div>
@@ -1033,9 +1108,9 @@ export default function ManajemenRute() {
                           const truk = trukList.find((t) => t.id === formRute.truckId);
                           setFormRute((p) => ({ ...p, dayOfWeek: h, name: truk ? `Rute ${truk.plateNumber} - ${h}` : p.name }));
                         }}
-                        className={`py-2.5 text-[10px] font-bold rounded-xl border transition-all ${
-                          formRute.dayOfWeek === h ? "border-[#4A6D55] bg-[#4A6D55] text-white shadow" : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200"
-                        }`}
+                      className={`py-2.5 text-[10px] font-bold rounded-xl border transition-all ${
+                        formEditRute.dayOfWeek === h ? "border-[#4A6D55] bg-[#4A6D55] text-white shadow" : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200"
+                      }`}
                       >
                         {h.slice(0, 3)}
                       </button>
@@ -1072,7 +1147,7 @@ export default function ManajemenRute() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="bg-white rounded-none sm:rounded-3xl shadow-2xl w-full max-w-md min-h-screen sm:min-h-0 overflow-hidden my-auto flex flex-col"
             >
-              <div className="px-6 py-5 border-b flex justify-between items-center bg-amber-50/60">
+              <div className="px-6 py-5 border-b flex justify-between items-center bg-gray-50">
                 <div>
                   <h3 className="font-bold text-lg text-gray-800">Edit Info Rute</h3>
                   <p className="text-[11px] text-gray-400 mt-0.5">Ubah armada, hari, nama, atau status rute</p>
@@ -1109,7 +1184,15 @@ export default function ManajemenRute() {
                       className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 outline-none text-sm font-medium appearance-none"
                     >
                       <option value="">Pilih armada</option>
-                      {trukList.map((t) => <option key={t.id} value={t.id}>{t.plateNumber}</option>)}
+                     // BARU:
+                      {trukList.map((t) => {
+                        const driver = t.operator?.fullName || t.driver?.fullName || null;
+                        return (
+                          <option key={t.id} value={t.id}>
+                            {t.plateNumber}{driver ? ` — ${driver}` : " — (Belum ada supir)"}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                   <p className="text-[10px] text-amber-500 mt-1 ml-1">⚠ Mengubah armada tidak memindahkan waypoint otomatis</p>
@@ -1170,7 +1253,7 @@ export default function ManajemenRute() {
                     Batal
                   </button>
                   <button type="submit" disabled={savingEditRute}
-                    className="flex-[2] py-3.5 bg-amber-500 text-white rounded-2xl font-semibold shadow hover:bg-amber-600 transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm">
+                  className="flex-[2] py-3.5 bg-[#4A6D55] text-white rounded-2xl font-semibold shadow hover:bg-[#3a5643] transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm">
                     {savingEditRute ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
                     {savingEditRute ? "Menyimpan..." : "Simpan Perubahan"}
                   </button>

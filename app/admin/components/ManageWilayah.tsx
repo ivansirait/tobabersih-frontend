@@ -247,30 +247,32 @@ const showAlert = (
     setDeleteTarget(wilayah);
   };
 
-  const handleDeleteConfirm = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${API_BASE_URL}/wilayah/${deleteTarget.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setWilayahList(prev => prev.filter(w => w.id !== deleteTarget.id));
-      showAlert(
-        'success',
-        'Wilayah Berhasil Dihapus',
-        `Wilayah "${deleteTarget.name}" telah dihapus secara permanen dari sistem.`,
-        'Data tidak dapat dikembalikan setelah dihapus.'
-      );
-      setDeleteTarget(null);
-      fetchWilayah();
-    } catch (error: any) {
-      const msg = error?.response?.data?.message || error?.message || 'Gagal menghapus wilayah.';
-      showAlert('error', 'Gagal Menghapus Wilayah', msg);
-    } finally {
-      setDeleting(false);
-    }
-  };
+const handleDeleteConfirm = async () => {
+  if (!deleteTarget) return;
+  const namaTerhapus = deleteTarget.name;
+  setDeleteTarget(null); // tutup dialog konfirmasi dulu
+  setDeleting(true);
+  setSubmitting(true);   // tampilkan loading alert
+  try {
+    const token = localStorage.getItem('token');
+    await axios.delete(`${API_BASE_URL}/wilayah/${deleteTarget.id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    setSubmitting(false);
+    setDeleting(false);
+    showAlert(
+      'success',
+      'Wilayah Berhasil Dihapus',
+      `Wilayah "${namaTerhapus}" telah dihapus secara permanen dari sistem.`
+    );
+    fetchWilayah();
+  } catch (error: any) {
+    setSubmitting(false);
+    setDeleting(false);
+    const msg = error?.response?.data?.message || error?.message || 'Gagal menghapus wilayah.';
+    showAlert('error', 'Gagal Menghapus Wilayah', msg);
+  }
+};
 
 const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
@@ -387,8 +389,9 @@ const handleSubmit = async (e: React.FormEvent) => {
         }
         buttonText="Hapus"
         showCancelButton={true}
-        onConfirm={async () => {
-          await handleDeleteConfirm();
+
+        onConfirm={() => {
+          handleDeleteConfirm();
         }}
         onClose={() => {
           if (!deleting) setDeleteTarget(null);

@@ -75,7 +75,7 @@ export default function Sidebar({ activeMenu, setActiveMenu, onLogout }: Sidebar
         { id: 'data-truk', label: 'Data Armada', icon: Truck, color: 'from-amber-400 to-orange-600', href: '/admin/Truk' },
         { id: 'data-wilayah', label: 'Data Wilayah', icon: Map, color: 'from-teal-400 to-green-600', href: '/admin/Wilayah' },
         { id: 'manajemen-rute', label: 'Manajemen Rute', icon: Route, color: 'from-purple-400 to-pink-600', href: '/admin/ManajemenRute' },
-        { id: 'akun-masyarakat', label: 'Akun Masyarakat', icon: Users, color: 'from-blue-400 to-indigo-600', href: '/admin/AkunMasyarakat' },
+        { id: 'data-masyarakat', label: 'Data Pelanggan', icon: Users, color: 'from-blue-400 to-indigo-600', href: '/admin/AkunMasyarakat' },
       ]
     },
     

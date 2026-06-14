@@ -102,7 +102,7 @@ function AlertContainer({ alerts, onDismiss }: { alerts: AlertItem[]; onDismiss:
 // ============================================================
 // CONSTANTS & HELPERS
 // ============================================================
-const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5005';
 const API_URL = '/api';
 const WAYPOINT_PASSED_RADIUS_M = 80;
 
@@ -513,17 +513,33 @@ export function TabTracking({ addAlert }: { addAlert: (type: AlertType, title: s
   const mapRef    = useRef<any>(null);
   const socketRef = useRef<Socket | null>(null);
 
-  const flyToTruck = useCallback((lat: number, lng: number) => {
-    if (mapRef.current) mapRef.current.flyTo([lat, lng], 15, { duration: 1.2, easeLinearity: 0.5 });
-  }, []);
-
-  const handleSelectTruck = useCallback((truk: TrukAktif) => {
-    if (selectedTruk?.id === truk.id) { setSelectedTruk(null); }
-    else {
-      setSelectedTruk(truk);
-      if (truk.currentLat != null && truk.currentLong != null) flyToTruck(truk.currentLat, truk.currentLong);
+const flyToTruck = useCallback((lat: number, lng: number) => {
+  const doFly = () => {
+    if (mapRef.current) {
+      mapRef.current.flyTo([lat, lng], 15, { duration: 1.2, easeLinearity: 0.5 });
     }
-  }, [selectedTruk, flyToTruck]);
+  };
+  if (mapRef.current) {
+    doFly();
+  } else {
+    // map belum siap, coba lagi setelah render
+    setTimeout(doFly, 300);
+  }
+}, []);
+
+const handleSelectTruck = useCallback((truk: TrukAktif) => {
+  if (selectedTruk?.id === truk.id) {
+    // klik truk yang sama → re-center ke truk, tidak deselect
+    if (truk.currentLat != null && truk.currentLong != null) {
+      flyToTruck(truk.currentLat, truk.currentLong);
+    }
+  } else {
+    setSelectedTruk(truk);
+    if (truk.currentLat != null && truk.currentLong != null) {
+      flyToTruck(truk.currentLat, truk.currentLong);
+    }
+  }
+}, [selectedTruk, flyToTruck]);
 
   const handleExportExcel = async () => {
     if (riwayatSelesai.length === 0) return;
@@ -642,7 +658,7 @@ export function TabTracking({ addAlert }: { addAlert: (type: AlertType, title: s
       if (res.data.success) {
         const semuaTruk = res.data.data as TrukAktif[];
         setTrukAktifList(semuaTruk);
-        if (semuaTruk.length === 0) addAlert('info', 'Tidak Ada Armada', 'Belum ada armada yang memiliki jadwal hari ini.');
+        // if (semuaTruk.length === 0) addAlert('info', 'Tidak Ada Armada', 'Belum ada armada yang memiliki jadwal hari ini.');
       } else { setTrukAktifList([]); }
     } catch { setTrukAktifList([]); addAlert('error', 'Gagal Memuat Armada', 'Tidak dapat terhubung ke server.'); }
   };
@@ -1184,7 +1200,8 @@ useEffect(() => {
 // ── Invalidate size saat tab peta aktif ──
 useEffect(() => {
   if (activeView === 'map' && leafletMapRef.current && mapInitialized) {
-    setTimeout(() => leafletMapRef.current?.invalidateSize(), 150);
+    // Delay lebih panjang agar DOM benar-benar visible
+    setTimeout(() => leafletMapRef.current?.invalidateSize(), 300);
   }
 }, [activeView, mapInitialized]);
 
@@ -1244,17 +1261,33 @@ useEffect(() => {
 
       const heatPoints = fil.filter((l) => { const lat = parseFloat(l.latitude); const lng = parseFloat(l.longitude); return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0; })
         .map((l) => [parseFloat(l.latitude), parseFloat(l.longitude), 0.6]);
-      if (heatPoints.length > 0 && (L as any).heatLayer) {
+if (heatPoints.length > 0 && (L as any).heatLayer) {
+  try {
+    const mapContainer = map.getContainer();
+    // ✅ Pastikan container visible dan punya ukuran
+    if (mapContainer && mapContainer.offsetWidth > 0 && mapContainer.offsetHeight > 0) {
+      // ✅ Tambahkan delay kecil untuk memastikan map sudah siap
+      setTimeout(() => {
         try {
-          const mapContainer = map.getContainer();
-          if (mapContainer.offsetWidth > 0 && mapContainer.offsetHeight > 0) {
-            const heat = (L as any).heatLayer(heatPoints, { radius: 28, blur: 18, maxZoom: 12, gradient: { 0.2: '#34d399', 0.5: '#fbbf24', 0.8: '#f87171', 1.0: '#dc2626' } });
-            heat.addTo(map); markersRef.current.push(heat);
-          }
-        } catch (e) {
-          console.warn('Heatmap skip:', e);
+          const heat = (L as any).heatLayer(heatPoints, { 
+            radius: 28, 
+            blur: 18, 
+            maxZoom: 12,
+            minOpacity: 0.3,
+            gradient: { 0.2: '#34d399', 0.5: '#fbbf24', 0.8: '#f87171', 1.0: '#dc2626' }
+          });
+          heat.addTo(map);
+          markersRef.current.push(heat);
+        } catch (innerErr) {
+          console.warn('Heatmap add failed:', innerErr);
         }
-      }
+      }, 100);
+    }
+  } catch (e) {
+    console.warn('Heatmap skip (container not ready):', e);
+  }
+}
+
     if (markersRef.current.length > 0) {
       try {
         const latLngs = fil.filter((l) => !isNaN(parseFloat(l.latitude)) && !isNaN(parseFloat(l.longitude))).map((l) => [parseFloat(l.latitude), parseFloat(l.longitude)] as [number, number]);
@@ -1285,7 +1318,7 @@ useEffect(() => {
       return (order[a.status as StatusKey] ?? 3) - (order[b.status as StatusKey] ?? 3);
     });
 
-  const activeFilterCount = (selectedStatus !== 'semua' ? 1 : 0) + (selectedKecamatan !== 'semua' ? 1 : 0);
+  const activeFilterCount = selectedKecamatan !== 'semua' ? 1 : 0;
 
   return (
     <div className="space-y-4">
@@ -1446,14 +1479,14 @@ useEffect(() => {
                   })}
                 </div>
               </div>
-              <div>
+              {/* <div>
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-2 block">Kecamatan</label>
                 <select value={selectedKecamatan} onChange={(e) => setSelectedKecamatan(e.target.value)}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 outline-none focus:border-emerald-300">
                   <option value="semua">Semua Kecamatan</option>
                   {kecamatanList.map((k) => <option key={k} value={k}>{k}</option>)}
                 </select>
-              </div>
+              </div> */}
             </div>
             {selectedKecamatan !== 'semua' && (
               <button onClick={() => setSelectedKecamatan('semua')}
@@ -1566,37 +1599,59 @@ useEffect(() => {
               {filtered.map((l) => {
                 const cfg = getStatusCfg(l.status);
                 return (
-                  <div key={l.id} onClick={() => { setSelectedLaporan(l); setShowDetail(true); }}
-                    className="bg-white rounded-2xl border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer overflow-hidden group">
-                    <div className="h-36 bg-gray-100 relative overflow-hidden">
-                      {l.photoUrl ? (
-                        <img src={l.photoUrl} alt="Laporan" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 gap-2">
-                          <FileText size={28} className="text-gray-300" />
-                          <span className="text-[10px] text-gray-300 font-medium">Tidak ada foto</span>
-                        </div>
-                      )}
-                      <div className="absolute top-2 left-2">
-                        <span className={`text-[10px] font-black px-2.5 py-1 rounded-full flex items-center gap-1 ${cfg.badge}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />{cfg.label}
-                        </span>
+                <div key={l.id} onClick={() => { setSelectedLaporan(l); setShowDetail(true); }}
+                  className="bg-white rounded-2xl border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer overflow-hidden group">
+                  
+                  {/* Foto */}
+                  <div className="h-44 bg-gray-100 relative overflow-hidden">
+                    {l.photoUrl ? (
+                      <img src={l.photoUrl} alt="Laporan" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 gap-2">
+                        <FileText size={32} className="text-gray-300" />
+                        <span className="text-[10px] text-gray-300 font-medium">Tidak ada foto</span>
                       </div>
-                      <div className="absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <ChevronRight size={12} className="text-gray-600" />
-                      </div>
-                    </div>
-                    <div className="p-4">
-                      <p className="text-sm font-bold text-gray-800 line-clamp-2 leading-snug mb-3">{l.description || 'Tanpa deskripsi'}</p>
-                      <div className="flex items-center gap-3 text-[10px] font-medium text-gray-400">
-                        {l.location?.name && <span className="flex items-center gap-1"><MapPin size={9} className="shrink-0" /><span className="truncate">{l.location.name}</span></span>}
-                        {l.createdAt && <span className="flex items-center gap-1 ml-auto shrink-0"><Calendar size={9} />{new Date(l.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</span>}
-                      </div>
+                    )}
+                    {/* Hover arrow */}
+                    <div className="absolute top-2 right-2 w-7 h-7 bg-white/90 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
+                      <ChevronRight size={13} className="text-gray-600" />
                     </div>
                   </div>
+
+                  {/* Info di bawah foto */}
+                  <div className="p-4 space-y-2.5">
+                    {/* Status badge */}
+                    <span className={`inline-flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-full ${cfg.badge}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                      {cfg.label}
+                    </span>
+
+                    {/* Deskripsi */}
+                    <p className="text-sm font-semibold text-gray-800 line-clamp-2 leading-snug">
+                      {l.description || 'Tanpa deskripsi'}
+                    </p>
+
+                    {/* Meta: lokasi + tanggal */}
+                    <div className="flex items-center justify-between text-[10px] font-medium text-gray-400 pt-1 border-t border-gray-50">
+                      {l.location?.name
+                        ? <span className="flex items-center gap-1 truncate"><MapPin size={9} className="shrink-0 text-emerald-500" /><span className="truncate">{l.location.name}</span></span>
+                        : <span />
+                      }
+                      {l.createdAt && (
+                        <span className="flex items-center gap-1 shrink-0 ml-2">
+                          <Calendar size={9} />
+                          {new Date(l.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 );
               })}
             </div>
+
+            
           )}
           {!loading && filtered.length > 0 && (
             <p className="text-center text-xs text-gray-400 font-medium mt-4">Menampilkan {filtered.length} dari {laporanList.length} laporan</p>

@@ -26,7 +26,9 @@ import ManageSupir    from '../../admin/components/ManageSupir';
 import ManajemenRute  from '../../admin/components/ManageRute';
 import ManagePenugasan from '../../admin/components/ManageLayananAduan';
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL 
+  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') 
+  : '';
   const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
   export default function DashboardSistemPage() {
