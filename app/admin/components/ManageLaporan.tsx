@@ -96,7 +96,8 @@ export default function ManageLaporan() {
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
     ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') + '/api'
     : '/api';
-      const res = await axios.get('/api/laporan', {
+
+      const res = await axios.get(`${API_BASE_URL}/laporan`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const allReports = res.data.data || [];
@@ -115,8 +116,8 @@ export default function ManageLaporan() {
     try {
       const token = localStorage.getItem('token');
       const [supirRes, trukRes] = await Promise.all([
-        axios.get('/api/penugasan/supir', { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get('/api/penugasan/truk', { headers: { Authorization: `Bearer ${token}` } })
+        axios.get(`${API_BASE_URL}/penugasan/supir`, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${API_BASE_URL}/penugasan/truk`, { headers: { Authorization: `Bearer ${token}` } })
       ]);
       setSupirList(supirRes.data.data || []);
       setTrukList(trukRes.data.data || []);
@@ -128,7 +129,7 @@ export default function ManageLaporan() {
   const fetchAssignments = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('/api/penugasan?type=ADUAN', {
+      const res = await axios.get(`${API_BASE_URL}/penugasan?type=ADUAN`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const assignments = res.data.data || [];
@@ -171,7 +172,7 @@ export default function ManageLaporan() {
     try {
       const token = localStorage.getItem('token');
       const newStatus = action === 'approve' ? 'DITERIMA' : 'DITOLAK';
-      await axios.patch(`/api/laporan/${id}`, 
+      await axios.patch(`${API_BASE_URL}/laporan/${id}`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -188,7 +189,7 @@ export default function ManageLaporan() {
     setStatusLoading(true);
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`/api/admin/laporan/${selectedLaporanForStatusUpdate.id}/status`,
+      await axios.put(`${API_BASE_URL}/admin/laporan/${selectedLaporanForStatusUpdate.id}/status`,
         statusFormData, { headers: { Authorization: `Bearer ${token}` } }
       );
       toast.success('Status berhasil diperbarui');
@@ -222,12 +223,16 @@ export default function ManageLaporan() {
         description: selectedLaporan?.description,
         type: 'ADUAN'
       };
-      await axios.post('/api/penugasan/aduan', payload, {
+
+
+      await axios.post(`${API_BASE_URL}/penugasan/aduan`, payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      await axios.patch(`/api/laporan/${formData.reportId}`, { status: 'DIPROSES' }, {
+      await axios.patch(`${API_BASE_URL}/laporan/${formData.reportId}`, { status: 'DIPROSES' }, {
         headers: { Authorization: `Bearer ${token}` }
       });
+
+      
       toast.success('Penugasan berhasil dibuat');
       setShowConversionModal(false);
       fetchLaporan();
