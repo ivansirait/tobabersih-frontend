@@ -367,7 +367,7 @@ export default function HomePage() {
           <div className="flex flex-col">
             <div className="rounded-[30px] overflow-hidden shadow-xl border border-slate-200 bg-white group transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl hover:border-green-300">
               <img
-                src="/kadis.jpeg"
+                src="/Kadis.jpeg"
                 alt="Kepala Dinas Lingkungan Hidup Kabupaten Toba"
                 className="w-full h-[720px] object-cover transition-transform duration-700 group-hover:scale-105"
               />
