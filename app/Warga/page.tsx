@@ -100,9 +100,9 @@ export default function Home() {
         setGpsStatus("Gagal mendapatkan lokasi");
       },
       {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0,
+        enableHighAccuracy: false,  // ← false dulu, lebih cepat di Android
+        timeout: 30000,             // ← 30 detik
+        maximumAge: 60000,          // ← boleh pakai cache 1 menit
       }
     );
   }
@@ -149,10 +149,10 @@ export default function Home() {
       newErrors.email = "Email maksimal 150 karakter.";
     }
 
-    if (!isValidCoordinate(form.latitude, form.longitude)) {
-      newErrors.lokasi =
-        "Lokasi otomatis wajib terdeteksi sebelum laporan dikirim. Izinkan akses lokasi pada browser.";
-    }
+    // if (!isValidCoordinate(form.latitude, form.longitude)) {
+    //   newErrors.lokasi =
+    //     "Lokasi otomatis wajib terdeteksi sebelum laporan dikirim. Izinkan akses lokasi pada browser.";
+    // }
 
     if (!selectedImage) {
       newErrors.photo = "Lampiran foto wajib diisi.";
