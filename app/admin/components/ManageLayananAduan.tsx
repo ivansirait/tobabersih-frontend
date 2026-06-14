@@ -30,7 +30,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import PenugasanDetail from "./PenugasanDetail";
 import AlertDialog, { type AlertType } from "./AlertDialog";
 
-const API_BASE_URL = "/api";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') + '/api'
+  : '/api';
+
+const penugasanApi = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 15000,
+});
 const ITEMS_PER_PAGE = 12;
 
 const formatCoordinate = (coord: any, decimals: number = 5): string | null => {
