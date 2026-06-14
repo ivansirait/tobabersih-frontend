@@ -1,9 +1,12 @@
 import type { NextConfig } from "next";
 import withPWA from "@ducanh2912/next-pwa";
 
-// Backend URL untuk server-side proxying
-// Gunakan .env.local untuk override default
-const API_PROXY_TARGET = (process.env.API_PROXY_TARGET || "http://localhost:5005").replace(/\/$/, "");
+const API_PROXY_TARGET = (process.env.API_PROXY_TARGET || "http://localhost:5000").replace(/\/$/, "");
+
+// const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || window.location.origin;
+// const API_URL = '/api';
+
+
 
 console.log(`📡 Next.js Proxy Target: ${API_PROXY_TARGET}`);
 
