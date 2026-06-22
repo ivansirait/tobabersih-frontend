@@ -8,7 +8,6 @@ import { Mail, Lock, LogIn, Eye, EyeOff, Leaf } from 'lucide-react';
 import { getRoleRoute, normalizeRole } from '@/lib/authRole';
 
 // Gunakan proxy Next.js untuk backend communication
-const API_BASE_URL = '/api/auth';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,7 +23,9 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const res = await axios.post(`${API_BASE_URL}/login`, { email, password });
+      const rawBase = process.env.NEXT_PUBLIC_API_URL || "";
+      const BASE = rawBase ? rawBase.replace(/\/$/, "") + "/api" : "/api";
+      const res = await axios.post(`${BASE}/auth/login`, { email, password });
       console.log('[LOGIN DEBUG] Response:', res.data);
 
       if (res.data?.success) {
@@ -55,7 +56,9 @@ export default function LoginPage() {
         const redirectPath = getRoleRoute(role);
         console.log('[LOGIN DEBUG] Redirecting to:', redirectPath);
         
+        console.log("[LOGIN DEBUG] Before push");
         router.push(redirectPath);
+        console.log("[LOGIN DEBUG] After push");
       } else {
         setError(res.data?.message || 'Login gagal.');
       }
@@ -174,17 +177,14 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-10 pt-8 border-t border-gray-100 flex flex-col items-center space-y-4">
-            <p className="text-[13px] text-gray-500">
-              Belum punya akun?{' '}
-              <Link href="/register" className="text-[#1B4332] font-bold hover:text-[#40916C] transition-colors">
-                Daftar Warga
-              </Link>
-            </p>
-            <Link href="/" className="text-[11px] font-black text-gray-300 hover:text-[#1B4332] transition-colors uppercase tracking-[0.2em]">
-              ← Kembali ke Beranda
-            </Link>
-          </div>
+       <div className="mt-10 pt-8 border-t border-gray-100 flex flex-col items-center space-y-4">
+        <Link 
+          href="/" 
+          className="text-[11px] font-black text-gray-600 hover:text-[#1B4332] transition-colors uppercase tracking-[0.2em]"
+        >
+          ← Kembali ke Beranda
+        </Link> 
+      </div>
         </div>
       </div>
     </div>

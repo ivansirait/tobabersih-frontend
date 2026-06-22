@@ -9,7 +9,8 @@ import {
   Clock, 
   Package, 
   CheckCircle2, 
-  FileText // <--- Tambahkan ini
+  FileText,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -19,13 +20,13 @@ type PenugasanDetailProps = {
 };
 
 export default function PenugasanDetail({ penugasan, onClose }: PenugasanDetailProps) {
-  // Config warna status yang lebih modern
   const getStatusStyle = (status: string) => {
     const styles: any = {
       SELESAI: 'bg-emerald-100 text-emerald-700 border-emerald-200',
       DITUGASKAN: 'bg-blue-100 text-blue-700 border-blue-200',
       BEKERJA: 'bg-amber-100 text-amber-700 border-amber-200',
       LAPORAN_BARU: 'bg-red-100 text-red-700 border-red-200',
+      DITOLAK: 'bg-slate-100 text-slate-600 border-slate-200',
     };
     return styles[status] || 'bg-gray-100 text-gray-700 border-gray-200';
   };
@@ -99,7 +100,7 @@ export default function PenugasanDetail({ penugasan, onClose }: PenugasanDetailP
             </div>
           </div>
 
-          {/* Supir & Truk Grid - Rombak Total agar lebih modern */}
+          {/* Supir & Truk Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-white border border-gray-100 rounded-[24px] p-5 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center gap-3 mb-4">
@@ -120,19 +121,18 @@ export default function PenugasanDetail({ penugasan, onClose }: PenugasanDetailP
             </div>
           </div>
 
-          {/* Deskripsi */}
-          {penugasan.description && (
-            <div className="bg-gray-50 rounded-[24px] p-6 border border-gray-100">
+          {/* Alasan Penolakan - tampil di atas deskripsi jika DITOLAK */}
+          {penugasan.status === "DITOLAK" && penugasan.rejectionReason && (
+            <div className="bg-red-50 rounded-[24px] p-6 border border-red-100">
               <div className="flex items-center gap-2 mb-3">
-                <FileText size={16} className="text-gray-400" />
-                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Deskripsi Laporan</h4>
+                <AlertCircle size={16} className="text-red-400" />
+                <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest">Alasan Penolakan</h4>
               </div>
-              <p className="text-gray-700 font-medium leading-relaxed italic">
-                "{penugasan.description}"
+              <p className="text-red-700 font-medium leading-relaxed italic">
+                "{penugasan.rejectionReason}"
               </p>
             </div>
           )}
-
           {/* Volume Card */}
           {penugasan.volumeKg && (
             <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 p-6 rounded-[24px] text-white shadow-lg shadow-emerald-200">
@@ -146,7 +146,7 @@ export default function PenugasanDetail({ penugasan, onClose }: PenugasanDetailP
             </div>
           )}
 
-          {/* Timeline - Dibuat lebih Clean */}
+          {/* Timeline */}
           <div className="border-t border-gray-100 pt-6">
             <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Log Aktivitas</h4>
             <div className="space-y-3">
@@ -161,7 +161,6 @@ export default function PenugasanDetail({ penugasan, onClose }: PenugasanDetailP
   );
 }
 
-// Sub-komponen Timeline agar kode bersih
 function TimelineItem({ label, time, isDone }: { label: string, time: any, isDone?: boolean }) {
   return (
     <div className="flex justify-between items-center bg-gray-50/50 p-3 rounded-xl">

@@ -38,13 +38,15 @@ interface InlineAlert {
 
 interface AlertState {
   open: boolean;
-  type: "success" | "error" | "warning" | "info" | "delete" | "loading" | "edit";
+  type: "success" | "error" | "delete" | "loading" | "edit" | "info"    
   title: string;
   description: string;
   detailText?: string;
 }
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') + '/api'
+  : '/api';
 
 function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
@@ -66,6 +68,7 @@ export default function ManageWilayah() {
   const [showModal, setShowModal] = useState(false);
   const [editingWilayah, setEditingWilayah] = useState<Wilayah | null>(null);
   const [viewingWilayah, setViewingWilayah] = useState<Wilayah | null>(null);
+  const [originalData, setOriginalData] = useState<any>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<Wilayah | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -92,14 +95,14 @@ export default function ManageWilayah() {
   });
 
   // ── showAlert mengikuti signature ManageSupir ──
-  const showAlert = (
-    type: "success" | "error" | "warning" | "delete" | "edit",
-    title: string,
-    description: string,
-    detailText?: string
-  ) => {
-    setAlertState({ open: true, type, title, description, detailText });
-  };
+const showAlert = (
+    type: "success" | "error" | "delete" | "edit" | "info",
+  title: string,
+  description: string,
+  detailText?: string
+) => {
+  setAlertState({ open: true, type, title, description, detailText });
+};
 
   const closeAlert = () => {
     setAlertState((prev) => ({ ...prev, open: false }));
@@ -244,35 +247,58 @@ export default function ManageWilayah() {
     setDeleteTarget(wilayah);
   };
 
-  const handleDeleteConfirm = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${API_BASE_URL}/wilayah/${deleteTarget.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setWilayahList(prev => prev.filter(w => w.id !== deleteTarget.id));
-      showAlert(
-        'success',
-        'Wilayah Berhasil Dihapus',
-        `Wilayah "${deleteTarget.name}" telah dihapus secara permanen dari sistem.`,
-        'Data tidak dapat dikembalikan setelah dihapus.'
-      );
-      setDeleteTarget(null);
-      fetchWilayah();
-    } catch (error: any) {
-      const msg = error?.response?.data?.message || error?.message || 'Gagal menghapus wilayah.';
-      showAlert('error', 'Gagal Menghapus Wilayah', msg);
-    } finally {
-      setDeleting(false);
-    }
-  };
+const handleDeleteConfirm = async () => {
+  if (!deleteTarget) return;
+  const namaTerhapus = deleteTarget.name;
+  setDeleteTarget(null); // tutup dialog konfirmasi dulu
+  setDeleting(true);
+  setSubmitting(true);   // tampilkan loading alert
+  try {
+    const token = localStorage.getItem('token');
+    await axios.delete(`${API_BASE_URL}/wilayah/${deleteTarget.id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    setSubmitting(false);
+    setDeleting(false);
+    showAlert(
+      'success',
+      'Wilayah Berhasil Dihapus',
+      `Wilayah "${namaTerhapus}" telah dihapus secara permanen dari sistem.`
+    );
+    fetchWilayah();
+  } catch (error: any) {
+    setSubmitting(false);
+    setDeleting(false);
+    const msg = error?.response?.data?.message || error?.message || 'Gagal menghapus wilayah.';
+    showAlert('error', 'Gagal Menghapus Wilayah', msg);
+  }
+};
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const dupError = checkDuplicate(formData.name, formData.code, formData.latitude, formData.longitude, editingWilayah?.id);
-    if (dupError) { showFormAlert('error', dupError); return; }
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  const dupError = checkDuplicate(formData.name, formData.code, formData.latitude, formData.longitude, editingWilayah?.id);
+  if (dupError) { showFormAlert('error', dupError); return; }
+
+  // ── CEK APAKAH ADA PERUBAHAN (khusus mode edit) ──
+  if (editingWilayah && originalData) {
+    const hasChanged =
+      formData.name !== originalData.name ||
+      formData.code !== originalData.code ||
+      formData.address !== originalData.address ||
+      formData.latitude !== originalData.latitude ||
+      formData.longitude !== originalData.longitude ||
+      formData.radius !== originalData.radius ||
+      formData.isActive !== originalData.isActive;
+
+    if (!hasChanged) {
+      setShowModal(false);
+      showAlert('info', 'Tidak Ada Perubahan', 'Data wilayah tidak mengalami perubahan apapun.', 'Silakan ubah data terlebih dahulu sebelum menyimpan.');
+      return;
+    }
+  }
+
+  setSubmitting(true);
+  // ... sisa kode tetap sama
     setSubmitting(true);
     try {
       const token = localStorage.getItem('token');
@@ -363,8 +389,9 @@ export default function ManageWilayah() {
         }
         buttonText="Hapus"
         showCancelButton={true}
-        onConfirm={async () => {
-          await handleDeleteConfirm();
+
+        onConfirm={() => {
+          handleDeleteConfirm();
         }}
         onClose={() => {
           if (!deleting) setDeleteTarget(null);
@@ -481,18 +508,30 @@ export default function ManageWilayah() {
                   <p className="text-sm font-bold text-blue-600">{formatArea(w.area || 0)}</p>
                 </td>
                 <td className="px-6 py-4">
-                  <button onClick={() => toggleStatus(w)} className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-bold ${w.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  <span
+                    className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-bold ${
+                      w.isActive
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-red-100 text-red-700'
+                    }`}
+                  >
                     {w.isActive ? <Power size={12} /> : <PowerOff size={12} />}
-                    {w.isActive ? 'AKTIF' : 'OFF'}
-                  </button>
+                    {w.isActive ? 'AKTIF' : 'NONAKTIF'}
+                  </span>
                 </td>
                 <td className="px-6 py-4 text-right space-x-2">
                   <button onClick={() => setViewingWilayah(w)} className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors inline-flex"><Eye size={14} /></button>
                   <button onClick={() => {
-                    setEditingWilayah(w);
-                    setFormAlert(null);
-                    setDuplicateWarning(null);
-                    setFormData({ ...w, code: w.code || '', address: w.address || '', radius: w.radius?.toString() || '5000' });
+                  const editData = {
+                    ...w,
+                    code: w.code || '',
+                    address: w.address || '',
+                    radius: w.radius?.toString() || '5000'
+                  };
+
+                  setEditingWilayah(w);
+                  setOriginalData(editData);
+                  setFormData(editData);
                     setShowModal(true);
                   }} className="p-2 bg-yellow-400 text-white rounded-lg hover:bg-yellow-500 transition-colors inline-flex"><Edit size={14} /></button>
                   <button onClick={() => handleDeleteClick(w)} className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors inline-flex"><Trash2 size={14} /></button>
@@ -587,6 +626,26 @@ export default function ManageWilayah() {
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Radius Operasional (Meter)</label>
                     <input type="number" value={formData.radius} onChange={(e) => setFormData({ ...formData, radius: e.target.value })} className="w-full p-3 border rounded-xl text-sm" />
                   </div>
+
+                  <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">
+                  Status Wilayah
+                </label>
+
+                <select
+                  value={formData.isActive ? 'true' : 'false'}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      isActive: e.target.value === 'true'
+                    })
+                  }
+                  className="w-full p-3 border rounded-xl text-sm bg-white"
+                >
+                  <option value="true">Aktif</option>
+                  <option value="false">Nonaktif</option>
+                </select>
+              </div>
                 </div>
 
                 <button
@@ -598,7 +657,7 @@ export default function ManageWilayah() {
                   ) : duplicateWarning ? (
                     <><AlertTriangle size={16} /> Selesaikan Konflik Duplikat</>
                   ) : (
-                    'Simpan Konfigurasi Wilayah'
+                    'Simpan Wilayah'
                   )}
                 </button>
               </form>

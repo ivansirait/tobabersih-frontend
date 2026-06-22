@@ -11,8 +11,9 @@ import {
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
-// Gunakan proxy Next.js
-const API_BASE_URL = '/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') + '/api'
+  : '/api';
 
 // ─── LOAD LEAFLET MAP SECARA ASYNC ───────────────────────────────────
 const PetaWaypointView = dynamic(() => import('../../components/WilayahMap').catch(() => {

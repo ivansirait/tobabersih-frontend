@@ -1,6 +1,5 @@
 "use client";
-import ManageAkunMasyarakat from '../components/ManageAkunMasyarakat';
-
+import ManagePelanggan from '../components/ManagedatapelangganMasyarakat';
 export default function AkunMasyarakatPage() {
-  return <ManageAkunMasyarakat />;
+  return <ManagePelanggan />;
 }

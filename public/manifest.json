@@ -2,7 +2,7 @@
   "name": "CleanCity - Lapor Sampah Liar",
   "short_name": "CleanCity",
   "description": "Aplikasi pelaporan sampah liar untuk masyarakat. Gunakan PWA ini untuk melaporkan penumpukan sampah dan membantu menjaga kebersihan lingkungan.",
-  "start_url": "/Warga/",
+  "start_url": "/warga/",
   "scope": "/",
   "display": "standalone",
   "theme_color": "#16a34a",

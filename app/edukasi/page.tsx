@@ -196,7 +196,7 @@ export default function EdukasiListPage() {
             <div className="flex gap-6 text-sm">
               <Link href="/" className="text-slate-500 hover:text-green-400">Beranda</Link>
               <Link href="/privasi" className="text-slate-500 hover:text-green-400">Kebijakan Privasi</Link>
-            </div>
+            </div>  
           </div>
         </div>
       </footer>

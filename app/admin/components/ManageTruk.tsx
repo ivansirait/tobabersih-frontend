@@ -55,9 +55,21 @@ interface AlertConfig {
    CONFIG
 ========================= */
 
-const API_BASE_URL = "http://localhost:5000/api/admin";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') + '/api/admin'
+  : '/api/admin';
 
+// FIX: Hilangkan 'status' dari initial form data create
 const INITIAL_FORM_DATA = {
+  plateNumber: "",
+  unitCode: "",
+  brand: "",
+  truckType: "",
+  operatorId: "",
+};
+
+// Form data edit punya status
+const INITIAL_EDIT_FORM_DATA = {
   plateNumber: "",
   unitCode: "",
   brand: "",
@@ -81,7 +93,10 @@ export default function ManageTruk() {
   const [editingTruk, setEditingTruk] = useState<Truk | null>(null);
   const [viewingTruk, setViewingTruk] = useState<Truk | null>(null);
 
-  const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
+  // FIX: Simpan data awal saat edit untuk deteksi perubahan
+  const [originalData, setOriginalData] = useState<typeof INITIAL_EDIT_FORM_DATA | null>(null);
+
+  const [formData, setFormData] = useState<typeof INITIAL_EDIT_FORM_DATA>({ ...INITIAL_EDIT_FORM_DATA });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const [selectedTrukForDelete, setSelectedTrukForDelete] = useState<Truk | null>(null);
@@ -145,6 +160,23 @@ export default function ManageTruk() {
     fetchTruk();
     fetchSupir();
   }, []);
+
+  /* =========================
+     FIX: Computed list supir yang tersedia di dropdown
+     - Saat CREATE: sembunyikan supir yang sudah punya truk
+     - Saat EDIT: tampilkan supir yang sudah punya truk HANYA jika itu supir yang sedang diedit
+  ========================= */
+  const availableSupirForDropdown = supirList.filter((supir) => {
+    // Cek apakah supir ini sudah punya truk
+    const sudahPunyaTruk = trukList.some((truk) => truk.operatorId === supir.id);
+
+    if (!sudahPunyaTruk) return true; // Supir bebas: selalu tampil
+
+    // Supir sudah punya truk: hanya tampil jika ini adalah supir yang sedang diedit di truk ini
+    if (editingTruk && editingTruk.operatorId === supir.id) return true;
+
+    return false; // Supir sudah punya truk lain: jangan tampilkan
+  });
 
   /* =========================
      FORM HANDLERS
@@ -235,7 +267,9 @@ export default function ManageTruk() {
 
   const openCreateModal = () => {
     setEditingTruk(null);
-    setFormData({ ...INITIAL_FORM_DATA });
+    setOriginalData(null);
+    // FIX: Saat create, gunakan form tanpa status
+    setFormData({ ...INITIAL_EDIT_FORM_DATA });
     setFormErrors({});
     setShowModal(true);
   };
@@ -243,14 +277,17 @@ export default function ManageTruk() {
   const openEditModal = (truk: Truk) => {
     setEditingTruk(truk);
     setFormErrors({});
-    setFormData({
+    const data = {
       plateNumber: truk.plateNumber,
       unitCode: truk.unitCode || "",
       brand: truk.brand || "",
       truckType: truk.truckType || "",
       operatorId: truk.operatorId || "",
       status: truk.status,
-    });
+    };
+    // FIX: Simpan data asli untuk deteksi perubahan
+    setOriginalData(data);
+    setFormData(data);
     setShowModal(true);
   };
 
@@ -263,15 +300,35 @@ export default function ManageTruk() {
     if (!validateForm()) return;
     if (!isDuplicate()) return;
 
+    // FIX: Cek apakah ada perubahan saat edit
+    if (editingTruk && originalData) {
+      const hasChanged =
+        formData.plateNumber !== originalData.plateNumber ||
+        formData.unitCode !== originalData.unitCode ||
+        formData.brand !== originalData.brand ||
+        formData.truckType !== originalData.truckType ||
+        formData.operatorId !== originalData.operatorId ||
+        formData.status !== originalData.status;
+
+      if (!hasChanged) {
+        setShowModal(false);
+        showAlert("info", "Tidak Ada Perubahan", "Data armada tidak mengalami perubahan apapun.", "Silakan ubah data terlebih dahulu sebelum menyimpan.");
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     try {
       const config = getAuthConfig();
 
       if (editingTruk) {
+        // Edit: kirim semua field termasuk status
         await axios.put(`${API_BASE_URL}/truks/${editingTruk.id}`, formData, config);
       } else {
-        await axios.post(`${API_BASE_URL}/truks`, formData, config);
+        // FIX: Create: jangan kirim status — backend akan set AVAILABLE secara otomatis
+        const { status: _status, ...createPayload } = formData;
+        await axios.post(`${API_BASE_URL}/truks`, createPayload, config);
       }
 
       setShowModal(false);
@@ -286,6 +343,7 @@ export default function ManageTruk() {
       );
 
       fetchTruk();
+      fetchSupir(); // Refresh supir list agar dropdown terupdate
     } catch (error: any) {
       setSubmitting(false);
       showAlert(
@@ -331,6 +389,7 @@ export default function ManageTruk() {
       showAlert("success", "Data berhasil dihapus", "Unit armada telah dihapus dari sistem.");
 
       fetchTruk();
+      fetchSupir();
     } catch (error: any) {
       setSubmitting(false);
       showAlert("error", "Gagal menghapus", getErrorMessage(error, "Terjadi kesalahan sistem."));
@@ -368,7 +427,6 @@ export default function ManageTruk() {
 
       {/* ─── ALERT SYSTEM ──────────────────────────────────────────── */}
 
-      {/* 1. Global Alert (success / error / info) */}
       <AlertDialog
         open={alertConfig.open}
         type={alertConfig.type}
@@ -378,7 +436,6 @@ export default function ManageTruk() {
         onClose={closeAlert}
       />
 
-      {/* 2. Loading Alert (saat API diproses) */}
       <AlertDialog
         open={submitting}
         type="loading"
@@ -389,7 +446,6 @@ export default function ManageTruk() {
         onClose={() => {}}
       />
 
-      {/* 3. Delete Confirm Alert */}
       <AlertDialog
         open={showDeleteConfirm}
         type="delete"
@@ -430,9 +486,9 @@ export default function ManageTruk() {
       {/* STATS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Total Armada",  val: trukList.length,                                      color: "text-gray-600",  bg: "bg-gray-50",  icon: Truck         },
-          { label: "Tersedia",      val: trukList.filter((t) => t.status === "AVAILABLE").length, color: "text-green-600", bg: "bg-green-50", icon: CheckCircle2  },
-          { label: "Bertugas",      val: trukList.filter((t) => t.status === "BUSY").length,      color: "text-blue-600",  bg: "bg-blue-50",  icon: RefreshCw     },
+          { label: "Total Armada",  val: trukList.length,                                         color: "text-gray-600",  bg: "bg-gray-50",  icon: Truck         },
+          { label: "Tersedia",      val: trukList.filter((t) => t.status === "AVAILABLE").length,  color: "text-green-600", bg: "bg-green-50", icon: CheckCircle2  },
+          { label: "Bertugas",      val: trukList.filter((t) => t.status === "BUSY").length,       color: "text-blue-600",  bg: "bg-blue-50",  icon: RefreshCw     },
           { label: "Maintenance",   val: trukList.filter((t) => t.status === "MAINTENANCE").length, color: "text-red-600",  bg: "bg-red-50",   icon: AlertCircle   },
         ].map((stat, i) => (
           <div key={i} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 hover:shadow-md transition-all">
@@ -497,7 +553,6 @@ export default function ManageTruk() {
                 ) : (
                   filteredTruk.map((truk, idx) => {
                     const status = getStatusBadge(truk.status);
-                    const canDelete = canDeleteTruk(truk);
                     const deleteReason = getDeleteBlockReason(truk);
 
                     return (
@@ -712,7 +767,7 @@ export default function ManageTruk() {
                   </div>
                 </div>
 
-                {/* Supir */}
+                {/* Supir — FIX: Gunakan availableSupirForDropdown */}
                 <div className="flex flex-col space-y-1.5">
                   <label className="text-xs font-bold text-gray-600 tracking-wide">
                     Supir Penanggung Jawab <span className="text-red-500">*</span>
@@ -730,9 +785,13 @@ export default function ManageTruk() {
                       }`}
                     >
                       <option value="">Pilih Supir...</option>
-                      {supirList.map((supir) => (
-                        <option key={supir.id} value={supir.id}>{supir.fullName}</option>
-                      ))}
+                      {availableSupirForDropdown.length === 0 ? (
+                        <option disabled value="">Semua supir sudah memiliki armada</option>
+                      ) : (
+                        availableSupirForDropdown.map((supir) => (
+                          <option key={supir.id} value={supir.id}>{supir.fullName}</option>
+                        ))
+                      )}
                     </select>
                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
                   </div>
@@ -741,26 +800,35 @@ export default function ManageTruk() {
                       <AlertCircle size={12} />{formErrors.operatorId}
                     </p>
                   )}
+                  {/* FIX: Info helper jika semua supir sudah punya truk */}
+                  {availableSupirForDropdown.length === 0 && (
+                    <p className="text-amber-600 text-[11px] font-medium flex items-center gap-1 pl-1">
+                      <AlertCircle size={12} />Tambah supir baru terlebih dahulu atau lepas supir dari armada lain.
+                    </p>
+                  )}
                 </div>
 
-                {/* Status */}
-                <div className="flex flex-col space-y-1.5">
-                  <label className="text-xs font-bold text-gray-600 tracking-wide">Status Kondisi Unit</label>
-                  <div className="relative">
-                    <RefreshCw className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                    <select
-                      name="status"
-                      value={formData.status}
-                      onChange={handleInputChange}
-                      className="w-full pl-11 pr-10 py-3 bg-gray-50/80 border border-gray-200 focus:border-[#4A6D55] focus:ring-4 focus:ring-[#4A6D55]/10 rounded-xl outline-none text-sm font-medium transition-all appearance-none text-black"
-                    >
-                      <option value="AVAILABLE">Tersedia</option>
-                      <option value="BUSY">Bertugas di Lapangan</option>
-                      <option value="MAINTENANCE">Dalam Perbaikan</option>
-                    </select>
-                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                {/* FIX: Status HANYA tampil saat EDIT, tidak saat CREATE */}
+                {editingTruk && (
+                  <div className="flex flex-col space-y-1.5">
+                    <label className="text-xs font-bold text-gray-600 tracking-wide">Status Kondisi Unit</label>
+                    <div className="relative">
+                      <RefreshCw className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                      <select
+                        name="status"
+                        value={formData.status}
+                        onChange={handleInputChange}
+                        className="w-full pl-11 pr-10 py-3 bg-gray-50/80 border border-gray-200 focus:border-[#4A6D55] focus:ring-4 focus:ring-[#4A6D55]/10 rounded-xl outline-none text-sm font-medium transition-all appearance-none text-black"
+                      >
+                        <option value="AVAILABLE">Tersedia</option>
+                        <option value="BUSY">Bertugas di Lapangan</option>
+                        <option value="MAINTENANCE">Dalam Perbaikan</option>
+                      </select>
+                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                    </div>
+                    <p className="text-[11px] text-gray-400 pl-1">Armada baru otomatis berstatus "Tersedia" saat didaftarkan.</p>
                   </div>
-                </div>
+                )}
 
                 {/* Action Buttons */}
                 <div className="pt-4 flex items-center gap-3 w-full">
@@ -790,7 +858,7 @@ export default function ManageTruk() {
         )}
       </AnimatePresence>
 
-      {/* DETAIL MODAL */}
+      {/* DETAIL MODAL — tidak berubah */}
       <AnimatePresence>
         {viewingTruk && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
@@ -818,7 +886,6 @@ export default function ManageTruk() {
               </div>
 
               <div className="p-6 space-y-6 overflow-y-auto max-h-[75vh]">
-                {/* Data Kendaraan */}
                 <div>
                   <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                     <Truck size={14} />Data Kendaraan
@@ -831,7 +898,6 @@ export default function ManageTruk() {
                   </div>
                 </div>
 
-                {/* Operator */}
                 <div>
                   <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                     <User size={14} />Operator / Supir
@@ -852,7 +918,6 @@ export default function ManageTruk() {
                   </div>
                 </div>
 
-                {/* Status & Lokasi */}
                 <div>
                   <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                     <MapPin size={14} />Status & Lokasi Terakhir

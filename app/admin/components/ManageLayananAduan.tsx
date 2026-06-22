@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, ReactNode } from "react";
+import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import {
   Trash2,
@@ -9,7 +9,6 @@ import {
   RefreshCw,
   Repeat,
   ClipboardList,
-  // ✅ [PERUBAHAN 1] Tambah ChevronsLeft & ChevronsRight — sebelumnya tidak ada di import
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -19,27 +18,31 @@ import {
   Clock,
   CheckCircle2,
   FileText,
-  Edit3,
   MapPin,
   Calendar,
-  Truck
+  Truck,
+  Loader2,
+  AlertCircle,
+  AlertTriangle,
 } from "lucide-react";
 
-import toast, { Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import PenugasanDetail from "./PenugasanDetail";
-import ConfirmDialog from './ConfirmDialog';
-import AlertDialog from './AlertDialog';
+import AlertDialog, { type AlertType } from "./AlertDialog";
 
-const API_BASE_URL = "/api";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') + '/api'
+  : '/api';
 
-// ✅ [PERUBAHAN 2] Konstanta ITEMS_PER_PAGE — dipindah ke level modul agar konsisten dengan ManageSupir
+const penugasanApi = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 15000,
+});
 const ITEMS_PER_PAGE = 12;
 
-// Helper function to safely format coordinates
 const formatCoordinate = (coord: any, decimals: number = 5): string | null => {
   if (!coord) return null;
-  const num = typeof coord === 'string' ? parseFloat(coord) : coord;
+  const num = typeof coord === "string" ? parseFloat(coord) : coord;
   return Number.isFinite(num) ? num.toFixed(decimals) : null;
 };
 
@@ -50,17 +53,20 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   if (!config.headers) config.headers = {} as any;
-
   if (typeof window !== "undefined") {
     const token = localStorage.getItem("token");
-
     if (token && token !== "undefined" && token !== "null") {
       config.headers.Authorization = `Bearer ${token}`;
     }
   }
-
   return config;
 });
+
+const isOverdue = (item: any): boolean => {
+  if (!item.scheduledAt) return false;
+  if (item.status === "SELESAI" || item.status === "BEKERJA" || item.status === "LAPORAN_BARU") return false;
+  return Date.now() > new Date(item.scheduledAt).getTime();
+};
 
 interface Penugasan {
   id: string;
@@ -71,10 +77,12 @@ interface Penugasan {
   longitude?: number;
   district?: string;
   scheduledAt?: string;
+  createdAt?: string;
   description?: string;
   notes?: string;
   pelapor?: string;
-
+  rejectionReason?: string | null;
+    
   report?: {
     id: string;
     description?: string;
@@ -83,16 +91,8 @@ interface Penugasan {
     latitude?: number;
     longitude?: number;
   };
-
-  driver?: {
-    id: string;
-    fullName: string;
-  };
-
-  truck?: {
-    id: string;
-    plateNumber: string;
-  };
+  driver?: { id: string; fullName: string };
+  truck?: { id: string; plateNumber: string };
 }
 
 interface Item extends Penugasan {
@@ -106,23 +106,22 @@ interface Truk {
   brand?: string | null;
   truckType?: string | null;
   operatorId?: string | null;
-  operator?: {
-    id: string;
-    fullName: string;
-    email?: string;
-    phoneNumber?: string | null;
-  } | null;
-  driver?: {
-    id: string;
-    fullName: string;
-  } | null;
+  operator?: { id: string; fullName: string; email?: string; phoneNumber?: string | null } | null;
+  driver?: { id: string; fullName: string } | null;
   status: string;
 }
 
-const MIN_SCHEDULE_DAYS = 3;
+interface AlertConfig {
+  open: boolean;
+  type: AlertType;
+  title: string;
+  description: string;
+  detailText?: string;
+}
 
 export default function ManagePenugasan() {
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
@@ -130,103 +129,87 @@ export default function ManagePenugasan() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemList, setItemList] = useState<Item[]>([]);
   const [trukList, setTrukList] = useState<Truk[]>([]);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [showConfirmTolakDialog, setShowConfirmTolakDialog] = useState(false);
-  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-  const [successTitle, setSuccessTitle] = useState('');
-  const [successDescription, setSuccessDescription] = useState('');
-  const [successIcon, setSuccessIcon] = useState<ReactNode>(<CheckCircle2 size={24} />);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [pendingDeleteName, setPendingDeleteName] = useState<string>('');
-  const [pendingTolakId, setPendingTolakId] = useState<string | null>(null);
-  const [pendingTolakName, setPendingTolakName] = useState<string>('');
-
-  const [filter, setFilter] = useState({
-    status: "",
-  });
-
+  const [filter, setFilter] = useState({ status: "" });
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    reportId: "",
-    truckId: "",
-    driverId: "",
-    scheduledAt: "",
-    location: "",
+    reportId: "", truckId: "", driverId: "", scheduledAt: "", location: "",
   });
+  const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
+
+  const [alertConfig, setAlertConfig] = useState<AlertConfig>({ open: false, type: "info", title: "", description: "" });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [pendingDeleteName, setPendingDeleteName] = useState<string>("");
+  const [pendingDeleteType, setPendingDeleteType] = useState<"penugasan" | "laporan">("penugasan");
+
+  const [showTolakConfirm, setShowTolakConfirm] = useState(false);
+  const [pendingTolakId, setPendingTolakId] = useState<string | null>(null);
+  const [pendingTolakName, setPendingTolakName] = useState<string>("");
+  const [tolakReason, setTolakReason] = useState("");
+  const [tolakReasonError, setTolakReasonError] = useState("");
+
+  const showAlert = (type: AlertType, title: string, description: string, detailText?: string) => {
+    setAlertConfig({ open: true, type, title, description, detailText });
+  };
+  const closeAlert = () => setAlertConfig((prev) => ({ ...prev, open: false }));
+  const getErrorMessage = (error: any, fallback: string) => error?.response?.data?.message || fallback;
 
   const toDateTimeLocalValue = (date: Date) => {
-    const year = date.getFullYear();
-    const month = `${date.getMonth() + 1}`.padStart(2, '0');
-    const day = `${date.getDate()}`.padStart(2, '0');
-    const hours = `${date.getHours()}`.padStart(2, '0');
-    const minutes = `${date.getMinutes()}`.padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   };
 
-  const getMinimumScheduleDate = () => {
-    const minDate = new Date();
-    minDate.setSeconds(0, 0);
-    minDate.setDate(minDate.getDate() + MIN_SCHEDULE_DAYS);
-    return minDate;
+  const getCurrentDateTimeLocal = () => {
+    const now = new Date();
+    now.setSeconds(0, 0);
+    return toDateTimeLocalValue(now);
   };
-
-  const minScheduleValue = toDateTimeLocalValue(getMinimumScheduleDate());
 
   const getDriverFromTruck = (truk: Truk) => {
-    if (truk.operator) {
-      return { id: truk.operator.id, fullName: truk.operator.fullName };
-    }
-    if (truk.driver) {
-      return { id: truk.driver.id, fullName: truk.driver.fullName };
-    }
+    if (truk.operator) return { id: truk.operator.id, fullName: truk.operator.fullName };
+    if (truk.driver) return { id: truk.driver.id, fullName: truk.driver.fullName };
     return null;
   };
-
-  const getDriverName = (truk: Truk): string => {
-    const driver = getDriverFromTruck(truk);
-    return driver ? driver.fullName : "Belum Ada Driver";
-  };
-
-  const getDriverId = (truk: Truk): string => {
-    const driver = getDriverFromTruck(truk);
-    return driver ? driver.id : "";
-  };
+  const getDriverName = (truk: Truk) => getDriverFromTruck(truk)?.fullName ?? "Belum Ada Driver";
+  const getDriverId = (truk: Truk) => getDriverFromTruck(truk)?.id ?? "";
 
   const fetchData = async () => {
     try {
       setLoading(true);
-
       const [penugasanRes, laporanRes, trukRes] = await Promise.all([
         api.get("/penugasan?type=ADUAN"),
         api.get("/laporan"),
         api.get("/admin/truks"),
       ]);
 
-      const penugasanData = penugasanRes.data.data || [];
-
-      const laporanYangSudahDitugaskan = new Set(
-        penugasanData
-          .map((p: any) => p.report?.id)
-          .filter(Boolean)
-      );
+      const penugasanData = (penugasanRes.data.data || []).map((item: any) => ({
+        ...item,
+        scheduledAt: item.scheduledAt ?? item.scheduled_at ?? null,
+      }));
+      const assigned = new Set(penugasanData.map((p: any) => p.report?.id).filter(Boolean));
 
       const laporanBaru = (laporanRes.data.data || [])
         .filter((item: any) =>
-          (item.status === "LAPORAN_BARU" || item.status === "PENDING") &&
-          !laporanYangSudahDitugaskan.has(item.id)
+          (item.status === "LAPORAN_BARU" || item.status === "PENDING" || item.status === "DITOLAK") &&
+          !assigned.has(item.id)
         )
         .map((item: any) => ({
           id: item.id,
-          status: "LAPORAN_BARU",
-          isLaporanBaru: true,
+          status: item.status === "DITOLAK" ? "DITOLAK" : "LAPORAN_BARU",
+          isLaporanBaru: item.status !== "DITOLAK",
           taskNumber: null,
-          location: typeof item.location === "string"
-            ? item.location
-            : item.location?.name || item.description || "Lokasi tidak tersedia",
+          location:
+            typeof item.location === "string"
+              ? item.location
+              : item.location?.name || item.description || "Lokasi tidak tersedia",
           latitude: item.latitude || item.koordinat?.latitude,
           longitude: item.longitude || item.koordinat?.longitude,
           district: item.jenisSampah,
           description: item.description,
+          rejectionReason: item.rejectionReason || null,
           pelapor: item.pelapor,
+          createdAt: item.createdAt,
           report: {
             id: item.id,
             description: item.description,
@@ -248,214 +231,239 @@ export default function ManagePenugasan() {
       setItemList(deduplicated);
       setTrukList(trukRes.data.data || []);
       setCurrentPage(1);
-    } catch (error) {
-      console.error(error);
-      toast.error("Gagal memuat data");
+    } catch (error: any) {
+      showAlert("error", "Gagal memuat data", "Data penugasan tidak bisa dimuat.", getErrorMessage(error, "Terjadi kesalahan pada server."));
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, filter]);
 
-  // ✅ [PERUBAHAN 3] useEffect reset halaman ke 1 setiap search atau filter berubah — diambil dari pola ManageSupir
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, filter]);
+  const getEffectiveStatus = (item: Item): string => {
+    if (item.status === "DITUGASKAN" && isOverdue(item)) return "TIDAK_DIKERJAKAN";
+    return item.status;
+  };
 
   const filteredItems = useMemo(() => {
     return itemList.filter((item) => {
-      const search = searchTerm.toLowerCase();
-
+      const s = searchTerm.toLowerCase();
       const matchSearch =
-        (item.location || "").toLowerCase().includes(search) ||
-        (item.driver?.fullName || "").toLowerCase().includes(search) ||
-        (item.pelapor || "").toLowerCase().includes(search) ||
-        (item.taskNumber || "").toLowerCase().includes(search);
-
-      const matchStatus = filter.status
-        ? item.status === filter.status
-        : true;
-
+        (item.location || "").toLowerCase().includes(s) ||
+        (item.description || "").toLowerCase().includes(s) ||
+        (item.driver?.fullName || "").toLowerCase().includes(s) ||
+        (item.pelapor || "").toLowerCase().includes(s) ||
+        (item.taskNumber || "").toLowerCase().includes(s);
+      const effectiveStatus = getEffectiveStatus(item);
+      const matchStatus = filter.status ? effectiveStatus === filter.status : true;
       return matchSearch && matchStatus;
     });
   }, [itemList, searchTerm, filter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / ITEMS_PER_PAGE));
-
   const paginatedItems = useMemo(() => {
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredItems.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredItems, currentPage]);
 
-  // ✅ [PERUBAHAN 4] Computed pageNumbers dengan ellipsis — identik dengan ManageSupir, sebelumnya tidak ada
-  const penugasanPageNumbers = useMemo(() => {
+  const pageNumbers = useMemo(() => {
     const delta = 2;
     const range: number[] = [];
     const start = Math.max(1, currentPage - delta);
     const end = Math.min(totalPages, currentPage + delta);
     for (let i = start; i <= end; i++) range.push(i);
-    if (start > 1) range.unshift(-1, 1);       // -1 = ellipsis kiri
-    if (end < totalPages) range.push(-2, totalPages); // -2 = ellipsis kanan
+    if (start > 1) range.unshift(-1, 1);
+    if (end < totalPages) range.push(-2, totalPages);
     return range;
   }, [currentPage, totalPages]);
 
   const resetForm = () => {
-    setFormData({
-      reportId: "",
-      truckId: "",
-      driverId: "",
-      scheduledAt: "",
-      location: "",
-    });
+    setFormData({ reportId: "", truckId: "", driverId: "", scheduledAt: "", location: "" });
+    setFormErrors({});
+    setIsEditMode(false);
+    setEditingId(null);
+  };
+
+  const isTruckAvailable = (truckId: string, scheduledAt: string, excludeId?: string): boolean => {
+    const sel = new Date(scheduledAt).getTime();
+    return !itemList
+      .filter((i) => i.status !== "LAPORAN_BARU" && i.truck?.id === truckId && i.scheduledAt && i.id !== excludeId)
+      .some((i) => Math.abs(sel - new Date(i.scheduledAt!).getTime()) < 2 * 60 * 60 * 1000);
+  };
+
+  const validateForm = (isEdit = false) => {
+    const errors: { [key: string]: string } = {};
+    if (!formData.truckId) {
+      errors.truckId = "Armada harus dipilih";
+    } else {
+      const t = trukList.find((t) => t.id === formData.truckId);
+      if (!t || !getDriverId(t)) errors.truckId = "Armada harus memiliki driver.";
+    }
+    if (!formData.scheduledAt) {
+      errors.scheduledAt = "Jadwal pelaksanaan wajib diisi";
+    } else {
+      const d = new Date(formData.scheduledAt);
+      if (d < new Date()) errors.scheduledAt = "Jadwal tidak boleh kurang dari waktu sekarang";
+      else if (formData.truckId && !isTruckAvailable(formData.truckId, formData.scheduledAt, isEdit ? editingId || undefined : undefined))
+        errors.scheduledAt = "Armada sudah ada penugasan dalam rentang 2 jam.";
+    }
+    if (!formData.location.trim()) errors.location = "Lokasi penugasan wajib diisi";
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const openTugaskanModal = (item: Item) => {
     setSelectedItem(item);
+    const loc =
+      typeof item.location === "string"
+        ? item.location
+        : (item.location as any)?.name || (item.location as any)?.address || item.description || "";
+    setFormData({ reportId: item.report?.id || item.id, truckId: "", driverId: "", scheduledAt: "", location: loc });
+    setIsEditMode(false);
+    setEditingId(null);
+    setFormErrors({});
+    setShowModal(true);
+  };
 
-    let locationString = "";
-    if (typeof item.location === "string") {
-      locationString = item.location;
-    } else if (item.location && typeof item.location === "object") {
-      locationString = (item.location as any)?.name || (item.location as any)?.address || "";
-    } else {
-      locationString = item.description || "";
-    }
-
+  const openEditModal = (item: Item) => {
+    setSelectedItem(item);
     setFormData({
       reportId: item.report?.id || item.id,
-      truckId: "",
-      driverId: "",
-      scheduledAt: "",
-      location: locationString,
+      truckId: item.truck?.id || "",
+      driverId: item.driver?.id || "",
+      scheduledAt: item.scheduledAt ? toDateTimeLocalValue(new Date(item.scheduledAt)) : "",
+      location: item.location || "",
     });
+    setIsEditMode(true);
+    setEditingId(item.id);
+    setFormErrors({});
     setShowModal(true);
   };
 
   const handleInputChange = (e: any) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    if (formErrors[e.target.name]) setFormErrors({ ...formErrors, [e.target.name]: "" });
   };
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
-
-    if (!formData.location) {
-      toast.error("Lokasi harus diisi");
-      return;
-    }
-
-    if (!formData.driverId) {
-      toast.error("Armada yang dipilih tidak memiliki driver");
-      return;
-    }
-
-    const selectedSchedule = new Date(formData.scheduledAt);
-    const minScheduleDate = getMinimumScheduleDate();
-
-    if (Number.isNaN(selectedSchedule.getTime()) || selectedSchedule.getTime() < minScheduleDate.getTime()) {
-      toast.error(`Jadwal penugasan minimal ${MIN_SCHEDULE_DAYS} hari dari sekarang.`);
-      return;
-    }
-
+    if (!validateForm(isEditMode)) return;
+    setSubmitting(true);
     try {
       const payload = {
-        reportId: formData.reportId,
-        truckId: formData.truckId,
-        driverId: formData.driverId,
-        scheduledAt: formData.scheduledAt,
-        location: formData.location,
-        district: selectedItem?.district || null,
-        description: selectedItem?.description || null,
-        notes: "",
+        reportId: formData.reportId, truckId: formData.truckId, driverId: formData.driverId,
+        scheduledAt: formData.scheduledAt, location: formData.location.trim(),
+        district: selectedItem?.district || null, description: selectedItem?.description || null, notes: "",
       };
-
-      await api.post("/penugasan/aduan", payload);
-
-      setSuccessTitle('Penugasan berhasil dibuat');
-      setSuccessDescription('Laporan aduan telah ditugaskan ke armada.');
-      setSuccessIcon(<CheckCircle2 size={24} />);
-      setShowSuccessDialog(true);
+      if (isEditMode && editingId) {
+        await api.put(`/penugasan/${editingId}`, payload);
+        showAlert("success", "Penugasan berhasil diperbarui", "Data penugasan telah diubah.");
+      } else {
+        await api.post("/penugasan/aduan", payload);
+        showAlert("success", "Penugasan berhasil dibuat", "Laporan aduan telah ditugaskan ke armada.");
+      }
       setShowModal(false);
       resetForm();
       setSelectedItem(null);
       fetchData();
     } catch (error: any) {
-      console.error(error);
-      toast.error(error?.response?.data?.message || "Gagal membuat penugasan");
+      showAlert("error", isEditMode ? "Gagal memperbarui" : "Gagal membuat penugasan", "Terjadi kesalahan saat menyimpan.", getErrorMessage(error, "Silakan coba lagi."));
+    } finally {
+      setSubmitting(false);
     }
   };
 
+  // ── handleDelete mengikuti pola ManageWilayah ──
   const handleDelete = async () => {
     if (!pendingDeleteId) return;
 
+    // Simpan lokal sebelum reset
+    const idToDelete = pendingDeleteId;
+    const namaTerhapus = pendingDeleteName;
+    const tipeTerhapus = pendingDeleteType;
+
+    // Tutup dialog konfirmasi dulu, lalu tampilkan loading
+    setShowDeleteConfirm(false);
+    setPendingDeleteId(null);
+    setPendingDeleteName("");
+    setPendingDeleteType("penugasan");
+    setSubmitting(true);
+
     try {
-      await api.delete(`/penugasan/${pendingDeleteId}`);
-      setSuccessTitle('Penugasan berhasil dihapus');
-      setSuccessDescription('Penugasan telah dihapus secara permanen.');
-      setSuccessIcon(<Trash2 size={24} />);
-      setShowSuccessDialog(true);
+      if (tipeTerhapus === "laporan") {
+        await api.delete(`/laporan/${idToDelete}`);
+      } else {
+        await api.delete(`/penugasan/${idToDelete}`);
+      }
+      setSubmitting(false);
+      showAlert(
+        "success",
+        tipeTerhapus === "laporan" ? "Laporan Berhasil Dihapus" : "Penugasan Berhasil Dihapus",
+        tipeTerhapus === "laporan"
+          ? `Laporan "${namaTerhapus}" telah dihapus secara permanen dari sistem.`
+          : `Penugasan "${namaTerhapus}" telah dihapus secara permanen dari sistem.`
+      );
       fetchData();
-    } catch (error) {
-      toast.error("Gagal menghapus");
-    } finally {
-      setShowConfirmDialog(false);
-      setPendingDeleteId(null);
-      setPendingDeleteName('');
+    } catch (error: any) {
+      setSubmitting(false);
+      showAlert(
+        "error",
+        "Gagal Menghapus",
+        tipeTerhapus === "laporan" ? "Laporan gagal dihapus." : "Penugasan gagal dihapus.",
+        getErrorMessage(error, "Silakan coba lagi.")
+      );
     }
   };
 
   const handleTolak = async () => {
     if (!pendingTolakId) return;
-
+    if (!tolakReason.trim()) {
+      setTolakReasonError("Alasan penolakan wajib diisi.");
+      return;
+    }
+    setSubmitting(true);
     try {
-      await api.put(`/laporan/${pendingTolakId}/tolak`);
-      setSuccessTitle('Laporan berhasil ditolak');
-      setSuccessDescription('Status laporan telah diubah menjadi ditolak.');
-      setSuccessIcon(<Edit3 size={24} />);
-      setShowSuccessDialog(true);
+      await api.put(`/laporan/${pendingTolakId}/tolak`, {
+        rejectionReason: tolakReason.trim(),
+      });
+      showAlert("success", "Laporan berhasil ditolak", "Status laporan telah diubah menjadi ditolak dan alasan telah dikirim ke pelapor.");
       fetchData();
-    } catch (error) {
-      toast.error("Gagal menolak laporan");
+    } catch (error: any) {
+      showAlert("error", "Gagal menolak laporan", "Terjadi kesalahan.", getErrorMessage(error, "Silakan coba lagi."));
     } finally {
-      setShowConfirmTolakDialog(false);
+      setSubmitting(false);
+      setShowTolakConfirm(false);
       setPendingTolakId(null);
-      setPendingTolakName('');
+      setPendingTolakName("");
+      setTolakReason("");
+      setTolakReasonError("");
     }
   };
 
   const stats = {
     total: itemList.length,
     laporan_baru: itemList.filter((i) => i.status === "LAPORAN_BARU").length,
-    dalam_proses: itemList.filter(
-      (i) => i.status === "DITUGASKAN" || i.status === "BEKERJA"
-    ).length,
+    dalam_proses: itemList.filter((i) => i.status === "DITUGASKAN" || i.status === "BEKERJA").length,
     selesai: itemList.filter((i) => i.status === "SELESAI").length,
-    driver_aktif: new Set(
-      itemList
-        .filter((i) => i.status !== "LAPORAN_BARU")
-        .map((i) => i.driver?.id)
-    ).size,
+    driver_aktif: new Set(itemList.filter((i) => i.status !== "LAPORAN_BARU").map((i) => i.driver?.id)).size,
   };
 
   const StatusBadge = ({ status }: { status: string }) => {
-    const styles: Record<string, { bg: string, text: string, ring: string }> = {
-      LAPORAN_BARU: { bg: "bg-red-50", text: "text-red-700", ring: "ring-red-600/10" },
-      DITUGASKAN: { bg: "bg-blue-50", text: "text-blue-700", ring: "ring-blue-600/10" },
-      BEKERJA: { bg: "bg-amber-50", text: "text-amber-700", ring: "ring-amber-600/10" },
-      SELESAI: { bg: "bg-emerald-50", text: "text-emerald-700", ring: "ring-emerald-600/10" },
-      DITOLAK: { bg: "bg-slate-50", text: "text-slate-700", ring: "ring-slate-600/10" },
+    const styles: Record<string, { bg: string; text: string; ring: string; dot: string }> = {
+      LAPORAN_BARU: { bg: "bg-red-50", text: "text-red-700", ring: "ring-red-600/10", dot: "bg-red-500" },
+      DITUGASKAN: { bg: "bg-blue-50", text: "text-blue-700", ring: "ring-blue-600/10", dot: "bg-blue-500" },
+      BEKERJA: { bg: "bg-amber-50", text: "text-amber-700", ring: "ring-amber-600/10", dot: "bg-amber-500" },
+      SELESAI: { bg: "bg-emerald-50", text: "text-emerald-700", ring: "ring-emerald-600/10", dot: "bg-emerald-500" },
+      DITOLAK: { bg: "bg-slate-50", text: "text-slate-700", ring: "ring-slate-600/10", dot: "bg-slate-400" },
+      TIDAK_DIKERJAKAN: { bg: "bg-orange-50", text: "text-orange-700", ring: "ring-orange-600/10", dot: "bg-orange-500" },
     };
     const style = styles[status] || styles.DITUGASKAN;
-
+    const label = status === "TIDAK_DIKERJAKAN" ? "Tidak Dikerjakan" : status.replace(/_/g, " ");
     return (
-      <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] md:text-[11px] font-bold ring-1 ring-inset ${style.bg} ${style.text} ${style.ring}`}>
-        <span className={`w-1.5 h-1.5 rounded-full mr-2 ${style.text.replace('text', 'bg')}`}></span>
-        {status.replace(/_/g, " ")}
+      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold ring-1 ring-inset whitespace-nowrap ${style.bg} ${style.text} ${style.ring}`}>
+        <span className={`w-1.5 h-1.5 rounded-full mr-1.5 shrink-0 ${style.dot}`} />
+        {label}
       </span>
     );
   };
@@ -466,28 +474,133 @@ export default function ManagePenugasan() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 md:space-y-8 p-4 md:p-6 text-black">
-      <Toaster position="top-right" />
 
-      {/* HEADER */}
-      <div className="mb-8">
-        <div className="bg-gradient-to-r from-[#DDE9E1] to-[#E8F1EB] rounded-[24px] p-8 shadow-sm border border-white/50">
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-            <div>
-              <span className="bg-white/60 text-[#4A6D55] px-4 py-1.5 rounded-full text-xs font-medium tracking-wider uppercase inline-block mb-3">
-                Operasional & Monitoring
-              </span>
-              <h1 className="text-3xl font-extrabold text-[#1A2E35] tracking-tight uppercase">
-                Penugasan Aduan Masyarakat
-              </h1>
-              <p className="text-[#5B7078] mt-2 font-medium">
-                Monitoring laporan warga dan distribusi armada operasional.
-              </p>
-            </div>
+      {/* ── Alerts ── */}
+      <AlertDialog
+        open={alertConfig.open}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        description={alertConfig.description}
+        detailText={alertConfig.detailText}
+        onClose={closeAlert}
+      />
+
+      {/* ── Loading Alert (ikuti pola ManageWilayah) ── */}
+      <AlertDialog
+        open={submitting}
+        type="loading"
+        title="Mohon Tunggu"
+        description="Sedang memproses permintaan Anda ke server..."
+        isLoading={true}
+        disableBackdropClose={true}
+        onClose={() => {}}
+      />
+
+      {/* ── Delete Confirm Alert (ikuti pola ManageWilayah) ── */}
+      <AlertDialog
+        open={showDeleteConfirm}
+        type="delete"
+        title={pendingDeleteType === "laporan" ? "Hapus Laporan?" : "Hapus Penugasan?"}
+        description={
+          pendingDeleteName
+            ? `${pendingDeleteType === "laporan" ? "Laporan" : "Penugasan"} "${pendingDeleteName}" akan dihapus secara permanen dari sistem.`
+            : "Data akan dihapus secara permanen dari sistem."
+        }
+        buttonText="Hapus"
+        showCancelButton={true}
+        onConfirm={handleDelete}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setPendingDeleteId(null);
+          setPendingDeleteName("");
+          setPendingDeleteType("penugasan");
+        }}
+      />
+
+      {/* ── Tolak Confirm Modal ── */}
+      <AnimatePresence>
+        {showTolakConfirm && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+            >
+              <div className="px-6 py-5 border-b flex justify-between items-center bg-gray-50">
+                <div>
+                  <h2 className="font-bold text-lg text-gray-900">Tolak Laporan?</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {pendingTolakName ? `Laporan "${pendingTolakName}" akan ditolak.` : "Laporan akan ditolak dan statusnya diubah."}
+                  </p>
+                </div>
+                <button
+                  onClick={() => { setShowTolakConfirm(false); setPendingTolakId(null); setPendingTolakName(""); setTolakReason(""); setTolakReasonError(""); }}
+                  className="p-2 text-gray-400 hover:bg-gray-200 rounded-full transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-3">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block ml-1">
+                  Alasan Penolakan <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  rows={4}
+                  value={tolakReason}
+                  onChange={(e) => { setTolakReason(e.target.value); if (tolakReasonError) setTolakReasonError(""); }}
+                  placeholder="Contoh: Foto laporan tidak jelas, lokasi sudah ditangani sebelumnya, dll."
+                  className={`w-full p-3.5 bg-gray-50 border rounded-xl outline-none text-sm focus:ring-2 focus:ring-red-500/20 resize-none ${tolakReasonError ? "border-red-400" : "border-gray-100 focus:border-red-500"}`}
+                />
+                {tolakReasonError && (
+                  <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle size={12} /> {tolakReasonError}</p>
+                )}
+                <p className="text-[11px] text-gray-500">
+                  Alasan ini akan dikirim langsung ke email pelapor.
+                </p>
+              </div>
+
+              <div className="px-6 pb-6 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setShowTolakConfirm(false); setPendingTolakId(null); setPendingTolakName(""); setTolakReason(""); setTolakReasonError(""); }}
+                  className="flex-1 px-6 py-3 rounded-xl text-gray-600 font-bold hover:bg-gray-100 transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleTolak}
+                  disabled={submitting}
+                  className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all disabled:opacity-50"
+                >
+                  Ya, Tolak
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Header */}
+      <div className="bg-gradient-to-r from-[#DDE9E1] to-[#E8F1EB] rounded-[24px] p-8 shadow-sm border border-white/50">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+          <div>
+            <span className="bg-white/60 text-[#4A6D55] px-4 py-1.5 rounded-full text-xs font-medium tracking-wider uppercase inline-block mb-3">
+              Operasional & Monitoring
+            </span>
+            <h1 className="text-3xl font-extrabold text-[#1A2E35] tracking-tight uppercase">
+              Penugasan Aduan Masyarakat
+            </h1>
+            <p className="text-[#5B7078] mt-2 font-medium">
+              Monitoring laporan warga dan distribusi armada operasional.
+            </p>
           </div>
         </div>
       </div>
 
-      {/* STATS */}
+      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
         {[
           { label: "Total Tugas", value: stats.total, icon: ClipboardList, color: "text-gray-600", bg: "bg-gray-50" },
@@ -496,10 +609,8 @@ export default function ManagePenugasan() {
           { label: "Selesai", value: stats.selesai, icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50" },
           { label: "Driver Aktif", value: stats.driver_aktif, icon: User, color: "text-purple-600", bg: "bg-purple-50" },
         ].map((s, i) => (
-          <div key={`penugasan-stat-${i}`} className="bg-white p-4 md:p-5 rounded-2xl border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
-            <div className={`p-3 rounded-xl ${s.bg} ${s.color}`}>
-              <s.icon size={24} />
-            </div>
+          <div key={i} className="bg-white p-4 md:p-5 rounded-2xl border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
+            <div className={`p-3 rounded-xl ${s.bg} ${s.color}`}><s.icon size={24} /></div>
             <div className="min-w-0">
               <p className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider">{s.label}</p>
               <p className="text-sm md:text-xl font-black truncate">{s.value}</p>
@@ -508,19 +619,18 @@ export default function ManagePenugasan() {
         ))}
       </div>
 
-      {/* SEARCH & FILTER */}
-      <div className="bg-white rounded-2xl border-none shadow-sm p-3 md:p-4 flex flex-col lg:flex-row gap-4 justify-between items-stretch lg:items-center">
+      {/* Search & Filter */}
+      <div className="bg-white rounded-2xl shadow-sm p-3 md:p-4 flex flex-col lg:flex-row gap-4 justify-between items-stretch lg:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input
             type="text"
-            placeholder="Cari lokasi, driver, pelapor, atau nomor tugas..."
+            placeholder="Cari deskripsi, driver, pelapor, atau nomor tugas..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-green-500/20 outline-none text-sm"
           />
         </div>
-
         <select
           onChange={(e) => setFilter({ status: e.target.value })}
           className="px-4 py-3 rounded-xl bg-gray-50 border-none outline-none text-sm focus:ring-2 focus:ring-green-500/20"
@@ -530,271 +640,340 @@ export default function ManagePenugasan() {
           <option value="DITUGASKAN">Ditugaskan</option>
           <option value="BEKERJA">Bekerja</option>
           <option value="SELESAI">Selesai</option>
+          <option value="TIDAK_DIKERJAKAN">Tidak Dikerjakan</option>
+          <option value="DITOLAK">Ditolak</option>
         </select>
-
-        <button
-          onClick={fetchData}
-          className="px-5 py-3 rounded-xl bg-gray-50 text-gray-500 font-bold hover:bg-gray-200 transition-all flex items-center gap-2 justify-center"
-        >
+        <button onClick={fetchData} className="px-5 py-3 rounded-xl bg-gray-50 text-gray-500 font-bold hover:bg-gray-200 transition-all flex items-center gap-2 justify-center">
           <RefreshCw size={18} />
         </button>
       </div>
 
-      {/* TABLE */}
-      <div className="bg-white rounded-2xl overflow-hidden shadow-sm border-none overflow-x-auto">
-        <table className="w-full text-left border-spacing-0 min-w-[1100px]">
-          <thead>
-            <tr className="bg-gray-50 text-gray-400 text-[10px] font-bold uppercase tracking-widest border-b border-gray-100">
-              <th className="px-6 py-4">Pelapor</th>
-              <th className="px-6 py-4">Lokasi</th>
-              <th className="px-6 py-4">Driver & Armada</th>
-              <th className="px-6 py-4">Jadwal</th>
-              <th className="px-6 py-4 text-center">Status</th>
-              <th className="px-6 py-4 text-right">Aksi</th>
-            </tr>
-          </thead>
+      {/* Table */}
+      <div className="bg-white rounded-2xl shadow-sm border-none">
 
-          <tbody className="divide-y divide-gray-50">
-            {loading ? (
-              <tr>
-                <td colSpan={7} className="text-center py-20 text-gray-400 italic">Memuat data penugasan...</td>
+        {/* ── Desktop Table ── */}
+        <div className="hidden md:block overflow-x-hidden">
+          <table className="w-full text-left table-fixed">
+            <colgroup>
+              <col style={{ width: "16%" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "17%" }} />
+              <col style={{ width: "17%" }} />
+              <col style={{ width: "14%" }} />
+              <col style={{ width: "16%" }} />
+            </colgroup>
+            <thead>
+              <tr className="bg-gray-50 text-gray-400 text-[10px] font-bold uppercase tracking-widest border-b border-gray-100">
+                <th className="px-5 py-4">Pelapor</th>
+                <th className="px-5 py-4">Deskripsi</th>
+                <th className="px-5 py-4">Driver & Armada</th>
+                <th className="px-5 py-4">Jadwal</th>
+                <th className="px-5 py-4 text-center">Status</th>
+                <th className="px-5 py-4 text-right">Aksi</th>
               </tr>
-            ) : paginatedItems.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="text-center py-20 text-gray-400 italic">Tidak ada data ditemukan.</td>
-              </tr>
-            ) : (
-              paginatedItems.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50/80 transition-colors group">
-                  {/* PELAPOR */}
-                  <td className="px-6 py-5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-green-100 group-hover:text-green-600 transition-colors">
-                        <User size={14} />
-                      </div>
-                      <span className="text-sm font-semibold text-gray-700">
-                        {item.pelapor || item.report?.pelapor || "Anonim"}
-                      </span>
-                    </div>
-                  </td>
-
-                  {/* LOKASI */}
-                  <td className="px-6 py-5">
-                    <p className="font-bold text-sm text-gray-900">{item.location}</p>
-                    {formatCoordinate(item.latitude) && formatCoordinate(item.longitude) ? (
-                      <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
-                        <MapPin size={10} /> 
-                        <span className="font-mono">
-                          {formatCoordinate(item.latitude)}, {formatCoordinate(item.longitude)}
-                        </span>
-                      </p>
-                    ) : (
-                      <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
-                        <MapPin size={10} /> {item.district || "Area tidak terdeteksi"}
-                      </p>
-                    )}
-                  </td>
-
-                  {/* DRIVER & ARMADA */}
-                  <td className="px-6 py-5">
-                    {item.status === "LAPORAN_BARU" ? (
-                      <span className="text-xs italic text-gray-400">Belum Ditugaskan</span>
-                    ) : (
-                      <div>
-                        <p className="text-sm font-semibold text-gray-700">{item.driver?.fullName || "Tanpa Driver"}</p>
-                        <p className="text-[10px] font-mono mt-1">
-                          <span className="bg-gray-100 px-1.5 py-0.5 rounded-md text-gray-600 flex items-center gap-1 w-fit">
-                            <Truck size={10} /> {item.truck?.plateNumber || "-"}
-                          </span>
-                        </p>
-                      </div>
-                    )}
-                  </td>
-
-                  {/* JADWAL */}
-                  <td className="px-6 py-5">
-                    {item.scheduledAt ? (
-                      <div>
-                        <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-                          <Calendar size={12} className="text-gray-400" />
-                          {new Date(item.scheduledAt).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </p>
-                        <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1.5">
-                          <Clock size={12} className="text-gray-400" />
-                          {new Date(item.scheduledAt).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' })} WIB
-                        </p>
-                      </div>
-                    ) : (
-                      <span className="text-xs italic text-gray-400">-</span>
-                    )}
-                  </td>
-
-                  {/* STATUS */}
-                  <td className="px-6 py-5 text-center">
-                    <StatusBadge status={item.status} />
-                  </td>
-
-                  {/* AKSI */}
-                  <td className="px-6 py-5 text-right">
-                    <div className="flex justify-end gap-2">
-                      {item.status === "LAPORAN_BARU" ? (
-                        <>
-                          <button
-                            onClick={() => openTugaskanModal(item)}
-                            className="px-4 py-2 rounded-xl bg-[#4A6D55] text-white text-xs font-bold hover:bg-[#3a5643] transition-all shadow-sm"
-                          >
-                            Tugaskan
-                          </button>
-                          <button
-                            onClick={() => {
-                              setPendingTolakId(item.id);
-                              setPendingTolakName(item.location || 'Laporan');
-                              setShowConfirmTolakDialog(true);
-                            }}
-                            className="px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 text-xs font-bold transition-all shadow-sm"
-                          >
-                            Tolak
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => {
-                              setSelectedItem(item);
-                              setShowDetailModal(true);
-                            }}
-                            className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors inline-flex"
-                          >
-                            <Eye size={16} />
-                          </button>
-
-                          {item.status !== "SELESAI" && (
-                            <button
-                              onClick={() => openTugaskanModal(item)}
-                              className="p-2 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100 transition-colors inline-flex"
-                            >
-                              <Repeat size={16} />
-                            </button>
-                          )}
-
-                          <button
-                            onClick={() => {
-                              setPendingDeleteId(item.id);
-                              setPendingDeleteName(item.location || 'Penugasan');
-                              setShowConfirmDialog(true);
-                            }}
-                            className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors inline-flex"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </>
-                      )}
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-20 text-gray-400 italic">
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="animate-spin text-[#4A6D55]" size={32} />
+                      <span>Memuat data penugasan...</span>
                     </div>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : paginatedItems.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-20 text-gray-400 italic">
+                    Tidak ada data ditemukan.
+                  </td>
+                </tr>
+              ) : (
+                paginatedItems.map((item) => {
+                  const effectiveStatus = getEffectiveStatus(item);
+                  const overdue = effectiveStatus === "TIDAK_DIKERJAKAN";
+                  return (
+                    <tr key={item.id} className={`transition-colors group ${overdue ? "bg-orange-50/30" : "hover:bg-gray-50/80"}`}>
 
-        {/* ✅ [PERUBAHAN 5] Blok pagination — diubah total dari versi lama (hanya ChevronLeft/Right + nomor halaman sederhana)
-            menjadi versi baru identik dengan ManageSupir:
-            - Tambah ChevronsLeft (ke halaman pertama) dan ChevronsRight (ke halaman terakhir)
-            - Tambah info teks "Menampilkan X–Y dari Z penugasan"
-            - Gunakan penugasanPageNumbers dengan ellipsis (…) untuk banyak halaman
-            - Tombol nomor halaman aktif pakai warna brand #4A6D55 */}
+                      {/* ── Pelapor + Lokasi ── */}
+                      <td className="px-5 py-4">
+                        <div className="flex items-start gap-2.5">
+                          <div className={`w-7 h-7 mt-0.5 rounded-full flex items-center justify-center shrink-0 transition-colors ${overdue ? "bg-orange-100 text-orange-600" : "bg-gray-100 text-gray-500 group-hover:bg-green-100 group-hover:text-green-600"}`}>
+                            <User size={13} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">
+                              {item.pelapor || item.report?.pelapor || "Anonim"}
+                            </p>
+                            {formatCoordinate(item.latitude) && formatCoordinate(item.longitude) ? (
+                              <p className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                                <MapPin size={9} className="shrink-0" />
+                                <span className="font-mono truncate">{formatCoordinate(item.latitude)}, {formatCoordinate(item.longitude)}</span>
+                              </p>
+                            ) : item.location ? (
+                              <p className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                                <MapPin size={9} className="shrink-0" />
+                                <span className="truncate">{item.location}</span>
+                              </p>
+                            ) : item.district ? (
+                              <p className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                                <MapPin size={9} className="shrink-0" /> {item.district}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* ── Deskripsi ── */}
+                      <td className="px-5 py-4">
+                        {item.description || item.report?.description ? (
+                          <p className="text-xs text-gray-600 leading-relaxed line-clamp-3">
+                            {item.description || item.report?.description}
+                          </p>
+                        ) : (
+                          <span className="text-xs italic text-gray-400">-</span>
+                        )}
+                      </td>
+
+                      {/* ── Driver & Armada ── */}
+                      <td className="px-5 py-4">
+                        {item.status === "LAPORAN_BARU" ? (
+                          <span className="text-xs italic text-gray-400">Belum Ditugaskan</span>
+                        ) : (
+                          <div>
+                            <p className="text-sm font-semibold text-gray-700 truncate">{item.driver?.fullName || "Tanpa Driver"}</p>
+                            <span className="inline-flex items-center gap-1 bg-gray-100 px-1.5 py-0.5 rounded-md text-[10px] font-mono text-gray-600 mt-1">
+                              <Truck size={9} /> {item.truck?.plateNumber || "-"}
+                            </span>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* ── Jadwal ── */}
+                      <td className="px-5 py-4">
+                        {item.scheduledAt ? (
+                          <div>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Dijadwalkan</p>
+                            <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                              <Calendar size={11} className={`shrink-0 ${overdue ? "text-orange-500" : "text-gray-400"}`} />
+                              <span className={overdue ? "text-orange-500" : ""}>
+                                {new Date(item.scheduledAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                              </span>
+                              {overdue && <AlertTriangle size={10} className="text-orange-500" />}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-xs italic text-gray-400">-</span>
+                        )}
+                      </td>
+
+                      {/* ── Status ── */}
+                      <td className="px-5 py-4 text-center">
+                        <StatusBadge status={effectiveStatus} />
+                      </td>
+
+                      {/* ── Aksi ── */}
+                      <td className="px-5 py-4">
+                        <div className="flex justify-end items-center gap-1.5 flex-wrap">
+                          {item.status === "LAPORAN_BARU" ? (
+                            <>
+                              <button
+                                onClick={() => openTugaskanModal(item)}
+                                className="px-3 py-1.5 rounded-xl bg-[#4A6D55] text-white text-xs font-bold hover:bg-[#3a5643] transition-all shadow-sm whitespace-nowrap"
+                              >
+                                Tugaskan
+                              </button>
+                              <button
+                                onClick={() => { setPendingTolakId(item.id); setPendingTolakName(item.location || "Laporan"); setShowTolakConfirm(true); }}
+                                className="px-3 py-1.5 rounded-xl bg-red-600 text-white hover:bg-red-700 text-xs font-bold transition-all shadow-sm whitespace-nowrap"
+                              >
+                                Tolak
+                              </button>
+                            </>
+                          ) : item.status === "DITOLAK" ? (
+                            <>
+                              <button
+                                onClick={() => { setSelectedItem(item); setShowDetailModal(true); }}
+                                className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors inline-flex"
+                                title="Lihat Detail"
+                              >
+                                <Eye size={14} />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setPendingDeleteId(item.id);
+                                  setPendingDeleteName(item.location || "Laporan");
+                                  setPendingDeleteType("laporan");
+                                  setShowDeleteConfirm(true);
+                                }}
+                                className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors inline-flex"
+                                title="Hapus Laporan"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => { setSelectedItem(item); setShowDetailModal(true); }}
+                                className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors inline-flex"
+                                title="Lihat Detail"
+                              >
+                                <Eye size={14} />
+                              </button>
+                              {item.status !== "SELESAI" && (
+                                <button onClick={() => openEditModal(item)} className="p-1.5 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100 transition-colors inline-flex" title="Edit">
+                                  <Repeat size={14} />
+                                </button>
+                              )}
+                              {(item.status === "DITUGASKAN" || item.status === "BEKERJA") && (
+                                <button
+                                  onClick={() => { setPendingDeleteId(item.id); setPendingDeleteName(item.taskNumber || item.location || "Penugasan"); setPendingDeleteType("penugasan"); setShowDeleteConfirm(true); }}
+                                  className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors inline-flex"
+                                  title="Hapus"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── Mobile Card Layout ── */}
+        <div className="md:hidden divide-y divide-gray-100">
+          {loading ? (
+            <div className="flex flex-col items-center gap-2 py-16 text-gray-400">
+              <Loader2 className="animate-spin text-[#4A6D55]" size={28} />
+              <span className="text-sm italic">Memuat data...</span>
+            </div>
+          ) : paginatedItems.length === 0 ? (
+            <div className="py-16 text-center text-gray-400 italic text-sm">Tidak ada data ditemukan.</div>
+          ) : (
+            paginatedItems.map((item) => {
+              const effectiveStatus = getEffectiveStatus(item);
+              const overdue = effectiveStatus === "TIDAK_DIKERJAKAN";
+              return (
+                <div key={item.id} className={`p-4 ${overdue ? "bg-orange-50/30" : ""}`}>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${overdue ? "bg-orange-100 text-orange-600" : "bg-gray-100 text-gray-500"}`}>
+                        <User size={13} />
+                      </div>
+                      <span className="text-sm font-bold text-gray-800 truncate">
+                        {item.pelapor || item.report?.pelapor || "Anonim"}
+                      </span>
+                    </div>
+                    <StatusBadge status={effectiveStatus} />
+                  </div>
+                  {item.location && (
+                    <p className="text-[10px] text-gray-400 mb-1 flex items-center gap-1">
+                      <MapPin size={9} className="shrink-0" />
+                      <span className="truncate">{item.location}</span>
+                    </p>
+                  )}
+                  {(item.description || item.report?.description) && (
+                    <p className="text-xs text-gray-500 mb-2 leading-relaxed">
+                      {item.description || item.report?.description}
+                    </p>
+                  )}
+                  {item.status === "DITOLAK" && item.rejectionReason && (
+                    <p className="text-[11px] text-red-500 mb-2 leading-relaxed">
+                      <span className="font-bold">Alasan: </span>{item.rejectionReason}
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mb-3">
+                    {item.status !== "LAPORAN_BARU" && item.driver && (
+                      <span className="flex items-center gap-1"><User size={10} /> {item.driver.fullName}</span>
+                    )}
+                    {item.truck && (
+                      <span className="flex items-center gap-1 font-mono bg-gray-100 px-1.5 py-0.5 rounded">
+                        <Truck size={9} /> {item.truck.plateNumber}
+                      </span>
+                    )}
+                    {item.scheduledAt && (
+                      <span className={`flex items-center gap-1 ${overdue ? "text-orange-500 font-semibold" : ""}`}>
+                        <Calendar size={10} />
+                        {new Date(item.scheduledAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                        {overdue && <AlertTriangle size={10} />}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    {item.status === "LAPORAN_BARU" ? (
+                      <>
+                        <button onClick={() => openTugaskanModal(item)} className="flex-1 py-2 rounded-xl bg-[#4A6D55] text-white text-xs font-bold hover:bg-[#3a5643] transition-all">Tugaskan</button>
+                        <button onClick={() => { setPendingTolakId(item.id); setPendingTolakName(item.location || "Laporan"); setShowTolakConfirm(true); }} className="flex-1 py-2 rounded-xl bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-all">Tolak</button>
+                      </>
+                    ) : item.status === "DITOLAK" ? (
+                      <div className="flex gap-2">
+                        <button onClick={() => { setSelectedItem(item); setShowDetailModal(true); }} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><Eye size={14} /></button>
+                        <button
+                          onClick={() => {
+                            setPendingDeleteId(item.id);
+                            setPendingDeleteName(item.location || "Laporan");
+                            setPendingDeleteType("laporan");
+                            setShowDeleteConfirm(true);
+                          }}
+                          className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button onClick={() => { setSelectedItem(item); setShowDetailModal(true); }} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><Eye size={14} /></button>
+                        {item.status !== "SELESAI" && (
+                          <button onClick={() => openEditModal(item)} className="p-2 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100"><Repeat size={14} /></button>
+                        )}
+                        {(item.status === "DITUGASKAN" || item.status === "BEKERJA") && (
+                          <button onClick={() => { setPendingDeleteId(item.id); setPendingDeleteName(item.taskNumber || item.location || "Penugasan"); setPendingDeleteType("penugasan"); setShowDeleteConfirm(true); }} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 size={14} /></button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Pagination */}
         {!loading && filteredItems.length > 0 && (
-          <div className="px-6 py-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-            {/* Info range data */}
+          <div className="px-5 py-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-xs text-gray-400 font-medium">
               Menampilkan{" "}
-              <span className="font-bold text-gray-600">
-                {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
-                {Math.min(currentPage * ITEMS_PER_PAGE, filteredItems.length)}
-              </span>{" "}
-              dari{" "}
-              <span className="font-bold text-gray-600">{filteredItems.length}</span>{" "}
-              penugasan
+              <span className="font-bold text-gray-600">{(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredItems.length)}</span>
+              {" "}dari <span className="font-bold text-gray-600">{filteredItems.length}</span> penugasan
             </p>
-
-            {/* Navigasi halaman */}
             <div className="flex items-center gap-1">
-              {/* Ke halaman pertama */}
-              <button
-                type="button"
-                onClick={() => setCurrentPage(1)}
-                disabled={currentPage === 1}
-                className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                title="Halaman pertama"
-              >
-                <ChevronsLeft size={16} />
-              </button>
-
-              {/* Halaman sebelumnya */}
-              <button
-                type="button"
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                title="Halaman sebelumnya"
-              >
-                <ChevronLeft size={16} />
-              </button>
-
-              {/* Nomor halaman dengan ellipsis */}
+              <button type="button" onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"><ChevronsLeft size={16} /></button>
+              <button type="button" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"><ChevronLeft size={16} /></button>
               <div className="flex items-center gap-1 mx-1">
-                {penugasanPageNumbers.map((page, i) =>
+                {pageNumbers.map((page, i) =>
                   page < 0 ? (
-                    <span
-                      key={`penugasan-ellipsis-${i}`}
-                      className="px-1 text-gray-400 text-xs font-bold select-none"
-                    >
-                      …
-                    </span>
+                    <span key={`e-${i}`} className="px-1 text-gray-400 text-xs font-bold select-none">…</span>
                   ) : (
-                    <button
-                      key={page}
-                      type="button"
-                      onClick={() => setCurrentPage(page)}
-                      className={`min-w-[34px] h-[34px] rounded-lg text-xs font-bold transition-all ${
-                        currentPage === page
-                          ? "bg-[#4A6D55] text-white shadow-sm"
-                          : "text-gray-500 hover:bg-gray-100"
-                      }`}
-                    >
-                      {page}
-                    </button>
+                    <button key={page} type="button" onClick={() => setCurrentPage(page)} className={`min-w-[34px] h-[34px] rounded-lg text-xs font-bold transition-all ${currentPage === page ? "bg-[#4A6D55] text-white shadow-sm" : "text-gray-500 hover:bg-gray-100"}`}>{page}</button>
                   )
                 )}
               </div>
-
-              {/* Halaman berikutnya */}
-              <button
-                type="button"
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                title="Halaman berikutnya"
-              >
-                <ChevronRight size={16} />
-              </button>
-
-              {/* Ke halaman terakhir */}
-              <button
-                type="button"
-                onClick={() => setCurrentPage(totalPages)}
-                disabled={currentPage === totalPages}
-                className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                title="Halaman terakhir"
-              >
-                <ChevronsRight size={16} />
-              </button>
+              <button type="button" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"><ChevronRight size={16} /></button>
+              <button type="button" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"><ChevronsRight size={16} /></button>
             </div>
           </div>
         )}
       </div>
 
-      {/* MODAL PENUGASAN */}
+      {/* Modal Tugaskan / Edit */}
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
@@ -806,71 +985,47 @@ export default function ManagePenugasan() {
             >
               <div className="px-6 py-5 border-b flex justify-between items-center bg-gray-50">
                 <div>
-                  <h2 className="font-bold text-lg text-gray-900">Buat Penugasan</h2>
+                  <h2 className="font-bold text-lg text-gray-900">{isEditMode ? "Edit Penugasan" : "Buat Penugasan"}</h2>
                   <p className="text-[11px] text-gray-500 mt-0.5 uppercase tracking-wider font-bold">
-                    Tentukan armada dan jadwal operasional
+                    {isEditMode ? "Ubah armada, jadwal, atau lokasi" : "Tentukan armada dan jadwal operasional"}
                   </p>
                 </div>
-                <button
-                  onClick={() => {
-                    setShowModal(false);
-                    resetForm();
-                    setSelectedItem(null);
-                  }}
-                  className="p-2 text-gray-400 hover:bg-gray-200 rounded-full transition-colors"
-                >
+                <button onClick={() => { setShowModal(false); resetForm(); setSelectedItem(null); }} className="p-2 text-gray-400 hover:bg-gray-200 rounded-full transition-colors">
                   <X size={18} />
                 </button>
               </div>
-
               <form onSubmit={handleSubmit} className="p-6 space-y-5">
+                {/* Armada */}
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block ml-1">
-                    Armada / Truk
+                    Armada / Truk <span className="text-red-500">*</span>
                   </label>
                   <select
-                    required
-                    name="truckId"
-                    value={formData.truckId}
+                    required name="truckId" value={formData.truckId}
                     onChange={(e) => {
-                      const selectedTruck = trukList.find(
-                        (t) => t.id === e.target.value
-                      );
-                      const driverId = selectedTruck
-                        ? getDriverId(selectedTruck)
-                        : "";
-
-                      setFormData({
-                        ...formData,
-                        truckId: e.target.value,
-                        driverId,
-                      });
+                      const sel = trukList.find((t) => t.id === e.target.value);
+                      setFormData({ ...formData, truckId: e.target.value, driverId: sel ? getDriverId(sel) : "" });
+                      if (formErrors.truckId) setFormErrors({ ...formErrors, truckId: "" });
                     }}
-                    className="w-full p-3.5 bg-gray-50 border border-gray-100 rounded-xl outline-none text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all font-medium"
+                    className={`w-full p-3.5 bg-gray-50 border rounded-xl outline-none text-sm focus:ring-2 focus:ring-green-500/20 font-medium ${formErrors.truckId ? "border-red-400" : "border-gray-100 focus:border-green-500"}`}
                   >
                     <option value="">-- Pilih Armada --</option>
-                    {trukList.map((t) => {
-                      const driverName = getDriverName(t);
-                      const hasDriverForTruck = !!getDriverId(t);
-                      return (
-                        <option key={t.id} value={t.id}>
-                          {t.plateNumber}
-                          {t.unitCode ? ` (${t.unitCode})` : ""} -{" "}
-                          {driverName}
-                          {!hasDriverForTruck ? " ⚠️" : ""}
-                        </option>
-                      );
-                    })}
+                    {trukList.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.plateNumber}{t.unitCode ? ` (${t.unitCode})` : ""} - {getDriverName(t)}{!getDriverId(t) ? " ⚠️ Tanpa Driver" : ""}
+                      </option>
+                    ))}
                   </select>
+                  {formErrors.truckId && <p className="text-xs text-red-500 mt-1 ml-1 flex items-center gap-1"><AlertCircle size={12} /> {formErrors.truckId}</p>}
                 </div>
 
                 {formData.truckId && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`border rounded-2xl p-4 ${hasDriver ? "bg-green-50 border-green-100" : "bg-amber-50 border-amber-100"}`}>
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                    className={`border rounded-2xl p-4 ${hasDriver ? "bg-green-50 border-green-100" : "bg-amber-50 border-amber-100"}`}
+                  >
                     {hasDriver ? (
                       <>
-                        <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider flex items-center gap-1.5">
-                          <CheckCircle2 size={12} /> Driver Terpilih
-                        </p>
+                        <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider flex items-center gap-1.5"><CheckCircle2 size={12} /> Driver Terpilih</p>
                         <p className="text-lg font-black text-green-900 mt-1">{selectedDriverName}</p>
                       </>
                     ) : (
@@ -882,42 +1037,45 @@ export default function ManagePenugasan() {
                   </motion.div>
                 )}
 
+                {/* Jadwal */}
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block ml-1">
-                    Jadwal Pelaksanaan
+                    Jadwal Pelaksanaan <span className="text-red-500">*</span>
                   </label>
                   <input
-                    type="datetime-local"
-                    required
-                    name="scheduledAt"
-                    value={formData.scheduledAt}
-                    onChange={handleInputChange}
-                    min={minScheduleValue}
-                    className="w-full p-3.5 bg-gray-50 border border-gray-100 rounded-xl outline-none text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all font-medium"
+                    type="datetime-local" required name="scheduledAt" value={formData.scheduledAt}
+                    onChange={handleInputChange} min={getCurrentDateTimeLocal()}
+                    className={`w-full p-3.5 bg-gray-50 border rounded-xl outline-none text-sm focus:ring-2 focus:ring-green-500/20 font-medium ${formErrors.scheduledAt ? "border-red-400" : "border-gray-100 focus:border-green-500"}`}
                   />
-                  <p className="mt-1 text-[11px] text-gray-500 ml-1">
-                    Minimal jadwal {MIN_SCHEDULE_DAYS} hari dari waktu saat ini.
-                  </p>
+                  {formErrors.scheduledAt
+                    ? <p className="text-xs text-red-500 mt-1 ml-1 flex items-center gap-1"><AlertCircle size={12} /> {formErrors.scheduledAt}</p>
+                    : <p className="mt-1 text-[11px] text-gray-500 ml-1">Tidak boleh bentrok dalam rentang 2 jam dengan penugasan lain.</p>
+                  }
+                </div>
+
+                {/* Lokasi */}
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block ml-1">
+                    Lokasi Penugasan <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    required name="location" rows={3} value={formData.location} onChange={handleInputChange}
+                    className={`w-full p-3.5 bg-gray-50 border rounded-xl outline-none text-sm focus:ring-2 focus:ring-green-500/20 font-medium resize-none ${formErrors.location ? "border-red-400" : "border-gray-100 focus:border-green-500"}`}
+                    placeholder="Masukkan alamat lengkap lokasi penugasan"
+                  />
+                  {formErrors.location && <p className="text-xs text-red-500 mt-1 ml-1 flex items-center gap-1"><AlertCircle size={12} /> {formErrors.location}</p>}
                 </div>
 
                 <div className="pt-4 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowModal(false);
-                      resetForm();
-                      setSelectedItem(null);
-                    }}
-                    className="flex-1 px-6 py-4 rounded-xl text-gray-600 font-bold hover:bg-gray-100 transition-all"
-                  >
+                  <button type="button" onClick={() => { setShowModal(false); resetForm(); setSelectedItem(null); }} className="flex-1 px-6 py-4 rounded-xl text-gray-600 font-bold hover:bg-gray-100 transition-all">
                     Batal
                   </button>
                   <button
-                    type="submit"
-                    disabled={!hasDriver && !!formData.truckId}
+                    type="submit" disabled={(!hasDriver && !!formData.truckId) || submitting}
                     className="flex-[2] py-4 bg-[#4A6D55] text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-green-900/20 hover:bg-[#3a5643] transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
                   >
-                    Konfirmasi Penugasan
+                    {submitting ? <Loader2 size={18} className="animate-spin" /> : null}
+                    {isEditMode ? "Simpan Perubahan" : "Konfirmasi Penugasan"}
                   </button>
                 </div>
               </form>
@@ -926,54 +1084,10 @@ export default function ManagePenugasan() {
         )}
       </AnimatePresence>
 
-      {/* DETAIL MODAL */}
+      {/* Detail Modal */}
       {showDetailModal && selectedItem && (
-        <PenugasanDetail
-          penugasan={selectedItem}
-          onClose={() => {
-            setShowDetailModal(false);
-            setSelectedItem(null);
-          }}
-        />
+        <PenugasanDetail penugasan={selectedItem} onClose={() => { setShowDetailModal(false); setSelectedItem(null); }} />
       )}
-
-      {/* DIALOGS */}
-      <AlertDialog
-        open={showSuccessDialog}
-        title={successTitle}
-        description={successDescription}
-        buttonText="OK"
-        icon={successIcon}
-        onClose={() => setShowSuccessDialog(false)}
-      />
-
-      <ConfirmDialog
-        open={showConfirmDialog}
-        title="Hapus Data Penugasan?"
-        description={`Aksi ini akan menghapus penugasan "${pendingDeleteName}" secara permanen dari sistem.`}
-        confirmText="Ya, Hapus"
-        cancelText="Batal"
-        onConfirm={handleDelete}
-        onCancel={() => {
-          setShowConfirmDialog(false);
-          setPendingDeleteId(null);
-          setPendingDeleteName('');
-        }}
-      />
-
-      <ConfirmDialog
-        open={showConfirmTolakDialog}
-        title="Tolak Laporan?"
-        description={`Aksi ini akan menolak laporan "${pendingTolakName}" secara permanen.`}
-        confirmText="Ya, Tolak"
-        cancelText="Batal"
-        onConfirm={handleTolak}
-        onCancel={() => {
-          setShowConfirmTolakDialog(false);
-          setPendingTolakId(null);
-          setPendingTolakName('');
-        }}
-      />
     </div>
   );
 }

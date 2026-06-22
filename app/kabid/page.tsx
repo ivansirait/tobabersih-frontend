@@ -17,7 +17,9 @@ import toast from 'react-hot-toast';
 import { normalizeRole } from '@/lib/authRole';
 
 // Gunakan proxy Next.js
-const API_BASE_URL = '/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') + '/api'
+  : '/api';
 
 interface Laporan {
   id?: string;

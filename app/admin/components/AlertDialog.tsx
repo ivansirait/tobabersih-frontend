@@ -153,7 +153,7 @@ export default function AlertDialog({
   if (!mounted || !open) return null;
 
   const styles = getStyles(type);
-  const finalButtonText = buttonText ?? (type === "create" ? "Tambah" : type === "edit" ? "Simpan" : type === "delete" ? "Hapus" : type === "delete-success" ? "Selesai" : type === "error" ? "Coba Lagi" : type === "loading" ? "Memproses..." : "Mengerti");
+  const finalButtonText = buttonText ?? (type === "create" ? "Tambah" : type === "edit" ? "Simpan" : type === "delete" ? "Hapus" : type === "delete-success" ? "Selesai" : type === "error" ? "Coba Lagi" : type === "loading" ? "Memproses..."  : type === "info" ? "Mengerti" : "Selesai");
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">

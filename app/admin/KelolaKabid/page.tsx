@@ -11,7 +11,9 @@ import toast, { Toaster } from 'react-hot-toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import AlertDialog from '../components/AlertDialog';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') + '/api'
+  : '/api';
 
 interface Kabid {
   id: string;
@@ -300,15 +302,14 @@ export default function KelolaKabid() {
     <div className="max-w-7xl mx-auto space-y-8 p-4">
       <Toaster position="top-right" />
       
-      {/* Success Dialog */}
-      <AlertDialog
-        open={showSuccessDialog}
-        title={successTitle}
-        description={successDescription}
-        buttonText="OK"
-        icon={successIcon}
-        onClose={() => setShowSuccessDialog(false)}
-      />
+        <AlertDialog
+          open={showSuccessDialog}
+          title={successTitle}
+          description={successDescription}
+          buttonText="OK"
+          type="success"
+          onClose={() => setShowSuccessDialog(false)}
+        />
 
       {/* Error Dialog */}
       {showErrorDialog && (

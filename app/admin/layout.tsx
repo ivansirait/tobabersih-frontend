@@ -24,7 +24,7 @@ export default function AdminLayout({
     if (path.includes('/admin/Truk')) return 'data-truk';
     if (path.includes('/admin/Wilayah')) return 'data-wilayah';
     if (path.includes('/admin/ManajemenRute')) return 'manajemen-rute';
-    if (path.includes('/admin/AkunMasyarakat')) return 'akun-masyarakat';
+    if (path.includes('/admin/AkunMasyarakat')) return 'data-masyarakat';
     if (path.includes('/admin/PetaSampah')) return 'peta-sampah';
     if (path.includes('/admin/LayananAduan')) return 'tugas-aduan';
     if (path.includes('/admin/berita')) return 'berita';

@@ -15,8 +15,9 @@ import {
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
-// Gunakan proxy Next.js
-const API_BASE_URL = '/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') + '/api'
+  : '/api';
 
 type LaporanType = 'wilayah' | 'armada' | 'aduan' | 'supir' | 'rute';
 
@@ -107,9 +108,9 @@ export default function RekapPage() {
           ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
           : 'application/pdf';
 
-      const mimeType = contentTypeHeader.includes('application/')
-        ? res.headers['content-type'].toString()
-        : inferredMime;
+const mimeType = contentTypeHeader.includes('application/')
+  ? (res.headers['content-type']?.toString() ?? inferredMime)
+  : inferredMime;
 
       const blob =
         res.data instanceof Blob ? res.data : new Blob([res.data as any], { type: mimeType });
