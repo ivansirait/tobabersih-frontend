@@ -335,7 +335,7 @@ export default function LaporanForm({
 
               <input
                 type="file"
-                accept="image/jpeg,image/jpg,image/png,image/webp"
+                accept="image/*"
                 capture="environment"
                 hidden
                 ref={cameraInputRef}

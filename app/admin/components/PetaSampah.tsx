@@ -333,38 +333,71 @@ async function exportToPDF(riwayatList: RiwayatSelesai[], tanggal: string): Prom
     import('jspdf'),
     import('html2canvas').then((m) => m.default),
   ]);
-  const container = document.createElement('div');
-  container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;background:white;z-index:-9999;overflow:visible;';
-  container.innerHTML = buildPDFHtml(riwayatList, tanggal);
-  document.body.appendChild(container);
+
+  // Iframe tersembunyi: punya document sendiri, 100% terpisah dari halaman utama.
+  // Apa pun yang html2canvas lakukan di dalamnya tidak bisa "bocor" keluar.
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText =
+    'position:fixed;top:-99999px;left:-99999px;width:794px;height:1px;border:0;visibility:hidden;';
+  document.body.appendChild(iframe);
+
   try {
+    const idoc = iframe.contentDocument;
+    if (!idoc) throw new Error('Tidak bisa membuat dokumen render PDF.');
+
+    idoc.open();
+    idoc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/></head><body style="margin:0;padding:0;">${buildPDFHtml(riwayatList, tanggal)}</body></html>`);
+    idoc.close();
+
     await new Promise((resolve) => setTimeout(resolve, 600));
-    const canvas = await html2canvas(container, { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', width: 794, windowWidth: 794, scrollX: 0, scrollY: 0, logging: false });
-    const pageWidthMm = 210; const pageHeightMm = 297; const marginMm = 10;
-    const contentWMm  = pageWidthMm - marginMm * 2;
-    const contentHMm  = pageHeightMm - marginMm * 2;
+
+    const canvas = await html2canvas(idoc.body, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      width: 794,
+      windowWidth: 794,
+      scrollX: 0,
+      scrollY: 0,
+      logging: false,
+    });
+
+    const pageWidthMm  = 210;
+    const pageHeightMm = 297;
+    const marginMm     = 10;
+    const contentWMm   = pageWidthMm - marginMm * 2;
+    const contentHMm   = pageHeightMm - marginMm * 2;
+
     const totalImgHeightMm = (canvas.height * contentWMm) / canvas.width;
-    const pageHeightPx = Math.floor((canvas.height * contentHMm) / totalImgHeightMm);
+    const pageHeightPx     = Math.floor((canvas.height * contentHMm) / totalImgHeightMm);
+
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
-    let srcY = 0; let pageNum = 0;
+
+    let srcY = 0;
+    let pageNum = 0;
     while (srcY < canvas.height) {
       if (pageNum > 0) pdf.addPage();
       const sliceH = Math.min(pageHeightPx, canvas.height - srcY);
       const sliceCanvas = document.createElement('canvas');
-      sliceCanvas.width = canvas.width; sliceCanvas.height = sliceH;
+      sliceCanvas.width  = canvas.width;
+      sliceCanvas.height = sliceH;
       const ctx = sliceCanvas.getContext('2d')!;
-      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
       ctx.drawImage(canvas, 0, srcY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
       const imgData = sliceCanvas.toDataURL('image/jpeg', 0.92);
       const sliceHeightMm = (sliceH * contentWMm) / canvas.width;
       pdf.addImage(imgData, 'JPEG', marginMm, marginMm, contentWMm, sliceHeightMm);
-      srcY += sliceH; pageNum++;
+      srcY += sliceH;
+      pageNum++;
     }
+
     const fileName = `Laporan_Armada_${tanggal}.pdf`;
     pdf.save(fileName);
     return fileName;
   } finally {
-    document.body.removeChild(container);
+    document.body.removeChild(iframe);
   }
 }
 

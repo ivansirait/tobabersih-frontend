@@ -14,6 +14,8 @@ async function decodeToken(token: string) {
       console.error('[JWT] JWT_SECRET is not configured')
       return null
     }
+
+
     const verified = await jwtVerify(token, SECRET)
     return verified.payload as {
       id: string
@@ -23,10 +25,13 @@ async function decodeToken(token: string) {
       iat?: number
       exp?: number
     }
-  } catch (error) {
-    console.error('[JWT] Token verification failed:', error)
-    return null
-  }
+  } catch (error: any) {
+  console.error('[JWT] Verification Error Name:', error?.name)
+  console.error('[JWT] Verification Error Code:', error?.code)
+  console.error('[JWT] Verification Error Message:', error?.message)
+
+  return null
+}
 }
 
 /**
@@ -35,7 +40,6 @@ async function decodeToken(token: string) {
  * ============================================================================
  */
 
-// Routes yang butuh login dan role tertentu
 const protectedRoutes: Record<
   string,
   {
@@ -61,10 +65,6 @@ const protectedRoutes: Record<
 const publicRoutes = new Set([
   '/',
   '/login',
-  '/register',
-  '/Warga',
-  '/Warga/login',
-  '/Warga/register',
   '/unauthorized',
   '/500',
   '/not-found',
@@ -82,9 +82,6 @@ function isStaticFile(path: string): boolean {
   )
 }
 
-/**
- * Check apakah path memerlukan authentication
- */
 function getRequiredRole(
   path: string
 ): { requiredRoles: string[] | null; requiresAuth: boolean } {
@@ -101,14 +98,10 @@ function getRequiredRole(
   }
 }
 
-/**
- * ============================================================================
- * Main Proxy Function - Protects routes dengan JWT token validation
- * ============================================================================
- */
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
-
+  console.log("================================");
+  console.log("[PROXY] PATH:", path);
   // console.log(`[PROXY] 🔍 Checking path: ${path}`)
 
   // 1. Allow static files dan next internals
@@ -125,6 +118,17 @@ export async function proxy(request: NextRequest) {
   const tokenCookie = request.cookies.get('token')
   const token = tokenCookie?.value
 
+  console.log('[PROXY] Path:', path)
+  console.log('[PROXY] Token exists:', !!token)
+
+if (token) {
+  console.log('[PROXY] Token preview:', token.substring(0, 30) + '...')
+}
+  if (token) {
+    console.log("[PROXY] TOKEN:", token.substring(0, 40) + "...");
+  }
+
+  console.log("================================");
   // 4. Get route protection config
   const { requiredRoles, requiresAuth } = getRequiredRole(path)
 
@@ -139,7 +143,6 @@ export async function proxy(request: NextRequest) {
   // CASE 2: Route memerlukan auth, tapi user tidak ada token
   // =========================================================================
   if (!token) {
-    // console.log(`[PROXY] ❌ No token found for protected route: ${path}`)
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
@@ -150,7 +153,7 @@ export async function proxy(request: NextRequest) {
 
   // Token invalid atau expired
   if (!decodedToken) {
-    console.log(`[PROXY] ❌ Invalid or expired token for path: ${path}`)
+    console.log(`[PROXY]  Invalid or expired token for path: ${path}`)
     // Clear invalid token dari cookie
     const response = NextResponse.redirect(new URL('/login', request.url))
     response.cookies.delete('token')
@@ -176,9 +179,6 @@ export async function proxy(request: NextRequest) {
     const allowedRoles = requiredRoles.map((r) => r.toUpperCase())
 
     if (!userRole || !allowedRoles.includes(userRole)) {
-      // console.log(
-      //   `[PROXY] 🔐 User role ${userRole} not allowed for path: ${path}. Required: ${allowedRoles}`
-      // )
       return NextResponse.redirect(new URL('/unauthorized', request.url))
     }
   }

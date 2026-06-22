@@ -6,27 +6,32 @@ import * as XLSX from "xlsx";
 import {
   Plus, Edit3, Trash2, Search, X, Users,
   MapPin, Eye, FileSpreadsheet, Upload, AlertCircle,
-  Download, ChevronLeft, ChevronRight, Truck, CheckCircle2,
-  ChevronDown, Loader2, User, Tag,
+  Download, ChevronLeft, ChevronRight, CheckCircle2,
+  ChevronDown, Loader2, User, Tag, Building2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AlertDialog, { type AlertType } from "./AlertDialog";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+// ✅ Sesuaikan dengan response backend (userId, locationId, userName)
 interface Pelanggan {
   id: string;
   nama: string;
   alamat: string;
   jenisUsaha: string;
-  driverId: string | null;
-  driverName: string | null;
+  userId: string | null;
+  userName: string | null;
+  locationId: string | null;
+  location?: { id: string; name: string; address?: string };
   createdAt: string;
 }
 
-interface Driver {
+// ✅ Lokasi dari backend
+interface Location {
   id: string;
-  fullName: string;
+  name: string;
+  address?: string;
   isActive: boolean;
 }
 
@@ -34,14 +39,14 @@ interface FormData {
   nama: string;
   alamat: string;
   jenisUsaha: string;
-  driverId: string;
+  locationId: string; // ✅ ganti dari driverId
 }
 
 interface FormErrors {
   nama?: string;
   alamat?: string;
   jenisUsaha?: string;
-  driverId?: string;
+  locationId?: string; // ✅ ganti dari driverId
 }
 
 interface ImportRow {
@@ -73,43 +78,22 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL
   ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') + '/api'
   : '/api';
 
-const API_ADMIN = process.env.NEXT_PUBLIC_API_URL
-  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '') + '/api/admin'
-  : '/api/admin';
-
-
+// ✅ Hapus API_ADMIN karena tidak perlu fetch supir lagi
 const INITIAL_FORM: FormData = {
-  nama: "", alamat: "", jenisUsaha: "", driverId: "",
+  nama: "", alamat: "", jenisUsaha: "", locationId: "",
 };
 
 const JENIS_USAHA_OPTIONS = [
-  "Rumah Tangga",
-  "Hotel Bintang 1",
-  "Hotel Bintang 2",
-  "Hotel Bintang 3",
-  "Asrama",
-  "Kantor Pemerintah",
-  "Kantor Swasta",
-  "Restoran",
-  "Café",
-  "Villa",
-  "Toko/Kedai",
-  "Kios Dagang",
-  "Pelabuhan",
-  "Sekolah",
-  "Ruko",
-  "Rumah Makan",
-  "Panglong",
-  "Gereja",
-  "Perum Tentara",
+  "Rumah Tangga", "Hotel Bintang 1", "Hotel Bintang 2", "Hotel Bintang 3",
+  "Asrama", "Kantor Pemerintah", "Kantor Swasta", "Restoran", "Café",
+  "Villa", "Toko/Kedai", "Kios Dagang", "Pelabuhan", "Sekolah",
+  "Ruko", "Rumah Makan", "Panglong", "Gereja", "Perum Tentara",
 ];
 
-// ─── JenisUsahaInput (typeahead combobox) ─────────────────────────────────────
+// ─── JenisUsahaInput ─────────────────────────────────────────────────────────
 
 function JenisUsahaInput({
-  value,
-  onChange,
-  error,
+  value, onChange, error,
 }: {
   value: string;
   onChange: (val: string) => void;
@@ -123,9 +107,8 @@ function JenisUsahaInput({
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node))
         setOpen(false);
-      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -137,10 +120,7 @@ function JenisUsahaInput({
 
   return (
     <div ref={wrapperRef} className="relative">
-      <Tag
-        size={16}
-        className={`absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none ${error ? "text-red-400" : "text-gray-400"}`}
-      />
+      <Tag size={16} className={`absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none ${error ? "text-red-400" : "text-gray-400"}`} />
       <input
         type="text"
         value={query}
@@ -154,29 +134,21 @@ function JenisUsahaInput({
             : "border-gray-200 focus:border-[#4A6D55] focus:ring-4 focus:ring-[#4A6D55]/10 focus:bg-white"
         }`}
       />
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-      >
+      <button type="button" onClick={() => setOpen((o) => !o)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
         <ChevronDown size={16} className={`transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
-
       {open && filtered.length > 0 && (
         <ul className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
           {filtered.map((opt) => (
-            <li
-              key={opt}
-              onMouseDown={() => { setQuery(opt); onChange(opt); setOpen(false); }}
+            <li key={opt} onMouseDown={() => { setQuery(opt); onChange(opt); setOpen(false); }}
               className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-green-50 hover:text-green-800 transition-colors
-                ${query === opt ? "bg-green-50 text-green-700 font-medium" : "text-gray-700"}`}
-            >
+                ${query === opt ? "bg-green-50 text-green-700 font-medium" : "text-gray-700"}`}>
               {opt}
             </li>
           ))}
         </ul>
       )}
-
       {open && filtered.length === 0 && query.trim() && (
         <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3 text-sm text-gray-400 italic">
           Gunakan "{query}" sebagai jenis usaha baru
@@ -189,11 +161,11 @@ function JenisUsahaInput({
 // ─── Import Modal ─────────────────────────────────────────────────────────────
 
 function ImportModal({
-  drivers,
+  locations,
   onClose,
   onDone,
 }: {
-  drivers: Driver[];
+  locations: Location[]; // ✅ ganti dari drivers ke locations
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -204,7 +176,7 @@ function ImportModal({
   const [done, setDone] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [summary, setSummary] = useState<{ success: number; error: number; total: number } | null>(null);
-  const [selectedDriver, setSelectedDriver] = useState("");
+  const [selectedLocation, setSelectedLocation] = useState(""); // ✅ ganti dari selectedDriver
 
   const parseExcel = (file: File) => {
     const reader = new FileReader();
@@ -213,16 +185,14 @@ function ImportModal({
       const wb = XLSX.read(data, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const json: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
-
       const mapped: ImportRow[] = json
         .filter((r) => r["Nama Pelanggan"] || r["nama"] || r["Nama"] || r["NAMA"])
         .map((r) => ({
-          nama: String(r["Nama Pelanggan"] ?? r["NAMA"] ?? r["nama"] ?? r["Nama"] ?? "").trim(),
-          alamat: String(r["Alamat"] ?? r["ALAMAT"] ?? r["alamat"] ?? "").trim(),
-          jenisUsaha: String(r["Jenis Usaha"] ?? r["JENIS USAHA"] ?? r["Jenis Retribusi"] ?? r["jenisUsaha"] ?? "Rumah Tangga").trim(),
+          nama:       String(r["Nama Pelanggan"] ?? r["NAMA"] ?? r["nama"] ?? r["Nama"] ?? "").trim(),
+          alamat:     String(r["Alamat"] ?? r["ALAMAT"] ?? r["alamat"] ?? "").trim(),
+          jenisUsaha: String(r["Jenis Usaha"] ?? r["JENIS USAHA"] ?? r["jenisUsaha"] ?? "Rumah Tangga").trim(),
           status: "pending",
         }));
-
       setRows(mapped);
       setFileName(file.name);
     };
@@ -249,6 +219,12 @@ function ImportModal({
   };
 
   const handleImport = async () => {
+    // ✅ Validasi locationId wajib
+    if (!selectedLocation) {
+      alert("Pilih wilayah/lokasi terlebih dahulu sebelum import.");
+      return;
+    }
+
     const validated = rows.map((r) =>
       !r.nama ? { ...r, status: "error" as const, errorMsg: "Nama wajib diisi" } : r
     );
@@ -262,8 +238,8 @@ function ImportModal({
       const res = await axios.post(
         `${API_BASE}/pelanggan/bulk`,
         {
-          pelanggan: valid.map(({ nama, alamat, jenisUsaha }) => ({ nama, alamat, jenisUsaha })),
-          driverId: selectedDriver || undefined,
+          pelanggan:  valid.map(({ nama, alamat, jenisUsaha }) => ({ nama, alamat, jenisUsaha })),
+          locationId: selectedLocation, // ✅ ganti dari driverId
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -291,8 +267,8 @@ function ImportModal({
   };
 
   const successCount = rows.filter((r) => r.status === "success").length;
-  const errorCount = rows.filter((r) => r.status === "error").length;
-  const activeDrivers = drivers.filter((d) => d.isActive);
+  const errorCount   = rows.filter((r) => r.status === "error").length;
+  const activeLocations = locations.filter((l) => l.isActive);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
@@ -325,32 +301,31 @@ function ImportModal({
                 Kolom: <span className="font-mono font-semibold">Nama Pelanggan, Alamat, Jenis Usaha</span>
               </p>
             </div>
-            <button
-              onClick={downloadTemplate}
-              className="flex items-center gap-2 rounded-xl bg-white border border-gray-200 px-4 py-2 text-sm font-medium text-[#4A6D55] shadow-sm hover:bg-gray-50 transition"
-            >
+            <button onClick={downloadTemplate}
+              className="flex items-center gap-2 rounded-xl bg-white border border-gray-200 px-4 py-2 text-sm font-medium text-[#4A6D55] shadow-sm hover:bg-gray-50 transition">
               <FileSpreadsheet size={15} /> Unduh Template
             </button>
           </div>
 
-          {/* Pilih supir */}
-          {rows.length > 0 && !done && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 space-y-2">
-              <p className="text-sm font-bold text-amber-800 flex items-center gap-2">
-                <Truck size={15} /> Tetapkan ke Supir (opsional)
-              </p>
-              <select
-                value={selectedDriver}
-                onChange={(e) => setSelectedDriver(e.target.value)}
-                className="w-full rounded-xl border border-amber-300 bg-white px-4 py-2 text-sm text-gray-700 outline-none focus:border-[#4A6D55]"
-              >
-                <option value="">— Tanpa supir —</option>
-                {activeDrivers.map((d) => (
-                  <option key={d.id} value={d.id}>{d.fullName}</option>
-                ))}
-              </select>
-            </div>
-          )}
+          {/* ✅ Pilih Wilayah/Lokasi (wajib, bukan opsional) */}
+          <div className="rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 space-y-2">
+            <p className="text-sm font-bold text-blue-800 flex items-center gap-2">
+              <MapPin size={15} /> Tetapkan ke Wilayah <span className="text-red-500">*</span>
+            </p>
+            <select
+              value={selectedLocation}
+              onChange={(e) => setSelectedLocation(e.target.value)}
+              className="w-full rounded-xl border border-blue-300 bg-white px-4 py-2 text-sm text-gray-700 outline-none focus:border-[#4A6D55]"
+            >
+              <option value="">— Pilih wilayah —</option>
+              {activeLocations.map((l) => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+            </select>
+            {!selectedLocation && (
+              <p className="text-xs text-blue-600">Wajib dipilih sebelum import</p>
+            )}
+          </div>
 
           {/* Summary */}
           {done && summary && (
@@ -447,13 +422,13 @@ function ImportModal({
           </button>
           <div className="flex gap-3">
             {rows.length > 0 && !done && (
-              <button onClick={handleImport} disabled={importing}
+              <button onClick={handleImport} disabled={importing || !selectedLocation}
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-[#4A6D55] text-white text-sm font-bold hover:bg-[#395542] transition-all shadow-lg shadow-green-900/20 disabled:opacity-50 active:scale-95">
                 {importing ? <><Loader2 size={15} className="animate-spin" /> Mengimport...</> : <><Upload size={15} /> Import {rows.length} Pelanggan</>}
               </button>
             )}
             {done && (
-              <button onClick={() => { setRows([]); setFileName(""); setDone(false); setSummary(null); setSelectedDriver(""); }}
+              <button onClick={() => { setRows([]); setFileName(""); setDone(false); setSummary(null); setSelectedLocation(""); }}
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl border border-[#4A6D55] bg-white text-[#4A6D55] text-sm font-bold hover:bg-green-50 transition-all">
                 <Upload size={15} /> Import File Lain
               </button>
@@ -468,32 +443,29 @@ function ImportModal({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ManagePelanggan() {
-  const [list, setList] = useState<Pelanggan[]>([]);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [list, setList]           = useState<Pelanggan[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]); // ✅ ganti dari drivers
+  const [loading, setLoading]     = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterDriver, setFilterDriver] = useState("");
+  const [searchTerm, setSearchTerm]   = useState("");
+  const [filterLocation, setFilterLocation] = useState(""); // ✅ ganti dari filterDriver
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 12, total: 0, totalPages: 1 });
 
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal]   = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [viewingItem, setViewingItem] = useState<Pelanggan | null>(null);
-  const [editingItem, setEditingItem] = useState<Pelanggan | null>(null);
+  const [viewingItem, setViewingItem]   = useState<Pelanggan | null>(null);
+  const [editingItem, setEditingItem]   = useState<Pelanggan | null>(null);
   const [originalData, setOriginalData] = useState<FormData | null>(null);
 
-  const [formData, setFormData] = useState<FormData>(INITIAL_FORM);
+  const [formData, setFormData]     = useState<FormData>(INITIAL_FORM);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
 
   const [exportingAll, setExportingAll] = useState(false);
-  const [exportingDrv, setExportingDrv] = useState(false);
+  const [exportingLoc, setExportingLoc] = useState(false); // ✅ ganti dari exportingDrv
 
-  // ── Alert state — identik dengan ManageSupir ──────────────────────────────
   const [alertConfig, setAlertConfig] = useState<AlertConfig>({
     open: false, type: "info", title: "", description: "",
   });
-
-  // Confirm dialogs — masing-masing punya state sendiri seperti ManageSupir
   const [selectedPelangganForDelete, setSelectedPelangganForDelete] = useState<Pelanggan | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -512,16 +484,15 @@ export default function ManagePelanggan() {
 
   // ── Fetch ────────────────────────────────────────────────────────────────
 
-const fetchList = async (page = 1) => {
-  const token = localStorage.getItem('token');
-  console.log('TOKEN:', token); // ← tambah ini sementara
-  if (!token) return;
+  const fetchList = async (page = 1) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
     try {
       setLoading(true);
       const params = new URLSearchParams({
         page: String(page), limit: "12",
-        ...(searchTerm ? { search: searchTerm } : {}),
-        ...(filterDriver ? { driverId: filterDriver } : {}),
+        ...(searchTerm     ? { search:     searchTerm     } : {}),
+        ...(filterLocation ? { locationId: filterLocation } : {}), // ✅ ganti dari driverId
       });
       const res = await axios.get(`${API_BASE}/pelanggan?${params}`, getAuthConfig());
       if (res.data.success) {
@@ -529,99 +500,95 @@ const fetchList = async (page = 1) => {
         setPagination(res.data.pagination ?? { page: 1, limit: 12, total: 0, totalPages: 1 });
       }
     } catch (error: any) {
-      showAlert("error", "Gagal memuat data", "Data pelanggan tidak bisa dimuat. Silakan coba lagi.", getErrorMessage(error, "Terjadi kesalahan pada server."));
+      showAlert("error", "Gagal memuat data", "Data pelanggan tidak bisa dimuat.", getErrorMessage(error, "Terjadi kesalahan pada server."));
     } finally {
       setLoading(false);
     }
   };
 
-const fetchDrivers = async () => {
-  const token = localStorage.getItem('token');
-  if (!token) return;
-  try {
-    const res = await axios.get(`${API_ADMIN}/supir-list`, getAuthConfig());
+  // ✅ Fetch locations dari endpoint yang benar
+  const fetchLocations = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      const res = await axios.get(`${API_BASE}/locations`, getAuthConfig());
       if (res.data.success) {
-        setDrivers((res.data.data ?? []).filter((d: Driver) => d.isActive));
+        setLocations((res.data.data ?? []).filter((l: Location) => l.isActive));
       }
     } catch {
-      try {
-        const res = await axios.get(`${API_BASE}/users/drivers`, getAuthConfig());
-        if (res.data.success) setDrivers(res.data.data ?? []);
-      } catch { /* silent */ }
+      // silent
     }
   };
 
-  useEffect(() => { fetchDrivers(); }, []);
-  useEffect(() => { fetchList(1); }, [searchTerm, filterDriver]);
+  useEffect(() => { fetchLocations(); }, []);
+  useEffect(() => { fetchList(1); }, [searchTerm, filterLocation]);
 
   const stats = useMemo(() => ({
-    total: pagination.total,
-    tanpaSupir: list.filter((p) => !p.driverId).length,
-  }), [pagination, list]);
+    total:     pagination.total,
+    locations: locations.length,
+    tanpaLokasi: list.filter((p) => !p.locationId).length,
+  }), [pagination, list, locations]);
 
   // ── Validation ───────────────────────────────────────────────────────────
 
   const validateForm = (): boolean => {
     const errors: FormErrors = {};
-    if (!formData.nama.trim()) errors.nama = "Nama pelanggan wajib diisi";
-    if (!formData.alamat.trim()) errors.alamat = "Alamat wajib diisi";
+    if (!formData.nama.trim())       errors.nama       = "Nama pelanggan wajib diisi";
+    if (!formData.alamat.trim())     errors.alamat     = "Alamat wajib diisi";
     if (!formData.jenisUsaha.trim()) errors.jenisUsaha = "Jenis usaha wajib dipilih";
-    if (!formData.driverId) errors.driverId = "Supir wajib dipilih";
+    if (!formData.locationId)        errors.locationId = "Wilayah wajib dipilih";
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   // ── Submit ───────────────────────────────────────────────────────────────
 
-      const handleSubmit = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!validateForm()) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm()) return;
 
-      // ── CEK PERUBAHAN (khusus mode edit) ──
-      if (editingItem && originalData) {
-        const hasChanged =
-          formData.nama.trim() !== originalData.nama ||
-          formData.alamat.trim() !== originalData.alamat ||
-          formData.jenisUsaha.trim() !== originalData.jenisUsaha ||
-          formData.driverId !== originalData.driverId;
+    if (editingItem && originalData) {
+      const hasChanged =
+        formData.nama.trim()       !== originalData.nama       ||
+        formData.alamat.trim()     !== originalData.alamat     ||
+        formData.jenisUsaha.trim() !== originalData.jenisUsaha ||
+        formData.locationId        !== originalData.locationId;  // ✅ ganti dari driverId
 
-        if (!hasChanged) {
-          closeFormModal();
-          showAlert("info", "Tidak Ada Perubahan", "Data pelanggan tidak mengalami perubahan apapun.", "Silakan ubah data terlebih dahulu sebelum menyimpan.");
-          return;
-        }
+      if (!hasChanged) {
+        closeFormModal();
+        showAlert("info", "Tidak Ada Perubahan", "Data pelanggan tidak mengalami perubahan apapun.");
+        return;
+      }
+    }
+
+    setSubmitting(true);
+    try {
+      // ✅ payload sesuai backend: locationId bukan driverId
+      const payload = {
+        nama:       formData.nama.trim(),
+        alamat:     formData.alamat.trim(),
+        jenisUsaha: formData.jenisUsaha.trim(),
+        locationId: formData.locationId || null,
+      };
+
+      if (editingItem) {
+        await axios.put(`${API_BASE}/pelanggan/${editingItem.id}`, payload, getAuthConfig());
+      } else {
+        await axios.post(`${API_BASE}/pelanggan`, payload, getAuthConfig());
       }
 
-      setSubmitting(true);
-      try {
-        const payload = {
-          nama: formData.nama.trim(),
-          alamat: formData.alamat.trim(),
-          jenisUsaha: formData.jenisUsaha.trim(),
-          driverId: formData.driverId || null,
-        };
-
-        if (editingItem) {
-          await axios.put(`${API_BASE}/pelanggan/${editingItem.id}`, payload, getAuthConfig());
-        } else {
-          await axios.post(`${API_BASE}/pelanggan`, payload, getAuthConfig());
-        }
-
-        closeFormModal();  // ← Ganti setShowModal(false) dengan ini
-        setSubmitting(false);
-
-        if (editingItem) {
-          showAlert("success", "Data berhasil diedit", "Perubahan data pelanggan berhasil disimpan.");
-        } else {
-          showAlert("success", "Pelanggan berhasil ditambahkan", "Pelanggan baru berhasil didaftarkan ke sistem.");
-        }
-
-        fetchList(pagination.page);
-      } catch (error: any) {
-        setSubmitting(false);
-        showAlert("error", "Gagal menyimpan data", "Data pelanggan gagal disimpan. Periksa kembali data yang dimasukkan.", getErrorMessage(error, "Terjadi kesalahan pada server."));
-      }
-    };
+      closeFormModal();
+      setSubmitting(false);
+      showAlert("success",
+        editingItem ? "Data berhasil diedit" : "Pelanggan berhasil ditambahkan",
+        editingItem ? "Perubahan data pelanggan berhasil disimpan." : "Pelanggan baru berhasil didaftarkan ke sistem."
+      );
+      fetchList(pagination.page);
+    } catch (error: any) {
+      setSubmitting(false);
+      showAlert("error", "Gagal menyimpan data", "Data pelanggan gagal disimpan.", getErrorMessage(error, "Terjadi kesalahan pada server."));
+    }
+  };
 
   // ── Delete ───────────────────────────────────────────────────────────────
 
@@ -634,16 +601,16 @@ const fetchDrivers = async () => {
       fetchList(pagination.page);
     } catch (error: any) {
       setSubmitting(false);
-      showAlert("error", "Gagal menghapus data", "Data pelanggan gagal dihapus. Silakan coba lagi.", getErrorMessage(error, "Terjadi kesalahan sistem."));
+      showAlert("error", "Gagal menghapus data", "Data pelanggan gagal dihapus.", getErrorMessage(error, "Terjadi kesalahan sistem."));
     }
   };
 
   // ── Export ───────────────────────────────────────────────────────────────
 
   const triggerDownload = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
+    const url  = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = url;
+    link.href  = url;
     link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
@@ -658,21 +625,28 @@ const fetchDrivers = async () => {
       triggerDownload(res.data, `pelanggan_retribusi_${new Date().toISOString().split("T")[0]}.xlsx`);
       showAlert("success", "Export berhasil", "Data pelanggan berhasil diunduh.");
     } catch (error: any) {
-      showAlert("error", "Gagal export", "Data pelanggan gagal diunduh. Silakan coba lagi.", getErrorMessage(error, "Terjadi kesalahan."));
+      showAlert("error", "Gagal export", "Data gagal diunduh.", getErrorMessage(error, "Terjadi kesalahan."));
     } finally { setExportingAll(false); }
   };
 
-  const handleExportByDriver = async () => {
-    if (!filterDriver) { showAlert("error", "Pilih supir", "Pilih supir terlebih dahulu untuk export."); return; }
-    setExportingDrv(true);
+  // ✅ Ganti exportByDriver → exportByLocation
+  const handleExportByLocation = async () => {
+    if (!filterLocation) {
+      showAlert("error", "Pilih wilayah", "Pilih wilayah terlebih dahulu untuk export.");
+      return;
+    }
+    setExportingLoc(true);
     try {
-      const res = await axios.get(`${API_BASE}/pelanggan/export/driver/${filterDriver}`, { ...getAuthConfig(), responseType: "blob" });
-      const driverName = drivers.find((d) => d.id === filterDriver)?.fullName ?? "supir";
-      triggerDownload(res.data, `pelanggan_${driverName.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.xlsx`);
-      showAlert("success", "Export berhasil", `Data supir ${driverName} berhasil diunduh.`);
+      const res = await axios.get(
+        `${API_BASE}/pelanggan/export/location/${filterLocation}`,
+        { ...getAuthConfig(), responseType: "blob" }
+      );
+      const locName = locations.find((l) => l.id === filterLocation)?.name ?? "lokasi";
+      triggerDownload(res.data, `pelanggan_${locName.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.xlsx`);
+      showAlert("success", "Export berhasil", `Data wilayah ${locName} berhasil diunduh.`);
     } catch (error: any) {
-      showAlert("error", "Gagal export", "Data supir gagal diunduh. Silakan coba lagi.", getErrorMessage(error, "Terjadi kesalahan."));
-    } finally { setExportingDrv(false); }
+      showAlert("error", "Gagal export", "Data wilayah gagal diunduh.", getErrorMessage(error, "Terjadi kesalahan."));
+    } finally { setExportingLoc(false); }
   };
 
   // ── Modal helpers ─────────────────────────────────────────────────────────
@@ -687,11 +661,11 @@ const fetchDrivers = async () => {
   const openEdit = (p: Pelanggan) => {
     setEditingItem(p);
     setFormErrors({});
-    const data = {
-      nama: p.nama,
-      alamat: p.alamat || "",
+    const data: FormData = {
+      nama:       p.nama,
+      alamat:     p.alamat || "",
       jenisUsaha: p.jenisUsaha || "",
-      driverId: p.driverId || "",
+      locationId: p.locationId || "", // ✅ ganti dari driverId
     };
     setOriginalData(data);
     setFormData(data);
@@ -699,12 +673,12 @@ const fetchDrivers = async () => {
   };
 
   const closeFormModal = () => {
-  setShowModal(false);
-  setEditingItem(null);
-  setOriginalData(null);
-  setFormData(INITIAL_FORM);
-  setFormErrors({});
-};
+    setShowModal(false);
+    setEditingItem(null);
+    setOriginalData(null);
+    setFormData(INITIAL_FORM);
+    setFormErrors({});
+  };
 
   const setField = (field: keyof FormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -716,52 +690,26 @@ const fetchDrivers = async () => {
   return (
     <div className="max-w-7xl mx-auto space-y-6 md:space-y-8 p-4 md:p-6 text-black">
 
-      {/* ─── ALERT SYSTEM — identik dengan ManageSupir ───────────────────── */}
+      {/* Alert System */}
+      <AlertDialog open={alertConfig.open} type={alertConfig.type} title={alertConfig.title}
+        description={alertConfig.description} detailText={alertConfig.detailText} onClose={closeAlert} />
 
-      {/* 1. Global Alert (success / error / info) */}
-      <AlertDialog
-        open={alertConfig.open}
-        type={alertConfig.type}
-        title={alertConfig.title}
-        description={alertConfig.description}
-        detailText={alertConfig.detailText}
-        onClose={closeAlert}
-      />
-
-      {/* 2. Loading Alert (saat API diproses) */}
-      <AlertDialog
-        open={submitting}
-        type="loading"
-        title="Mohon Tunggu"
+      <AlertDialog open={submitting} type="loading" title="Mohon Tunggu"
         description="Sedang memproses permintaan Anda ke server..."
-        isLoading={true}
-        disableBackdropClose={true}
-        onClose={() => {}}
-      />
+        isLoading={true} disableBackdropClose={true} onClose={() => {}} />
 
-      {/* 3. Delete Confirm Alert */}
       <AlertDialog
-        open={showDeleteConfirm}
-        type="delete"
-        title="Hapus Pelanggan?"
-        description={
-          selectedPelangganForDelete
-            ? `Data "${selectedPelangganForDelete.nama}" akan dihapus secara permanen dari sistem.`
-            : "Aksi ini akan menghapus data pelanggan secara permanen."
-        }
-        buttonText="Hapus"
-        showCancelButton={true}
+        open={showDeleteConfirm} type="delete" title="Hapus Pelanggan?"
+        description={selectedPelangganForDelete
+          ? `Data "${selectedPelangganForDelete.nama}" akan dihapus secara permanen dari sistem.`
+          : "Aksi ini akan menghapus data pelanggan secara permanen."}
+        buttonText="Hapus" showCancelButton={true}
         onConfirm={async () => {
           setShowDeleteConfirm(false);
-          if (selectedPelangganForDelete) {
-            await handleDelete(selectedPelangganForDelete.id);
-          }
+          if (selectedPelangganForDelete) await handleDelete(selectedPelangganForDelete.id);
           setSelectedPelangganForDelete(null);
         }}
-        onClose={() => {
-          setShowDeleteConfirm(false);
-          setSelectedPelangganForDelete(null);
-        }}
+        onClose={() => { setShowDeleteConfirm(false); setSelectedPelangganForDelete(null); }}
       />
 
       {/* Header */}
@@ -772,16 +720,16 @@ const fetchDrivers = async () => {
             Data Pelanggan
           </span>
           <h1 className="text-3xl font-extrabold text-[#1A2E35] tracking-tight uppercase">Manajemen Pelanggan Retribusi</h1>
-          <p className="text-[#5B7078] mt-2 font-medium">Kelola daftar pelanggan retribusi persampahan per supir</p>
+          <p className="text-[#5B7078] mt-2 font-medium">Kelola daftar pelanggan retribusi persampahan per wilayah</p>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
         {[
-          { label: "Total Pelanggan", val: stats.total, bg: "bg-gray-50", color: "text-gray-600", icon: Users },
-          { label: "Jumlah Supir", val: drivers.length, bg: "bg-blue-50", color: "text-blue-600", icon: Truck },
-          { label: "Tanpa Supir", val: stats.tanpaSupir, bg: "bg-amber-50", color: "text-amber-600", icon: AlertCircle },
+          { label: "Total Pelanggan",  val: stats.total,       bg: "bg-gray-50",  color: "text-gray-600",  icon: Users       },
+          { label: "Jumlah Wilayah",   val: stats.locations,   bg: "bg-blue-50",  color: "text-blue-600",  icon: Building2   },
+          { label: "Tanpa Wilayah",    val: stats.tanpaLokasi, bg: "bg-amber-50", color: "text-amber-600", icon: AlertCircle },
         ].map((s, i) => (
           <div key={i} className="bg-white p-4 md:p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 hover:shadow-md transition-all">
             <div className={`p-3 rounded-xl ${s.bg} ${s.color}`}><s.icon size={24} /></div>
@@ -795,32 +743,32 @@ const fetchDrivers = async () => {
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
+        {/* ✅ Filter by Location (bukan driver) */}
         <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl px-4 py-2.5 shadow-sm">
-          <Truck size={16} className="text-gray-400" />
+          <MapPin size={16} className="text-gray-400" />
           <select
-            value={filterDriver}
-            onChange={(e) => setFilterDriver(e.target.value)}
+            value={filterLocation}
+            onChange={(e) => setFilterLocation(e.target.value)}
             className="text-sm text-gray-700 outline-none bg-transparent font-medium"
           >
-            <option value="">Semua Supir</option>
-            {drivers.map((d) => <option key={d.id} value={d.id}>{d.fullName}</option>)}
+            <option value="">Semua Wilayah</option>
+            {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </div>
 
         <div className="flex-1" />
 
-        <button
-          onClick={() => setShowImport(true)}
-          className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl border border-[#4A6D55] bg-white text-[#4A6D55] text-sm font-bold shadow-sm hover:bg-green-50 active:scale-95 transition-all"
-        >
+        <button onClick={() => setShowImport(true)}
+          className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl border border-[#4A6D55] bg-white text-[#4A6D55] text-sm font-bold shadow-sm hover:bg-green-50 active:scale-95 transition-all">
           <FileSpreadsheet size={18} /> Import Excel
         </button>
 
-        {filterDriver ? (
-          <button onClick={handleExportByDriver} disabled={exportingDrv}
+        {/* ✅ Export by location */}
+        {filterLocation ? (
+          <button onClick={handleExportByLocation} disabled={exportingLoc}
             className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl border border-blue-500 bg-white text-blue-600 text-sm font-bold shadow-sm hover:bg-blue-50 active:scale-95 transition-all disabled:opacity-50">
-            {exportingDrv ? <Loader2 size={16} className="animate-spin" /> : <Download size={18} />}
-            Export Supir Ini
+            {exportingLoc ? <Loader2 size={16} className="animate-spin" /> : <Download size={18} />}
+            Export Wilayah Ini
           </button>
         ) : (
           <button onClick={handleExportAll} disabled={exportingAll}
@@ -830,10 +778,8 @@ const fetchDrivers = async () => {
           </button>
         )}
 
-        <button
-          onClick={openCreate}
-          className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-[#4A6D55] text-white text-sm font-bold shadow-lg shadow-green-900/20 hover:bg-[#395542] active:scale-95 transition-all"
-        >
+        <button onClick={openCreate}
+          className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-[#4A6D55] text-white text-sm font-bold shadow-lg shadow-green-900/20 hover:bg-[#395542] active:scale-95 transition-all">
           <Plus size={18} /> Tambah Pelanggan
         </button>
       </div>
@@ -842,7 +788,7 @@ const fetchDrivers = async () => {
       <AnimatePresence>
         {showImport && (
           <ImportModal
-            drivers={drivers}
+            locations={locations} // ✅ ganti dari drivers
             onClose={() => setShowImport(false)}
             onDone={() => {
               fetchList(1);
@@ -877,7 +823,8 @@ const fetchDrivers = async () => {
             <table className="w-full text-left min-w-[800px]">
               <thead>
                 <tr className="bg-gray-50 text-gray-400 text-[10px] font-bold uppercase tracking-widest border-b border-gray-50">
-                  {["No", "Nama Pelanggan", "Alamat", "Jenis Usaha", "Supir", "Aksi"].map((h) => (
+                  {/* ✅ Ganti kolom "Supir" → "Wilayah" */}
+                  {["No", "Nama Pelanggan", "Alamat", "Jenis Usaha", "Wilayah", "Aksi"].map((h) => (
                     <th key={h} className="px-6 py-4">{h}</th>
                   ))}
                 </tr>
@@ -909,41 +856,31 @@ const fetchDrivers = async () => {
                       </div>
                     </td>
                     <td className="px-6 py-5 text-sm text-gray-600">{p.jenisUsaha || "—"}</td>
+                    {/* ✅ Tampilkan nama lokasi, bukan nama supir */}
                     <td className="px-6 py-5">
-                      {p.driverName ? (
+                      {p.location?.name ? (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold">
-                          <Truck size={10} /> {p.driverName}
+                          <MapPin size={10} /> {p.location.name}
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-3 py-1 rounded-full bg-amber-50 text-amber-600 text-xs font-bold">
-                          Tanpa Supir
+                          Tanpa Wilayah
                         </span>
                       )}
                     </td>
                     <td className="px-6 py-5">
                       <div className="flex gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setViewingItem(p)}
-                          className="p-2 text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-all shadow-sm"
-                          title="Lihat Detail"
-                        >
+                        <button type="button" onClick={() => setViewingItem(p)}
+                          className="p-2 text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-all shadow-sm" title="Lihat Detail">
                           <Eye size={14} />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => openEdit(p)}
-                          className="p-2 text-white bg-yellow-400 rounded-lg hover:bg-yellow-500 transition-all shadow-sm"
-                          title="Edit Data"
-                        >
+                        <button type="button" onClick={() => openEdit(p)}
+                          className="p-2 text-white bg-yellow-400 rounded-lg hover:bg-yellow-500 transition-all shadow-sm" title="Edit Data">
                           <Edit3 size={14} />
                         </button>
-                        <button
-                          type="button"
+                        <button type="button"
                           onClick={() => { setSelectedPelangganForDelete(p); setShowDeleteConfirm(true); }}
-                          className="p-2 text-white bg-red-500 rounded-lg hover:bg-red-600 transition-all shadow-sm"
-                          title="Hapus"
-                        >
+                          className="p-2 text-white bg-red-500 rounded-lg hover:bg-red-600 transition-all shadow-sm" title="Hapus">
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -1020,9 +957,9 @@ const fetchDrivers = async () => {
                 </div>
                 <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 space-y-4">
                   {[
-                    { label: "Alamat", value: viewingItem.alamat || "—" },
+                    { label: "Alamat",      value: viewingItem.alamat || "—" },
                     { label: "Jenis Usaha", value: viewingItem.jenisUsaha || "—" },
-                    { label: "Supir", value: viewingItem.driverName || "Belum ditugaskan" },
+                    { label: "Wilayah",     value: viewingItem.location?.name || "Belum ditetapkan" }, // ✅ ganti dari Supir
                   ].map(({ label, value }) => (
                     <div key={label}>
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{label}</label>
@@ -1030,11 +967,8 @@ const fetchDrivers = async () => {
                     </div>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setViewingItem(null)}
-                  className="w-full py-3.5 bg-black text-white rounded-xl font-bold hover:bg-gray-800 transition-all text-base"
-                >
+                <button type="button" onClick={() => setViewingItem(null)}
+                  className="w-full py-3.5 bg-black text-white rounded-xl font-bold hover:bg-gray-800 transition-all text-base">
                   Tutup Detail
                 </button>
               </div>
@@ -1061,7 +995,7 @@ const fetchDrivers = async () => {
                   </div>
                   {editingItem ? "Edit Data Pelanggan" : "Tambah Pelanggan Baru"}
                 </h3>
-                <button type="button" onClick={() => setShowModal(false)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all">
+                <button type="button" onClick={closeFormModal} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all">
                   <X size={18} />
                 </button>
               </div>
@@ -1077,129 +1011,80 @@ const fetchDrivers = async () => {
 
                 {/* Nama */}
                 <div className="flex flex-col space-y-1.5">
-                  <label className="text-xs font-bold text-gray-600 tracking-wide">
-                    Nama Pelanggan <span className="text-red-500">*</span>
-                  </label>
+                  <label className="text-xs font-bold text-gray-600 tracking-wide">Nama Pelanggan <span className="text-red-500">*</span></label>
                   <div className="relative">
                     <User size={16} className={`absolute left-4 top-1/2 -translate-y-1/2 ${formErrors.nama ? "text-red-400" : "text-gray-400"}`} />
-                    <input
-                      type="text"
-                      value={formData.nama}
-                      onChange={(e) => setField("nama", e.target.value)}
-                      placeholder="Masukkan nama lengkap pelanggan"
-                      autoComplete="off"
+                    <input type="text" value={formData.nama} onChange={(e) => setField("nama", e.target.value)}
+                      placeholder="Masukkan nama lengkap pelanggan" autoComplete="off"
                       className={`w-full pl-11 pr-4 py-3 bg-gray-50/80 rounded-xl outline-none text-base font-medium transition-all border ${
                         formErrors.nama
                           ? "border-red-300 focus:border-red-400 focus:ring-4 focus:ring-red-500/10 bg-red-50/10"
                           : "border-gray-200 focus:border-[#4A6D55] focus:ring-4 focus:ring-[#4A6D55]/10 focus:bg-white"
-                      }`}
-                    />
+                      }`} />
                   </div>
-                  {formErrors.nama && (
-                    <p className="text-red-500 text-[11px] font-medium flex items-center gap-1 pl-1">
-                      <AlertCircle size={12} className="shrink-0" />{formErrors.nama}
-                    </p>
-                  )}
+                  {formErrors.nama && <p className="text-red-500 text-[11px] font-medium flex items-center gap-1 pl-1"><AlertCircle size={12} className="shrink-0" />{formErrors.nama}</p>}
                 </div>
 
                 {/* Alamat */}
                 <div className="flex flex-col space-y-1.5">
-                  <label className="text-xs font-bold text-gray-600 tracking-wide">
-                    Alamat <span className="text-red-500">*</span>
-                  </label>
+                  <label className="text-xs font-bold text-gray-600 tracking-wide">Alamat <span className="text-red-500">*</span></label>
                   <div className="relative">
                     <MapPin size={16} className={`absolute left-4 top-1/2 -translate-y-1/2 ${formErrors.alamat ? "text-red-400" : "text-gray-400"}`} />
-                    <input
-                      type="text"
-                      value={formData.alamat}
-                      onChange={(e) => setField("alamat", e.target.value)}
-                      placeholder="Dusun I, Jl. Kartini, ..."
-                      autoComplete="off"
+                    <input type="text" value={formData.alamat} onChange={(e) => setField("alamat", e.target.value)}
+                      placeholder="Dusun I, Jl. Kartini, ..." autoComplete="off"
                       className={`w-full pl-11 pr-4 py-3 bg-gray-50/80 rounded-xl outline-none text-base font-medium transition-all border ${
                         formErrors.alamat
                           ? "border-red-300 focus:border-red-400 focus:ring-4 focus:ring-red-500/10 bg-red-50/10"
                           : "border-gray-200 focus:border-[#4A6D55] focus:ring-4 focus:ring-[#4A6D55]/10 focus:bg-white"
-                      }`}
-                    />
+                      }`} />
                   </div>
-                  {formErrors.alamat && (
-                    <p className="text-red-500 text-[11px] font-medium flex items-center gap-1 pl-1">
-                      <AlertCircle size={12} className="shrink-0" />{formErrors.alamat}
-                    </p>
-                  )}
+                  {formErrors.alamat && <p className="text-red-500 text-[11px] font-medium flex items-center gap-1 pl-1"><AlertCircle size={12} className="shrink-0" />{formErrors.alamat}</p>}
                 </div>
 
                 {/* Jenis Usaha */}
                 <div className="flex flex-col space-y-1.5">
-                  <label className="text-xs font-bold text-gray-600 tracking-wide">
-                    Jenis Usaha <span className="text-red-500">*</span>
-                  </label>
-                  <JenisUsahaInput
-                    value={formData.jenisUsaha}
-                    onChange={(val) => setField("jenisUsaha", val)}
-                    error={formErrors.jenisUsaha}
-                  />
-                  {formErrors.jenisUsaha && (
-                    <p className="text-red-500 text-[11px] font-medium flex items-center gap-1 pl-1">
-                      <AlertCircle size={12} className="shrink-0" />{formErrors.jenisUsaha}
-                    </p>
-                  )}
+                  <label className="text-xs font-bold text-gray-600 tracking-wide">Jenis Usaha <span className="text-red-500">*</span></label>
+                  <JenisUsahaInput value={formData.jenisUsaha} onChange={(val) => setField("jenisUsaha", val)} error={formErrors.jenisUsaha} />
+                  {formErrors.jenisUsaha && <p className="text-red-500 text-[11px] font-medium flex items-center gap-1 pl-1"><AlertCircle size={12} className="shrink-0" />{formErrors.jenisUsaha}</p>}
                 </div>
 
-                {/* Supir */}
+                {/* ✅ Wilayah/Lokasi (ganti dari Supir) */}
                 <div className="flex flex-col space-y-1.5">
-                  <label className="text-xs font-bold text-gray-600 tracking-wide">
-                    Supir Penanggung Jawab <span className="text-red-500">*</span>
-                  </label>
+                  <label className="text-xs font-bold text-gray-600 tracking-wide">Wilayah <span className="text-red-500">*</span></label>
                   <div className="relative">
-                    <Truck size={16} className={`absolute left-4 top-1/2 -translate-y-1/2 ${formErrors.driverId ? "text-red-400" : "text-gray-400"}`} />
-                    <select
-                      value={formData.driverId}
-                      onChange={(e) => setField("driverId", e.target.value)}
+                    <MapPin size={16} className={`absolute left-4 top-1/2 -translate-y-1/2 ${formErrors.locationId ? "text-red-400" : "text-gray-400"}`} />
+                    <select value={formData.locationId} onChange={(e) => setField("locationId", e.target.value)}
                       className={`w-full pl-11 pr-10 py-3 bg-gray-50/80 rounded-xl outline-none text-base font-medium transition-all border appearance-none ${
-                        formErrors.driverId
+                        formErrors.locationId
                           ? "border-red-300 focus:border-red-400 focus:ring-4 focus:ring-red-500/10 bg-red-50/10"
                           : "border-gray-200 focus:border-[#4A6D55] focus:ring-4 focus:ring-[#4A6D55]/10 focus:bg-white"
-                      }`}
-                    >
-                      <option value="">Pilih Supir...</option>
-                      {drivers.map((d) => (
-                        <option key={d.id} value={d.id}>{d.fullName}</option>
+                      }`}>
+                      <option value="">Pilih Wilayah...</option>
+                      {locations.map((l) => (
+                        <option key={l.id} value={l.id}>{l.name}</option>
                       ))}
                     </select>
                     <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                   </div>
-                  {formErrors.driverId && (
-                    <p className="text-red-500 text-[11px] font-medium flex items-center gap-1 pl-1">
-                      <AlertCircle size={12} className="shrink-0" />{formErrors.driverId}
-                    </p>
-                  )}
-                  {drivers.length === 0 && (
+                  {formErrors.locationId && <p className="text-red-500 text-[11px] font-medium flex items-center gap-1 pl-1"><AlertCircle size={12} className="shrink-0" />{formErrors.locationId}</p>}
+                  {locations.length === 0 && (
                     <p className="text-xs text-amber-500 ml-1 flex items-center gap-1">
-                      <AlertCircle size={11} /> Belum ada supir aktif terdaftar.
+                      <AlertCircle size={11} /> Belum ada wilayah terdaftar. Hubungi admin.
                     </p>
                   )}
                 </div>
 
                 {/* Buttons */}
                 <div className="pt-4 flex items-center gap-3 w-full">
-                  <button
-                    type="button"
-                    onClick={closeFormModal}
-                    className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 active:scale-[0.99] text-gray-600 rounded-xl font-bold transition-all text-base text-center disabled:opacity-50"
-                  >
+                  <button type="button" onClick={closeFormModal}
+                    className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 active:scale-[0.99] text-gray-600 rounded-xl font-bold transition-all text-base text-center disabled:opacity-50">
                     Batal
                   </button>
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="flex-1 py-3.5 bg-[#4A6D55] hover:bg-[#3d5a46] active:scale-[0.99] text-white rounded-xl font-bold shadow-md shadow-green-900/10 transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2 text-base"
-                  >
-                    {submitting ? (
-                      <><Loader2 size={16} className="animate-spin" /><span>Menyimpan...</span></>
-                    ) : (
-                      <span>{editingItem ? "Simpan Perubahan" : "Tambah Pelanggan"}</span>
-                    )}
+                  <button type="submit" disabled={submitting}
+                    className="flex-1 py-3.5 bg-[#4A6D55] hover:bg-[#3d5a46] active:scale-[0.99] text-white rounded-xl font-bold shadow-md shadow-green-900/10 transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2 text-base">
+                    {submitting
+                      ? <><Loader2 size={16} className="animate-spin" /><span>Menyimpan...</span></>
+                      : <span>{editingItem ? "Simpan Perubahan" : "Tambah Pelanggan"}</span>}
                   </button>
                 </div>
               </form>

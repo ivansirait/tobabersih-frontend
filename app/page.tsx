@@ -333,7 +333,7 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-3">
             <Link href="/login" className="hidden sm:block text-white hover:text-green-400 font-bold px-4 transition-colors">Login</Link>
-            <Link href="/Warga" className="bg-green-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-green-700 transition-all active:scale-95">Lapor!</Link>
+            <Link href="/warga" className="bg-green-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-green-700 transition-all active:scale-95">Lapor</Link>
           </div>
         </div>
       </nav>
@@ -741,7 +741,14 @@ export default function HomePage() {
             </div>
             <div>
               <h3 className="font-bold text-lg mb-6 relative inline-block">Sumber Daya<span className="absolute -bottom-1.5 left-0 w-8 h-1 bg-green-500 rounded-full" /></h3>
-              <ul className="space-y-3">{[{ name: 'Perda Lingkungan', path: '/perda' }, { name: 'Jadwal Angkut', path: '/jadwal' }, { name: 'Laporan Tahunan', path: '/laporan' }, { name: 'Edukasi', path: '/edukasi' }].map(l => <li key={l.name}><Link href={l.path} className="text-slate-400 hover:text-green-400 text-sm flex items-center gap-2 group"><ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />{l.name}</Link></li>)}</ul>
+              <ul className="space-y-3">{
+                [ 
+                  { name: 'Tugas Pokok dan Fungsi', path: 'https://dislindup.tobakab.go.id/tugas-pokok-dan-fungsi/' },
+                  { name: 'rpjmp', path: 'https://dislindup.tobakab.go.id/rpjmd/' },
+                  { name: 'RENSTRA', path: 'https://dislindup.tobakab.go.id/renstra/' },                
+                  { name: 'Struktur Organisasi', path: 'https://dislindup.tobakab.go.id/struktur-organisasi/' }
+                ].map(l => <li key={l.name}><Link href={l.path} className="text-slate-400 hover:text-green-400 text-sm flex items-center gap-2 group"><ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />{l.name}</Link></li>)
+              }</ul>
             </div>
             <div>
               <h3 className="font-bold text-lg mb-6 relative inline-block">Hubungi Kami<span className="absolute -bottom-1.5 left-0 w-8 h-1 bg-green-500 rounded-full" /></h3>

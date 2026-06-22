@@ -81,6 +81,8 @@ interface Penugasan {
   description?: string;
   notes?: string;
   pelapor?: string;
+  rejectionReason?: string | null;
+    
   report?: {
     id: string;
     description?: string;
@@ -139,10 +141,13 @@ export default function ManagePenugasan() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [pendingDeleteName, setPendingDeleteName] = useState<string>("");
-  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [pendingDeleteType, setPendingDeleteType] = useState<"penugasan" | "laporan">("penugasan");
+
   const [showTolakConfirm, setShowTolakConfirm] = useState(false);
   const [pendingTolakId, setPendingTolakId] = useState<string | null>(null);
   const [pendingTolakName, setPendingTolakName] = useState<string>("");
+  const [tolakReason, setTolakReason] = useState("");
+  const [tolakReasonError, setTolakReasonError] = useState("");
 
   const showAlert = (type: AlertType, title: string, description: string, detailText?: string) => {
     setAlertConfig({ open: true, type, title, description, detailText });
@@ -179,19 +184,20 @@ export default function ManagePenugasan() {
       ]);
 
       const penugasanData = (penugasanRes.data.data || []).map((item: any) => ({
-  ...item,
-  scheduledAt: item.scheduledAt ?? item.scheduled_at ?? null,
-}));
+        ...item,
+        scheduledAt: item.scheduledAt ?? item.scheduled_at ?? null,
+      }));
       const assigned = new Set(penugasanData.map((p: any) => p.report?.id).filter(Boolean));
 
       const laporanBaru = (laporanRes.data.data || [])
         .filter((item: any) =>
-          (item.status === "LAPORAN_BARU" || item.status === "PENDING") && !assigned.has(item.id)
+          (item.status === "LAPORAN_BARU" || item.status === "PENDING" || item.status === "DITOLAK") &&
+          !assigned.has(item.id)
         )
         .map((item: any) => ({
           id: item.id,
-          status: "LAPORAN_BARU",
-          isLaporanBaru: true,
+          status: item.status === "DITOLAK" ? "DITOLAK" : "LAPORAN_BARU",
+          isLaporanBaru: item.status !== "DITOLAK",
           taskNumber: null,
           location:
             typeof item.location === "string"
@@ -201,6 +207,7 @@ export default function ManagePenugasan() {
           longitude: item.longitude || item.koordinat?.longitude,
           district: item.jenisSampah,
           description: item.description,
+          rejectionReason: item.rejectionReason || null,
           pelapor: item.pelapor,
           createdAt: item.createdAt,
           report: {
@@ -293,15 +300,14 @@ export default function ManagePenugasan() {
       const t = trukList.find((t) => t.id === formData.truckId);
       if (!t || !getDriverId(t)) errors.truckId = "Armada harus memiliki driver.";
     }
- if (!formData.scheduledAt) {
-  errors.scheduledAt = "Jadwal pelaksanaan wajib diisi";
-} else {
-  const d = new Date(formData.scheduledAt);
-  if (d < new Date()) errors.scheduledAt = "Jadwal tidak boleh kurang dari waktu sekarang";
-  else if (formData.truckId && !isTruckAvailable(formData.truckId, formData.scheduledAt, isEdit ? editingId || undefined : undefined))
-    errors.scheduledAt = "Armada sudah ada penugasan dalam rentang 2 jam.";
-}
-
+    if (!formData.scheduledAt) {
+      errors.scheduledAt = "Jadwal pelaksanaan wajib diisi";
+    } else {
+      const d = new Date(formData.scheduledAt);
+      if (d < new Date()) errors.scheduledAt = "Jadwal tidak boleh kurang dari waktu sekarang";
+      else if (formData.truckId && !isTruckAvailable(formData.truckId, formData.scheduledAt, isEdit ? editingId || undefined : undefined))
+        errors.scheduledAt = "Armada sudah ada penugasan dalam rentang 2 jam.";
+    }
     if (!formData.location.trim()) errors.location = "Lokasi penugasan wajib diisi";
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -368,35 +374,70 @@ export default function ManagePenugasan() {
     }
   };
 
+  // ── handleDelete mengikuti pola ManageWilayah ──
   const handleDelete = async () => {
     if (!pendingDeleteId) return;
-    setDeleteLoading(true);
+
+    // Simpan lokal sebelum reset
+    const idToDelete = pendingDeleteId;
+    const namaTerhapus = pendingDeleteName;
+    const tipeTerhapus = pendingDeleteType;
+
+    // Tutup dialog konfirmasi dulu, lalu tampilkan loading
+    setShowDeleteConfirm(false);
+    setPendingDeleteId(null);
+    setPendingDeleteName("");
+    setPendingDeleteType("penugasan");
+    setSubmitting(true);
+
     try {
-      await api.delete(`/penugasan/${pendingDeleteId}`);
-      showAlert("success", "Penugasan berhasil dihapus", "Data penugasan telah dihapus secara permanen.");
+      if (tipeTerhapus === "laporan") {
+        await api.delete(`/laporan/${idToDelete}`);
+      } else {
+        await api.delete(`/penugasan/${idToDelete}`);
+      }
+      setSubmitting(false);
+      showAlert(
+        "success",
+        tipeTerhapus === "laporan" ? "Laporan Berhasil Dihapus" : "Penugasan Berhasil Dihapus",
+        tipeTerhapus === "laporan"
+          ? `Laporan "${namaTerhapus}" telah dihapus secara permanen dari sistem.`
+          : `Penugasan "${namaTerhapus}" telah dihapus secara permanen dari sistem.`
+      );
       fetchData();
     } catch (error: any) {
-      showAlert("error", "Gagal menghapus penugasan", "Terjadi kesalahan.", getErrorMessage(error, "Silakan coba lagi."));
-    } finally {
-      setDeleteLoading(false);
-      setShowDeleteConfirm(false);
-      setPendingDeleteId(null);
-      setPendingDeleteName("");
+      setSubmitting(false);
+      showAlert(
+        "error",
+        "Gagal Menghapus",
+        tipeTerhapus === "laporan" ? "Laporan gagal dihapus." : "Penugasan gagal dihapus.",
+        getErrorMessage(error, "Silakan coba lagi.")
+      );
     }
   };
 
   const handleTolak = async () => {
     if (!pendingTolakId) return;
+    if (!tolakReason.trim()) {
+      setTolakReasonError("Alasan penolakan wajib diisi.");
+      return;
+    }
     setSubmitting(true);
     try {
-      await api.put(`/laporan/${pendingTolakId}/tolak`);
-      showAlert("success", "Laporan berhasil ditolak", "Status laporan telah diubah menjadi ditolak.");
+      await api.put(`/laporan/${pendingTolakId}/tolak`, {
+        rejectionReason: tolakReason.trim(),
+      });
+      showAlert("success", "Laporan berhasil ditolak", "Status laporan telah diubah menjadi ditolak dan alasan telah dikirim ke pelapor.");
       fetchData();
+    } catch (error: any) {
+      showAlert("error", "Gagal menolak laporan", "Terjadi kesalahan.", getErrorMessage(error, "Silakan coba lagi."));
     } finally {
       setSubmitting(false);
       setShowTolakConfirm(false);
       setPendingTolakId(null);
       setPendingTolakName("");
+      setTolakReason("");
+      setTolakReasonError("");
     }
   };
 
@@ -433,29 +474,114 @@ export default function ManagePenugasan() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 md:space-y-8 p-4 md:p-6 text-black">
-      {/* Alerts */}
-      <AlertDialog open={alertConfig.open} type={alertConfig.type} title={alertConfig.title} description={alertConfig.description} detailText={alertConfig.detailText} onClose={closeAlert} />
-      <AlertDialog open={submitting} type="loading" title="Mohon Tunggu" description="Sedang memproses permintaan Anda ke server..." isLoading={true} disableBackdropClose={true} onClose={() => {}} />
+
+      {/* ── Alerts ── */}
+      <AlertDialog
+        open={alertConfig.open}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        description={alertConfig.description}
+        detailText={alertConfig.detailText}
+        onClose={closeAlert}
+      />
+
+      {/* ── Loading Alert (ikuti pola ManageWilayah) ── */}
+      <AlertDialog
+        open={submitting}
+        type="loading"
+        title="Mohon Tunggu"
+        description="Sedang memproses permintaan Anda ke server..."
+        isLoading={true}
+        disableBackdropClose={true}
+        onClose={() => {}}
+      />
+
+      {/* ── Delete Confirm Alert (ikuti pola ManageWilayah) ── */}
       <AlertDialog
         open={showDeleteConfirm}
         type="delete"
-        title="Hapus Penugasan?"
-        description={pendingDeleteName ? `Penugasan "${pendingDeleteName}" akan dihapus secara permanen.` : "Data penugasan akan dihapus secara permanen."}
-        buttonText={deleteLoading ? "Menghapus..." : "Hapus"}
-        showCancelButton={!deleteLoading}
-        onConfirm={handleDelete}
-        onClose={() => { if (!deleteLoading) { setShowDeleteConfirm(false); setPendingDeleteId(null); setPendingDeleteName(""); } }}
-      />
-      <AlertDialog
-        open={showTolakConfirm}
-        type="delete"
-        title="Tolak Laporan?"
-        description={pendingTolakName ? `Laporan "${pendingTolakName}" akan ditolak.` : "Laporan akan ditolak dan statusnya diubah."}
-        buttonText="Ya, Tolak"
+        title={pendingDeleteType === "laporan" ? "Hapus Laporan?" : "Hapus Penugasan?"}
+        description={
+          pendingDeleteName
+            ? `${pendingDeleteType === "laporan" ? "Laporan" : "Penugasan"} "${pendingDeleteName}" akan dihapus secara permanen dari sistem.`
+            : "Data akan dihapus secara permanen dari sistem."
+        }
+        buttonText="Hapus"
         showCancelButton={true}
-        onConfirm={handleTolak}
-        onClose={() => { setShowTolakConfirm(false); setPendingTolakId(null); setPendingTolakName(""); }}
+        onConfirm={handleDelete}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setPendingDeleteId(null);
+          setPendingDeleteName("");
+          setPendingDeleteType("penugasan");
+        }}
       />
+
+      {/* ── Tolak Confirm Modal ── */}
+      <AnimatePresence>
+        {showTolakConfirm && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+            >
+              <div className="px-6 py-5 border-b flex justify-between items-center bg-gray-50">
+                <div>
+                  <h2 className="font-bold text-lg text-gray-900">Tolak Laporan?</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {pendingTolakName ? `Laporan "${pendingTolakName}" akan ditolak.` : "Laporan akan ditolak dan statusnya diubah."}
+                  </p>
+                </div>
+                <button
+                  onClick={() => { setShowTolakConfirm(false); setPendingTolakId(null); setPendingTolakName(""); setTolakReason(""); setTolakReasonError(""); }}
+                  className="p-2 text-gray-400 hover:bg-gray-200 rounded-full transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-3">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block ml-1">
+                  Alasan Penolakan <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  rows={4}
+                  value={tolakReason}
+                  onChange={(e) => { setTolakReason(e.target.value); if (tolakReasonError) setTolakReasonError(""); }}
+                  placeholder="Contoh: Foto laporan tidak jelas, lokasi sudah ditangani sebelumnya, dll."
+                  className={`w-full p-3.5 bg-gray-50 border rounded-xl outline-none text-sm focus:ring-2 focus:ring-red-500/20 resize-none ${tolakReasonError ? "border-red-400" : "border-gray-100 focus:border-red-500"}`}
+                />
+                {tolakReasonError && (
+                  <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle size={12} /> {tolakReasonError}</p>
+                )}
+                <p className="text-[11px] text-gray-500">
+                  Alasan ini akan dikirim langsung ke email pelapor.
+                </p>
+              </div>
+
+              <div className="px-6 pb-6 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setShowTolakConfirm(false); setPendingTolakId(null); setPendingTolakName(""); setTolakReason(""); setTolakReasonError(""); }}
+                  className="flex-1 px-6 py-3 rounded-xl text-gray-600 font-bold hover:bg-gray-100 transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleTolak}
+                  disabled={submitting}
+                  className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all disabled:opacity-50"
+                >
+                  Ya, Tolak
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Header */}
       <div className="bg-gradient-to-r from-[#DDE9E1] to-[#E8F1EB] rounded-[24px] p-8 shadow-sm border border-white/50">
@@ -515,6 +641,7 @@ export default function ManagePenugasan() {
           <option value="BEKERJA">Bekerja</option>
           <option value="SELESAI">Selesai</option>
           <option value="TIDAK_DIKERJAKAN">Tidak Dikerjakan</option>
+          <option value="DITOLAK">Ditolak</option>
         </select>
         <button onClick={fetchData} className="px-5 py-3 rounded-xl bg-gray-50 text-gray-500 font-bold hover:bg-gray-200 transition-all flex items-center gap-2 justify-center">
           <RefreshCw size={18} />
@@ -578,7 +705,6 @@ export default function ManagePenugasan() {
                             <p className="text-sm font-semibold text-gray-800 truncate">
                               {item.pelapor || item.report?.pelapor || "Anonim"}
                             </p>
-                            {/* Lokasi / koordinat di bawah nama */}
                             {formatCoordinate(item.latitude) && formatCoordinate(item.longitude) ? (
                               <p className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
                                 <MapPin size={9} className="shrink-0" />
@@ -625,22 +751,20 @@ export default function ManagePenugasan() {
 
                       {/* ── Jadwal ── */}
                       <td className="px-5 py-4">
-
-                    {item.scheduledAt ? (
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Dijadwalkan</p>
-                        <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-                          <Calendar size={11} className={`shrink-0 ${overdue ? "text-orange-500" : "text-gray-400"}`} />
-                          <span className={overdue ? "text-orange-500" : ""}>
-                            {new Date(item.scheduledAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
-                          </span>
-                          {overdue && <AlertTriangle size={10} className="text-orange-500" />}
-                        </p>
-                      </div>
-                    ) : (
-                      <span className="text-xs italic text-gray-400">-</span>
-                    )}
-
+                        {item.scheduledAt ? (
+                          <div>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Dijadwalkan</p>
+                            <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                              <Calendar size={11} className={`shrink-0 ${overdue ? "text-orange-500" : "text-gray-400"}`} />
+                              <span className={overdue ? "text-orange-500" : ""}>
+                                {new Date(item.scheduledAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                              </span>
+                              {overdue && <AlertTriangle size={10} className="text-orange-500" />}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-xs italic text-gray-400">-</span>
+                        )}
                       </td>
 
                       {/* ── Status ── */}
@@ -666,6 +790,28 @@ export default function ManagePenugasan() {
                                 Tolak
                               </button>
                             </>
+                          ) : item.status === "DITOLAK" ? (
+                            <>
+                              <button
+                                onClick={() => { setSelectedItem(item); setShowDetailModal(true); }}
+                                className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors inline-flex"
+                                title="Lihat Detail"
+                              >
+                                <Eye size={14} />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setPendingDeleteId(item.id);
+                                  setPendingDeleteName(item.location || "Laporan");
+                                  setPendingDeleteType("laporan");
+                                  setShowDeleteConfirm(true);
+                                }}
+                                className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors inline-flex"
+                                title="Hapus Laporan"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </>
                           ) : (
                             <>
                               <button
@@ -682,7 +828,7 @@ export default function ManagePenugasan() {
                               )}
                               {(item.status === "DITUGASKAN" || item.status === "BEKERJA") && (
                                 <button
-                                  onClick={() => { setPendingDeleteId(item.id); setPendingDeleteName(item.taskNumber || item.location || "Penugasan"); setShowDeleteConfirm(true); }}
+                                  onClick={() => { setPendingDeleteId(item.id); setPendingDeleteName(item.taskNumber || item.location || "Penugasan"); setPendingDeleteType("penugasan"); setShowDeleteConfirm(true); }}
                                   className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors inline-flex"
                                   title="Hapus"
                                 >
@@ -727,19 +873,23 @@ export default function ManagePenugasan() {
                     </div>
                     <StatusBadge status={effectiveStatus} />
                   </div>
-                  {/* Lokasi */}
                   {item.location && (
                     <p className="text-[10px] text-gray-400 mb-1 flex items-center gap-1">
                       <MapPin size={9} className="shrink-0" />
                       <span className="truncate">{item.location}</span>
                     </p>
                   )}
-                  {/* Deskripsi */}
                   {(item.description || item.report?.description) && (
                     <p className="text-xs text-gray-500 mb-2 leading-relaxed">
                       {item.description || item.report?.description}
                     </p>
                   )}
+                  {item.status === "DITOLAK" && item.rejectionReason && (
+                    <p className="text-[11px] text-red-500 mb-2 leading-relaxed">
+                      <span className="font-bold">Alasan: </span>{item.rejectionReason}
+                    </p>
+                  )}
+
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mb-3">
                     {item.status !== "LAPORAN_BARU" && item.driver && (
                       <span className="flex items-center gap-1"><User size={10} /> {item.driver.fullName}</span>
@@ -749,13 +899,13 @@ export default function ManagePenugasan() {
                         <Truck size={9} /> {item.truck.plateNumber}
                       </span>
                     )}
-                   {item.scheduledAt && (
-                    <span className={`flex items-center gap-1 ${overdue ? "text-orange-500 font-semibold" : ""}`}>
-                      <Calendar size={10} />
-                      {new Date(item.scheduledAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
-                      {overdue && <AlertTriangle size={10} />}
-                    </span>
-                  )}
+                    {item.scheduledAt && (
+                      <span className={`flex items-center gap-1 ${overdue ? "text-orange-500 font-semibold" : ""}`}>
+                        <Calendar size={10} />
+                        {new Date(item.scheduledAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                        {overdue && <AlertTriangle size={10} />}
+                      </span>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     {item.status === "LAPORAN_BARU" ? (
@@ -763,6 +913,21 @@ export default function ManagePenugasan() {
                         <button onClick={() => openTugaskanModal(item)} className="flex-1 py-2 rounded-xl bg-[#4A6D55] text-white text-xs font-bold hover:bg-[#3a5643] transition-all">Tugaskan</button>
                         <button onClick={() => { setPendingTolakId(item.id); setPendingTolakName(item.location || "Laporan"); setShowTolakConfirm(true); }} className="flex-1 py-2 rounded-xl bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-all">Tolak</button>
                       </>
+                    ) : item.status === "DITOLAK" ? (
+                      <div className="flex gap-2">
+                        <button onClick={() => { setSelectedItem(item); setShowDetailModal(true); }} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><Eye size={14} /></button>
+                        <button
+                          onClick={() => {
+                            setPendingDeleteId(item.id);
+                            setPendingDeleteName(item.location || "Laporan");
+                            setPendingDeleteType("laporan");
+                            setShowDeleteConfirm(true);
+                          }}
+                          className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     ) : (
                       <div className="flex gap-2">
                         <button onClick={() => { setSelectedItem(item); setShowDetailModal(true); }} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><Eye size={14} /></button>
@@ -770,7 +935,7 @@ export default function ManagePenugasan() {
                           <button onClick={() => openEditModal(item)} className="p-2 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100"><Repeat size={14} /></button>
                         )}
                         {(item.status === "DITUGASKAN" || item.status === "BEKERJA") && (
-                          <button onClick={() => { setPendingDeleteId(item.id); setPendingDeleteName(item.taskNumber || item.location || "Penugasan"); setShowDeleteConfirm(true); }} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 size={14} /></button>
+                          <button onClick={() => { setPendingDeleteId(item.id); setPendingDeleteName(item.taskNumber || item.location || "Penugasan"); setPendingDeleteType("penugasan"); setShowDeleteConfirm(true); }} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 size={14} /></button>
                         )}
                       </div>
                     )}
@@ -884,7 +1049,7 @@ export default function ManagePenugasan() {
                   />
                   {formErrors.scheduledAt
                     ? <p className="text-xs text-red-500 mt-1 ml-1 flex items-center gap-1"><AlertCircle size={12} /> {formErrors.scheduledAt}</p>
-                   : <p className="mt-1 text-[11px] text-gray-500 ml-1">Tidak boleh bentrok dalam rentang 2 jam dengan penugasan lain.</p>
+                    : <p className="mt-1 text-[11px] text-gray-500 ml-1">Tidak boleh bentrok dalam rentang 2 jam dengan penugasan lain.</p>
                   }
                 </div>
 
